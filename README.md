@@ -1,29 +1,16 @@
-# README #
+# EGT Sample Project
 
-This README would normally document whatever steps are necessary to get your application up and running.
+This is a basic example of an application using Ensemble Graphics Toolkit (EGT) for embedded Linux systems such as the ATSAMA5D27-WLSOM1.
 
-### What is this repository for? ###
+## Requirements
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+- CMake >= 3.10
+- EGT (https://github.com/linux4sam/egt)
+- A toolchain for cross-compiling to SAMA5 or native build support if running on a framebuffer-capable target
 
-### How do I get set up? ###
+## Build
 
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
-
-### Contribution guidelines ###
-
-* Writing tests
-* Code review
-* Other guidelines
-
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact
+```bash
+mkdir build && cd build
+cmake ..
+make
