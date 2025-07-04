@@ -1,0 +1,1 @@
+// No implementation needed, all logic is in the header (header-only).

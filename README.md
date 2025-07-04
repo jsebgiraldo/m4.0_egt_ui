@@ -11,6 +11,10 @@ This is a basic example of an application using Ensemble Graphics Toolkit (EGT) 
 ## Build
 
 ```bash
+cd build
+make clean
+cd ..
+rm -rf build
 mkdir build && cd build
 cmake ..
 make

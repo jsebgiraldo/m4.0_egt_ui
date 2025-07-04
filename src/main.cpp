@@ -1,9 +1,7 @@
-#include <egt/ui>
+#include "app.h"
 
 int main(int argc, char** argv)
 {
-    egt::Application app(argc, argv);
-    egt::TopWindow win;
-    win.show();
-    return app.run();
+    run_app(argc, argv);
+    return 0;
 }
