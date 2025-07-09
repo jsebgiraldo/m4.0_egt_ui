@@ -13,7 +13,9 @@ RUN apt-get update && apt-get install -y \
     libplplot-dev plplot-driver-cairo \
     libasound2-dev libsndfile1-dev \
     sudo wget \
-    xxd x11-apps
+    xxd x11-apps network-manager dbus \
+    libnm-dev \
+    libglib2.0-bin
 
 # Clone and build EGT
 WORKDIR /opt

@@ -5,6 +5,15 @@
 		"dockerfile": "../Dockerfile"
 	},
 	"runArgs": [
-		"--env", "DISPLAY=${DISPLAY}"
-	]
+		"--net=host",
+  		"--privileged",
+		"--env", "DISPLAY=host.docker.internal:0",
+		"--volume", "/tmp/.X11-unix:/tmp/.X11-unix",
+		"--volume=/run/dbus/system_bus_socket:/run/dbus/system_bus_socket",
+  		"--volume=/run/NetworkManager:/run/NetworkManager"
+	],
+	"containerEnv": {
+		"DISPLAY": "host.docker.internal:0",
+		"DBUS_SYSTEM_BUS_ADDRESS": "unix:path=/run/dbus/system_bus_socket"
+	}
 }
