@@ -24,13 +24,13 @@ file(GLOB HEADERS
 )
 
 # Crear ejecutable
-add_executable(egt-sample ${SRC})
+add_executable(egt-app ${SRC})
 
 # Enlazar bibliotecas
-target_link_libraries(egt-sample ${EGT_LIBRARIES} pthread)
-target_compile_options(egt-sample PRIVATE ${EGT_CFLAGS_OTHER})
+target_link_libraries(egt-app ${EGT_LIBRARIES} pthread)
+target_compile_options(egt-app PRIVATE ${EGT_CFLAGS_OTHER})
 
 # Instalar binario en /usr/bin (o ${CMAKE_INSTALL_BINDIR})
 include(GNUInstallDirs)
-install(TARGETS egt-sample
+install(TARGETS egt-app
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
