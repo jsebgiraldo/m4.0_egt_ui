@@ -8,9 +8,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(EGT REQUIRED libegt)
 
-# Incluir y enlazar con EGT
-include_directories(${EGT_INCLUDE_DIRS})
-link_directories(${EGT_LIBRARY_DIRS})
+# Buscar D-Bus
+pkg_check_modules(DBUS REQUIRED dbus-1)
+
+# Incluir directorios
+include_directories(
+    ${EGT_INCLUDE_DIRS}
+    ${DBUS_INCLUDE_DIRS}
+)
+
+# Directorios de bibliotecas
+link_directories(
+    ${EGT_LIBRARY_DIRS}
+    ${DBUS_LIBRARY_DIRS}
+)
 
 # Archivos fuente y headers
 file(GLOB SRC
@@ -24,13 +35,22 @@ file(GLOB HEADERS
 )
 
 # Crear ejecutable
-add_executable(egt-app ${SRC})
+add_executable(egt-sample ${SRC})
 
 # Enlazar bibliotecas
-target_link_libraries(egt-app ${EGT_LIBRARIES} pthread)
-target_compile_options(egt-app PRIVATE ${EGT_CFLAGS_OTHER})
+target_link_libraries(egt-sample
+    ${EGT_LIBRARIES}
+    ${DBUS_LIBRARIES}
+    pthread
+)
 
-# Instalar binario en /usr/bin (o ${CMAKE_INSTALL_BINDIR})
+# Compilar con flags adicionales
+target_compile_options(egt-sample PRIVATE
+    ${EGT_CFLAGS_OTHER}
+    ${DBUS_CFLAGS_OTHER}
+)
+
+# Instalar binario
 include(GNUInstallDirs)
-install(TARGETS egt-app
+install(TARGETS egt-sample
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

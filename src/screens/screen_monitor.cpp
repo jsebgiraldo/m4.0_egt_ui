@@ -12,7 +12,7 @@ shared_ptr<Widget> create_monitor_screen(function<void()> on_back)
     label->align(AlignFlag::center_horizontal);
     container->add(label);
 
-    auto btn = make_shared<Button>("Back", Rect(100, 120, 200, 40));
+    auto btn = make_shared<Button>("Back", Rect(800/2 - 50, 400, 100, 40));
     btn->align(AlignFlag::center_horizontal);
     btn->on_click([=](Event&) { on_back(); });
     container->add(btn);

@@ -63,7 +63,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 			overlay->color(Palette::ColorId::bg, egt::Palette::white);
             root->add(overlay);
 			overlay->show();
-            overlay->zorder_top();
+            //overlay->zorder_top();
 
 			// Título
             auto title = std::make_shared<Label>("Enter Password", Rect(0, 20, 600, 30));
@@ -102,7 +102,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     inner_frame->add(list);
 
     // Botón Back fuera del frame
-    auto btn_back = make_shared<Button>("Back", Rect(width/2 - 50, 410, 100, 40));
+    auto btn_back = make_shared<Button>("Back", Rect(width/2 - 50, 400, 100, 40));
     btn_back->on_click([=](Event&) { on_back(); });
     root->add(btn_back);
 
