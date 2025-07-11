@@ -41,6 +41,47 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     choose_label->margin(4); // margen de 4
     inner_frame->add(choose_label);
 
+    auto btn_back = make_shared<Button>("Back", Rect(width/2 - 50, 400, 100, 40));
+    btn_back->on_click([root, on_back](Event&) {
+
+        on_back();
+    });
+    root->add(btn_back);
+
+
+	auto popup = std::make_shared<Window>(Rect(0, 0, 800, 480));
+	popup->color(Palette::ColorId::bg, Palette::lightgray);
+	popup->hide();
+	root->add(popup);
+
+	auto popup_title = std::make_shared<Label>("Enter Password", Rect(0, 20, 600, 30));
+	popup_title->align(AlignFlag::center_horizontal);
+	popup_title->font(Font(22, Font::Weight::bold));
+	popup->add(popup_title);
+
+	auto textbox = std::make_shared<TextBox>("", Rect(20, 70, 550, 60));
+	textbox->text_align(AlignFlag::left);
+	popup->add(textbox);
+
+	auto btn_cancel = std::make_shared<Button>("Cancel", Rect(600, 70, 70, 40));
+	btn_cancel->on_click([=](Event&) {
+		popup->hide();
+	});
+	popup->add(btn_cancel);
+
+	auto btn_join = std::make_shared<Button>("Join", Rect(710, 70, 70, 40));
+	btn_join->color(Palette::ColorId::button_bg, Palette::blue);
+	btn_join->on_click([=](Event&) {
+		//const auto ssid = (*selected_item).text();
+		//const auto password = textbox->text();
+		//on_connect(ssid, password);
+		popup->hide();
+	});
+	popup->add(btn_join);
+
+	auto vkeyboard = std::make_shared<VirtualKeyboard>(Rect(20, 150, 760, 300));
+	popup->add(vkeyboard);
+
     // ListBox de redes Wi-Fi
     auto list = make_shared<ListBox>(Rect(20, 30, 500, 160));
     list->margin(4); // margen de 4
@@ -53,58 +94,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     list->add_item(item3);
     list->add_item(item4);
 
-    // Evento al seleccionar una red
-    list->on_selected_changed([=]()
-    {
-        auto selected_item = list->selected();
-        if (selected_item) {
-			// Crear overlay
-            auto overlay = std::make_shared<egt::Window>(Rect(0, 0, width, height));
-			overlay->color(Palette::ColorId::bg, egt::Palette::white);
-            root->add(overlay);
-			overlay->show();
-            //overlay->zorder_top();
-
-			// Título
-            auto title = std::make_shared<Label>("Enter Password", Rect(0, 20, 600, 30));
-            title->align(AlignFlag::center_horizontal);
-            title->font(Font(22, Font::Weight::bold));
-            overlay->add(title);
-
-            // Campo de texto
-            auto textbox = std::make_shared<TextBox>("", Rect(20, 70, 550, 60));
-            textbox->text_align(AlignFlag::left);
-            overlay->add(textbox);
-
-            // Botón Cancel
-            auto btn_cancel = std::make_shared<Button>("Cancel", Rect(600, 70, 70, 40));
-            btn_cancel->on_click([=](Event&) {
-                overlay->hide();
-    			overlay->detach();
-            });
-            overlay->add(btn_cancel);
-
-            // Botón Join
-            auto btn_join = std::make_shared<Button>("Join", Rect(710, 70, 70, 40));
-            btn_join->color(Palette::ColorId::button_bg, Palette::blue);
-            btn_join->on_click([=](Event&) {
-                overlay->hide();
-    			overlay->detach();
-            });
-            overlay->add(btn_join);
-
-            // Teclado virtual
-            auto vkeyboard = std::make_shared<VirtualKeyboard>(Rect(20, 150, 760, 300));
-            overlay->add(vkeyboard);
-        }
-    });
+	list->on_selected_changed([=]() {
+		auto selected_item = list->selected();
+		popup->show();
+	});
 
     inner_frame->add(list);
-
-    // Botón Back fuera del frame
-    auto btn_back = make_shared<Button>("Back", Rect(width/2 - 50, 400, 100, 40));
-    btn_back->on_click([=](Event&) { on_back(); });
-    root->add(btn_back);
 
     return root;
 }

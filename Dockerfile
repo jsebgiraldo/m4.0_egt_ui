@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     sudo wget \
     xxd x11-apps network-manager dbus \
     libnm-dev \
+	libdbus-1-dev \
     libglib2.0-bin
 
 # Clone and build EGT
