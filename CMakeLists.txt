@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(egt-sample LANGUAGES CXX)
+project(egt-app LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,30 +27,32 @@ link_directories(
 file(GLOB SRC
     "src/*.cpp"
     "src/screens/*.cpp"
+    "src/wifi/*.cpp"
 )
 
 file(GLOB HEADERS
     "src/*.h"
     "src/screens/*.h"
+    "src/wifi/*.h"
 )
 
 # Crear ejecutable
-add_executable(egt-sample ${SRC})
+add_executable(egt-app ${SRC})
 
 # Enlazar bibliotecas
-target_link_libraries(egt-sample
+target_link_libraries(egt-app
     ${EGT_LIBRARIES}
     ${DBUS_LIBRARIES}
     pthread
 )
 
 # Compilar con flags adicionales
-target_compile_options(egt-sample PRIVATE
+target_compile_options(egt-app PRIVATE
     ${EGT_CFLAGS_OTHER}
     ${DBUS_CFLAGS_OTHER}
 )
 
 # Instalar binario
 include(GNUInstallDirs)
-install(TARGETS egt-sample
+install(TARGETS egt-app
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
