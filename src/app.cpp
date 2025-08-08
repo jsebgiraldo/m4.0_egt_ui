@@ -1,12 +1,13 @@
 #include "app.h"
 #include <egt/ui>
 #include "screen_manager.h"
+#include "screens/screen_start.h"
 #include "screens/screen_welcome.h"
-#include "screens/screen_menu.h"
+#include "screens/screen_login.h"
 #include "screens/screen_wifi_settings.h"
-#include "screens/screen_info.h"
-#include "screens/screen_monitor.h"
 #include "screens/screen_wifi_network_details.h"
+#include "screens/screen_mode_select.h"
+#include "screens/screen_training.h"
 
 void run_app(int argc, char** argv)
 {
@@ -14,42 +15,59 @@ void run_app(int argc, char** argv)
     egt::TopWindow win;
     ScreenManager screens(win);
 
-    std::function<void()> show_menu;
     std::function<void()> show_settings;
+    std::function<void()> show_login;
+    std::function<void()> show_mode_select;
 
-    auto show_monitor = [&]() {
-        screens.show(create_monitor_screen(show_menu));
-    };
 
-    show_settings = [&]() {
-        screens.show(create_wifi_settings_panel(
-            show_menu, // on_back
-            [](){ /* on_scan_wifi */ },
-            [](const std::string&, const std::string&) { /* on_connect */ },
-            [&](const egt_wifi::WiFiNetwork& network) { // on_item_selected
-                screens.show(create_wifi_network_details_screen(
-                    network,
-                    show_settings,
-                    [](const std::string&, const std::string&) { /* on_connect */ }
-                ));
+    // Ahora define show_login
+    show_login = [&]() {
+        screens.show(create_login_screen(
+            [&]() { // on_success
+                show_mode_select(); // Ahora ya está declarado
+            },
+            [&]() { // on_cancel  
+                app.quit();
             }
         ));
     };
 
-    auto show_info = [&]() {
-        screens.show(create_info_screen(show_menu));
-    };
-
-    show_menu = [&]() {
-        screens.show(create_menu_screen(
-            show_monitor,
-            show_settings,
-            show_info,
-            [&]() { app.quit(); }
+    show_mode_select = [&]() {
+        screens.show(create_mode_select_screen(
+            [&]() { // on_training
+                screens.show(create_training_screen(
+                    300, // 5 minutos de duración
+                    [&]() { // on_complete
+                        // Mostrar pantalla de resultados o volver al menú
+                        show_mode_select();
+                    },
+                    [&]() { // on_pause
+                        // Lógica adicional de pausa si es necesaria
+                    },
+                    [&]() { // on_cancel
+                        show_mode_select(); // Volver a selección de modo
+                    }
+                ));
+            },
+            [&]() { // on_treatment
+                // Implementar pantalla de tratamiento más adelante
+                screens.show(create_training_screen(
+                    600, // 10 minutos de duración para tratamiento
+                    [&]() { show_mode_select(); },
+                    [&]() { /* pausa */ },
+                    [&]() { show_mode_select(); }
+                ));
+            },
+            [&]() { // on_back
+                show_login();
+            }
         ));
     };
 
-    screens.show(create_welcome_screen(show_menu));
+    screens.show(create_start_screen([&]() {
+        show_login(); 
+    }));
+
     win.show();
     app.run();
 }

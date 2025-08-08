@@ -119,7 +119,8 @@ listbox->on_selected_changed([=]() {
             auto it = network_map.find(label);
             if (it != network_map.end())
             {
-                // Solo llama si existe en network_map
+                root->hide(); 
+                outer_frame->hide();
                 on_item_selected(it->second);
             }
         }
