@@ -14,17 +14,25 @@ shared_ptr<Widget> create_login_screen(function<void()> on_success, function<voi
     container->color(Palette::ColorId::bg, Palette::white);
 
     auto entered_pin = make_shared<string>();
-    
-    auto title = make_shared<Label>("Enter Password", Rect(0, 30, width, 50));
+
+    // Encabezado principal
+    auto title = make_shared<Label>("Technician Log-In", Rect(0, 30, width, 50));
     title->align(AlignFlag::center_horizontal);
-    title->font(Font(28, Font::Weight::bold));
+    title->font(Font(32, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, Palette::blue);
     container->add(title);
 
+    // Instrucciones
+    auto instructions = make_shared<Label>("Enter 4-digit code using secure keypad", Rect(0, 85, width, 30));
+    instructions->align(AlignFlag::center_horizontal);
+    instructions->font(Font(18));
+    instructions->color(Palette::ColorId::label_text, Palette::gray);
+    container->add(instructions);
+
     // Display del PIN (asteriscos)
-    auto pin_display = make_shared<Label>("", Rect(0, 100, width, 40));
+    auto pin_display = make_shared<Label>("", Rect(0, 130, width, 40));
     pin_display->align(AlignFlag::center_horizontal);
-    pin_display->font(Font(24, Font::Weight::bold));
+    pin_display->font(Font(28, Font::Weight::bold));
     pin_display->color(Palette::ColorId::label_text, Palette::black);
     container->add(pin_display);
 
@@ -32,34 +40,28 @@ shared_ptr<Widget> create_login_screen(function<void()> on_success, function<voi
     auto update_display = [pin_display, entered_pin]() {
         string asterisks(entered_pin->length(), '*');
         pin_display->text(asterisks);
+        pin_display->color(Palette::ColorId::label_text, Palette::black);
     };
 
     // Grid para el teclado numérico (4x3)
     auto keypad_grid = make_shared<SelectableGrid>(StaticGrid::GridSize(3, 4));
     keypad_grid->resize(Size(240, 200));
-    keypad_grid->move(Point((width - 240) / 2, 180));
+    keypad_grid->move(Point((width - 240) / 2, 190));
     keypad_grid->horizontal_space(10);
     keypad_grid->vertical_space(10);
 
     // Crear botones numéricos 1-9
-    vector<shared_ptr<Button>> number_buttons;
     for (int i = 1; i <= 9; ++i) {
         auto btn = make_shared<Button>(to_string(i));
         btn->font(Font(20, Font::Weight::bold));
         btn->color(Palette::ColorId::button_bg, Palette::lightgray);
         btn->color(Palette::ColorId::button_fg, Palette::black);
-        
-        // Capturar el valor del número en el lambda
-        btn->on_click([=](Event&) {
-            if (entered_pin->length() < 6) { // Limitar a 6 dígitos
+        btn->on_click([=](Event&) {  // ← AGREGAR Event& PARÁMETRO
+            if (entered_pin->length() < 4) { // Limitar a 4 dígitos
                 *entered_pin += to_string(i);
                 update_display();
             }
         });
-        
-        number_buttons.push_back(btn);
-        
-        // Posicionar en grid: (i-1) % 3, (i-1) / 3
         int col = (i - 1) % 3;
         int row = (i - 1) / 3;
         keypad_grid->add(expand(btn), StaticGrid::GridPoint(col, row));
@@ -70,7 +72,7 @@ shared_ptr<Widget> create_login_screen(function<void()> on_success, function<voi
     btn_clear->font(Font(20, Font::Weight::bold));
     btn_clear->color(Palette::ColorId::button_bg, Palette::orange);
     btn_clear->color(Palette::ColorId::button_fg, Palette::white);
-    btn_clear->on_click([=](Event&) {
+    btn_clear->on_click([=](Event&) {  // ← AGREGAR Event& PARÁMETRO
         entered_pin->clear();
         update_display();
     });
@@ -81,8 +83,8 @@ shared_ptr<Widget> create_login_screen(function<void()> on_success, function<voi
     btn_zero->font(Font(20, Font::Weight::bold));
     btn_zero->color(Palette::ColorId::button_bg, Palette::lightgray);
     btn_zero->color(Palette::ColorId::button_fg, Palette::black);
-    btn_zero->on_click([=](Event&) {
-        if (entered_pin->length() < 6) {
+    btn_zero->on_click([=](Event&) {  // ← AGREGAR Event& PARÁMETRO
+        if (entered_pin->length() < 4) {
             *entered_pin += "0";
             update_display();
         }
@@ -94,16 +96,13 @@ shared_ptr<Widget> create_login_screen(function<void()> on_success, function<voi
     btn_ok->font(Font(20, Font::Weight::bold));
     btn_ok->color(Palette::ColorId::button_bg, Palette::green);
     btn_ok->color(Palette::ColorId::button_fg, Palette::white);
-    btn_ok->on_click([=](Event&) {
+    btn_ok->on_click([=](Event&) {  // ← AGREGAR Event& PARÁMETRO
         if (*entered_pin == correct_pin) {
             on_success();
         } else {
-            // PIN incorrecto - limpiar y mostrar mensaje temporal
             entered_pin->clear();
-            pin_display->text("Incorrect PIN");
+            pin_display->text("Invalid code");
             pin_display->color(Palette::ColorId::label_text, Palette::red);
-            
-            // Restaurar después de 1 segundo
             auto timer = make_shared<PeriodicTimer>(std::chrono::seconds(1));
             timer->on_timeout([=]() {
                 pin_display->text("");
@@ -118,11 +117,11 @@ shared_ptr<Widget> create_login_screen(function<void()> on_success, function<voi
     container->add(keypad_grid);
 
     // Botón Cancelar
-    auto btn_cancel = make_shared<Button>("Cancel", Rect(width/2 - 60, 420, 120, 40));
+    auto btn_cancel = make_shared<Button>("Cancel", Rect(width/2 - 60, 410, 120, 40));
     btn_cancel->font(Font(18, Font::Weight::bold));
     btn_cancel->color(Palette::ColorId::button_bg, Palette::red);
     btn_cancel->color(Palette::ColorId::button_fg, Palette::white);
-    btn_cancel->on_click([=](Event&) { on_cancel(); });
+    btn_cancel->on_click([=](Event&) { on_cancel(); }); // ← YA TENÍA Event& CORRECTO
     container->add(btn_cancel);
 
     return container;

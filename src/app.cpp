@@ -118,8 +118,22 @@ void run_app(int argc, char** argv)
         ));
     };
 
-    // Start with Wi-Fi setup
-    show_wifi_setup();
+    // Mostrar pantalla de inicio con progreso
+    screens.show(create_start_screen_with_wifi(
+        [&]() { // on_next - cuando se presiona Start
+            // Si el botón dice "Setup Wi-Fi", ir a configuración
+            // Si dice "Start", ir directo al login
+            show_wifi_setup();
+        },
+        [&]() { // on_connection_complete - conexión exitosa
+            // Wi-Fi ya conectado - ir directo al login saltando setup
+            printf("Wi-Fi connection complete, proceeding to login...\n");
+            show_login();
+        },
+        [&]() { // on_connection_failed - conexión fallida
+            show_wifi_setup();
+        }
+    ));
 
     win.show();
     app.run();
