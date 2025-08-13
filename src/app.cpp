@@ -16,10 +16,27 @@ void run_app(int argc, char** argv)
     egt::TopWindow win;
     ScreenManager screens(win);
 
+    std::function<void()> show_start;
     std::function<void()> show_login;
     std::function<void()> show_mode_select;
     std::function<void()> show_wifi_setup;
     std::function<void()> show_override_prompt;
+
+    // AGREGAR: Función para mostrar la pantalla de inicio
+    show_start = [&]() {
+        screens.show(create_start_screen_with_wifi(
+            [&]() { // on_next - cuando se presiona Start
+                show_wifi_setup();
+            },
+            [&]() { // on_connection_complete - conexión exitosa
+                printf("Wi-Fi connection complete, proceeding to login...\n");
+                show_login();
+            },
+            [&]() { // on_connection_failed - conexión fallida
+                show_wifi_setup();
+            }
+        ));
+    };
 
     // Technical login (after Wi-Fi or override) - USANDO LA NUEVA FUNCIÓN CON NAVEGACIÓN
     show_login = [&]() {
@@ -27,8 +44,8 @@ void run_app(int argc, char** argv)
             [&]() { // on_success
                 show_mode_select();
             },
-            [&]() { // on_cancel
-                app.quit();
+            [&]() { // on_cancel - CAMBIADO: regresa a start en lugar de quit
+                show_start();
             },
             [&](const std::string& user) { // on_select_user
                 printf("User selected: %s\n", user.c_str());
@@ -64,8 +81,8 @@ void run_app(int argc, char** argv)
                     [&]() { show_mode_select(); }
                 ));
             },
-            [&]() { // on_back
-                show_login();
+            [&]() { // on_back - CAMBIADO: regresa a start en lugar de login
+                show_start();
             }
         ));
     };
@@ -88,8 +105,8 @@ void run_app(int argc, char** argv)
                     show_override_prompt();
                 }
             },
-            [&]() { // on_cancel
-                show_wifi_setup();
+            [&]() { // on_cancel - CAMBIADO: regresa a start en lugar de wifi_setup
+                show_start();
             }
         ));
     };
@@ -97,8 +114,8 @@ void run_app(int argc, char** argv)
     // Wi-Fi setup flow (first screen) - CON CALLBACK PARA TRANSICIÓN
     show_wifi_setup = [&]() {
         screens.show(create_wifi_settings_panel(
-            [&]() { // on_back
-                app.quit();
+            [&]() { // on_back - CAMBIADO: regresa a start en lugar de quit
+                show_start();
             },
             [&]() { // on_scan_wifi
                 show_wifi_setup(); // refresh by recreating
@@ -124,19 +141,8 @@ void run_app(int argc, char** argv)
         ));
     };
 
-    // Mostrar pantalla de inicio con progreso
-    screens.show(create_start_screen_with_wifi(
-        [&]() { // on_next - cuando se presiona Start
-            show_wifi_setup();
-        },
-        [&]() { // on_connection_complete - conexión exitosa
-            printf("Wi-Fi connection complete, proceeding to login...\n");
-            show_login();
-        },
-        [&]() { // on_connection_failed - conexión fallida
-            show_wifi_setup();
-        }
-    ));
+    // Mostrar pantalla de inicio inicial
+    show_start();
 
     win.show();
     app.run();

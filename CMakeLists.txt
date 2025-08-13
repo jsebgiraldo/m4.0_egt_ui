@@ -52,7 +52,39 @@ target_compile_options(egt-app PRIVATE
     ${DBUS_CFLAGS_OTHER}
 )
 
+# AGREGAR: Copiar archivos de assets al directorio de build
+file(GLOB ASSETS_FILES
+    "assets/image/*.png"
+    "assets/image/*.jpg"
+    "assets/image/*.jpeg"
+)
+
+# Crear directorio de assets en build
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets/image)
+
+# Copiar assets al directorio de build
+foreach(ASSET_FILE ${ASSETS_FILES})
+    get_filename_component(ASSET_NAME ${ASSET_FILE} NAME)
+    configure_file(${ASSET_FILE} ${CMAKE_BINARY_DIR}/assets/image/${ASSET_NAME} COPYONLY)
+endforeach()
+
+# ALTERNATIVA: Usar add_custom_command para copiar automáticamente
+add_custom_target(copy_assets ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    ${CMAKE_BINARY_DIR}/assets
+    COMMENT "Copying assets to build directory"
+)
+
+# Hacer que egt-app dependa de copy_assets
+add_dependencies(egt-app copy_assets)
+
 # Instalar binario
 include(GNUInstallDirs)
 install(TARGETS egt-app
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# Instalar assets
+install(DIRECTORY assets/
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/egt-app/assets
+        FILES_MATCHING PATTERN "*.png" PATTERN "*.jpg" PATTERN "*.jpeg")

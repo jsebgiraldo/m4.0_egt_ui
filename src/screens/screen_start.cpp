@@ -1,285 +1,228 @@
 #include <egt/ui>
 #include "screen_start.h"
 #include <chrono>
+#include <cmath>
 
 using namespace egt;
 using namespace std;
 
-shared_ptr<Widget> create_start_screen(function<void()> on_next)
+//------------------------------------------------------------------------------
+// Aro gris (track) dibujado con la MISMA geometría que el progreso
+//------------------------------------------------------------------------------
+class RingTrack : public Frame
 {
-    const int width = 800;
-    const int height = 480;
+public:
+    explicit RingTrack(const Rect& r, int stroke = 8)
+        : Frame(r), m_stroke(stroke)
+    {
+        color(Palette::ColorId::bg, Color(0, 0, 0, 0)); // fondo totalmente transparente
+        border(0);
+    }
 
-    auto container = make_shared<Frame>(Rect(0, 0, width, height));
-    container->color(Palette::ColorId::bg, Palette::white);
+protected:
+    void draw(Painter& p, const Rect& r) override
+    {
+        const float w = static_cast<float>(r.width());
+        const float h = static_cast<float>(r.height());
+        const float cx = w / 2.0f;
+        const float cy = h / 2.0f;
+        const float stroke = static_cast<float>(m_stroke);
+        const float radius = std::min(w, h) / 2.0f - stroke / 2.0f;
 
-    // Título principal
-    auto title = make_shared<Label>("Lice Clinics", Rect(0, 80, width, 80));
-    title->align(AlignFlag::center_horizontal);
-    title->font(Font(48, Font::Weight::bold));
-    title->color(Palette::ColorId::label_text, Palette::blue);
-    container->add(title);
+        p.line_width(stroke);
+        // Si tu backend lo soporta, puedes suavizar extremos:
+        // p.line_cap(LineCap::round);
 
-    // Subtítulo con estado de conexión
-    auto subtitle = make_shared<Label>("Connecting Wi-Fi...", Rect(0, 180, width, 40));
-    subtitle->align(AlignFlag::center_horizontal);
-    subtitle->font(Font(24));
-    subtitle->color(Palette::ColorId::label_text, Palette::gray);
-    container->add(subtitle);
+        p.set(Color(220, 220, 220)); // gris del track
+        ArcF full(Point(cx, cy), radius, 0.0f, 2.0f * M_PI);
+        p.arc(full);
+        p.stroke();
+    }
 
-    // Barra de progreso circular (usando ProgressBar en modo indeterminado)
-    auto progress = make_shared<ProgressBar>(Rect(width/2 - 100, 240, 200, 20));
-    progress->align(AlignFlag::center_horizontal);
-    progress->color(Palette::ColorId::button_bg, Palette::blue);
-    progress->show_label(false);
-    container->add(progress);
+private:
+    int m_stroke;
+};
 
-    // Botón "Start" (inicialmente oculto)
-    auto btn_start = make_shared<Button>("Start", Rect(width/2 - 120, 280, 240, 60));
-    btn_start->align(AlignFlag::center_horizontal);
-    btn_start->font(Font(24, Font::Weight::bold));
-    btn_start->color(Palette::ColorId::button_bg, Palette::blue);
-    btn_start->color(Palette::ColorId::button_fg, Palette::white);
-    btn_start->margin(10);
-    btn_start->hide(); // Inicialmente oculto
-    btn_start->on_click([=](Event&) { 
-        on_next(); 
-    });
-    container->add(btn_start);
+//------------------------------------------------------------------------------
+// Progreso circular (verde) con la MISMA geometría que RingTrack
+//------------------------------------------------------------------------------
+class ProgressCircle : public Frame
+{
+public:
+    explicit ProgressCircle(const Rect& r, int stroke = 8)
+        : Frame(r), m_progress(0), m_stroke(stroke)
+    {
+        color(Palette::ColorId::bg, Color(0, 0, 0, 0));
+        border(0);
+    }
 
-    // Estado de progreso
-    auto progress_value = make_shared<int>(0);
-    auto connection_complete = make_shared<bool>(false);
+    void progress(int value)
+    {
+        m_progress = std::clamp(value, 0, 100);
+        damage();
+    }
 
-    // Timer para simular progreso de conexión
-    auto progress_timer = make_shared<PeriodicTimer>(chrono::milliseconds(100));
-    progress_timer->on_timeout([=]() {
-        if (!*connection_complete) {
-            (*progress_value) += 2;
-            progress->value(*progress_value);
-            
-            // Simular conexión completada al 100%
-            if (*progress_value >= 100) {
-                *connection_complete = true;
-                progress_timer->cancel();
-                
-                // Actualizar UI cuando la conexión esté completa
-                subtitle->text("Wi-Fi Connected");
-                subtitle->color(Palette::ColorId::label_text, Palette::green);
-                progress->hide();
-                btn_start->show();
-                
-                // Opcional: agregar un breve delay antes de mostrar el botón
-                auto delay_timer = make_shared<PeriodicTimer>(chrono::milliseconds(500));
-                delay_timer->on_timeout([=]() {
-                    delay_timer->cancel();
-                });
-                delay_timer->start();
-            }
-        }
-    });
+protected:
+    void draw(Painter& p, const Rect& r) override
+    {
+        if (m_progress <= 0) return;
 
-    // Callback para conexión exitosa (llamar desde el exterior)
-    auto on_connected = [=]() {
-        if (!*connection_complete) {
-            *connection_complete = true;
-            progress_timer->cancel();
-            subtitle->text("Wi-Fi Connected");
-            subtitle->color(Palette::ColorId::label_text, Palette::green);
-            progress->hide();
-            btn_start->show();
-        }
-    };
+        const float w = static_cast<float>(r.width());
+        const float h = static_cast<float>(r.height());
+        const float cx = w / 2.0f;
+        const float cy = h / 2.0f;
+        const float stroke = static_cast<float>(m_stroke);
+        const float radius = std::min(w, h) / 2.0f - stroke / 2.0f;
 
-    // Callback para error de conexión
-    auto on_connection_failed = [=]() {
-        if (!*connection_complete) {
-            *connection_complete = true;
-            progress_timer->cancel();
-            subtitle->text("Connection Failed - Tap to Continue");
-            subtitle->color(Palette::ColorId::label_text, Palette::red);
-            progress->hide();
-            btn_start->text("Continue Offline");
-            btn_start->show();
-        }
-    };
+        p.line_width(stroke);
+        // p.line_cap(LineCap::round); // opcional
+        p.set(Color(76, 175, 80)); // verde
 
-    // Iniciar simulación de progreso
-    progress_timer->start();
+        const float ang = (m_progress / 100.0f) * 2.0f * M_PI;
+        ArcF arc(Point(cx, cy), radius, -M_PI / 2.0f, ang);
+        p.arc(arc);
+        p.stroke();
+    }
 
-    // Opcional: Timeout después de 10 segundos para mostrar error
-    auto timeout_timer = make_shared<PeriodicTimer>(chrono::seconds(10));
-    timeout_timer->on_timeout([=]() {
-        if (!*connection_complete) {
-            on_connection_failed();
-        }
-        timeout_timer->cancel();
-    });
-    timeout_timer->start();
+private:
+    int m_progress;
+    int m_stroke;
+};
 
-    return container;
-}
-
+//------------------------------------------------------------------------------
+// Pantalla de inicio con Wi-Fi (usa RingTrack + ProgressCircle)
+//------------------------------------------------------------------------------
 shared_ptr<Widget> create_start_screen_with_wifi(
     function<void()> on_next,
     function<void()> on_connection_complete,
     function<void()> on_connection_failed)
 {
-    const int width = 800;
+    const int width  = 800;
     const int height = 480;
 
     auto container = make_shared<Frame>(Rect(0, 0, width, height));
     container->color(Palette::ColorId::bg, Palette::white);
 
-    // Título principal
-    auto title = make_shared<Label>("Lice Clinics", Rect(0, 80, width, 80));
-    title->align(AlignFlag::center_horizontal);
-    title->font(Font(48, Font::Weight::bold));
-    title->color(Palette::ColorId::label_text, Palette::blue);
-    container->add(title);
+    // Geometría del círculo
+    const int circle_size = 280;
+    const int circle_x = (width  - circle_size) / 2;
+    const int circle_y = (height - circle_size) / 2 - 20;
+    const int track = 8; // grosor de ambos aros
 
-    // Subtítulo con estado de conexión - INICIALMENTE VACÍO
-    auto subtitle = make_shared<Label>("Checking Wi-Fi status...", Rect(0, 180, width, 40));
+    // Contenedor del círculo (sin borde) para mantener layout
+    auto circle_background = make_shared<Frame>(Rect(circle_x, circle_y, circle_size, circle_size));
+    circle_background->border_radius(circle_size / 2);
+    circle_background->color(Palette::ColorId::bg, Color(245, 245, 245)); // relleno suave
+    circle_background->border(0); // <— sin border() para evitar desalineos
+    container->add(circle_background);
+
+    // MISMO rect local para track + progreso (reducido en 'track' para centrar el trazo)
+    const Rect ring_rect(track / 2, track / 2, circle_size - track, circle_size - track);
+
+    // Aro gris (debajo)
+    auto ring_track = make_shared<RingTrack>(ring_rect, track);
+    circle_background->add(ring_track);
+
+    // Progreso verde (encima)
+    auto progress_circle = make_shared<ProgressCircle>(ring_rect, track);
+    circle_background->add(progress_circle);
+
+    // Logo centrado (coordenadas globales)
+    try
+    {
+        const int logo_w = 120;
+        const int logo_h = 90;
+        const int logo_x = (width - logo_w) / 2;
+        const int logo_y = circle_y + (circle_size / 2) - (logo_h / 2) - 15;
+
+        auto logo = make_shared<ImageLabel>(Image("file:assets/image/Lice-logo.png"));
+        logo->resize(Size(logo_w, logo_h));
+        logo->move(Point(logo_x, logo_y));
+        container->add(logo);
+    }
+    catch (...)
+    {
+        // Placeholder sencillo si no hay logo
+        const int logo_w = 120, logo_h = 90;
+        const int logo_x = (width - logo_w) / 2;
+        const int logo_y = circle_y + (circle_size / 2) - (logo_h / 2) - 15;
+
+        auto ph = make_shared<Frame>(Rect(logo_x, logo_y, logo_w, logo_h));
+        ph->color(Palette::ColorId::bg, Palette::lightgray);
+        ph->border(2);
+        ph->color(Palette::ColorId::border, Palette::gray);
+
+        auto lbl = make_shared<Label>("Logo\nNot Found", Rect(0, 0, logo_w, logo_h));
+        lbl->align(AlignFlag::center);
+        lbl->font(Font(12));
+        lbl->color(Palette::ColorId::label_text, Palette::red);
+        ph->add(lbl);
+        container->add(ph);
+    }
+
+    // Texto de estado
+    const int text_y = circle_y + (circle_size / 2) + 40;
+    auto subtitle = make_shared<Label>("Connecting to Wifi", Rect(0, text_y, width, 25));
     subtitle->align(AlignFlag::center_horizontal);
-    subtitle->font(Font(24));
-    subtitle->color(Palette::ColorId::label_text, Palette::gray);
+    subtitle->font(Font(14));
+    subtitle->color(Palette::ColorId::label_text, Color(120, 120, 120));
     container->add(subtitle);
 
-    // Spinner circular usando ProgressBar
-    auto spinner = make_shared<ProgressBar>(Rect(width/2 - 30, 240, 60, 20));
-    spinner->align(AlignFlag::center_horizontal);
-    spinner->color(Palette::ColorId::button_bg, Palette::blue);
-    spinner->show_label(false);
-    container->add(spinner);
-
-    // Botón "Start" (inicialmente oculto)
-    auto btn_start = make_shared<Button>("Start", Rect(width/2 - 120, 320, 240, 60));
-    btn_start->align(AlignFlag::center_horizontal);
-    btn_start->font(Font(24, Font::Weight::bold));
-    btn_start->color(Palette::ColorId::button_bg, Palette::blue);
-    btn_start->color(Palette::ColorId::button_fg, Palette::white);
-    btn_start->margin(10);
-    btn_start->hide(); // Inicialmente oculto
-    btn_start->on_click([=](Event&) { 
-        on_next(); 
-    });
-    container->add(btn_start);
+    // (Opcional) Botón continuar si quieres enganchar flujo
+    // const int btn_y = circle_y + circle_size + 20;
+    // auto btn = make_shared<Button>("Start", Rect(width/2 - 80, btn_y, 160, 40));
+    // btn->align(AlignFlag::center_horizontal);
+    // btn->font(Font(16, Font::Weight::bold));
+    // btn->color(Palette::ColorId::button_bg, Color(76, 175, 80));
+    // btn->color(Palette::ColorId::button_fg, Palette::white);
+    // btn->border_radius(20);
+    // btn->hide();
+    // btn->on_click([=](Event&){ if (on_next) on_next(); });
+    // container->add(btn);
 
     // Estado global
     auto connection_complete = make_shared<bool>(false);
 
-    // Función para verificar estado actual de Wi-Fi
-    auto check_wifi_status = [=]() -> bool {
-        // Opción 1: Usar iwconfig
-        //int result = system("iwconfig 2>/dev/null | grep -q 'ESSID:\"'");
-        //return result == 0;
-        
-        // Opción 2: Usar NetworkManager
-        int result = system("nmcli -t -f WIFI,STATE g | grep -q 'enabled:connected'");
-        return 1;
-        
-        // Opción 3: Verificar interfaz específica
-        // int result = system("cat /sys/class/net/wlan0/operstate | grep -q 'up'");
-        // return result == 0;
-    };
-
-    // Animación del spinner
-    auto spinner_value = make_shared<int>(0);
-    auto spinner_timer = make_shared<PeriodicTimer>(chrono::milliseconds(50));
-    spinner_timer->on_timeout([=]() {
-        if (!*connection_complete) {
-            (*spinner_value) += 5;
-            if (*spinner_value > 100) *spinner_value = 0;
-            spinner->value(*spinner_value);
+    // Animación del progreso
+    auto progress_value = make_shared<int>(0);
+    auto progress_timer = make_shared<PeriodicTimer>(chrono::milliseconds(100));
+    progress_timer->on_timeout([=]() {
+        if (!*connection_complete)
+        {
+            (*progress_value) = ((*progress_value) + 2) % 101;
+            progress_circle->progress(*progress_value);
         }
     });
 
-    // Funciones de callback internas
-    auto handle_already_connected = [=]() {
-        if (!*connection_complete) {
+    // Callbacks de estado (puedes adaptarlos a tu lógica real)
+    auto handle_done = [&](const char* msg, const Color& c) {
+        if (!*connection_complete)
+        {
             *connection_complete = true;
-            spinner_timer->cancel();
-            subtitle->text("Wi-Fi Already Connected");
-            subtitle->color(Palette::ColorId::label_text, Palette::green);
-            spinner->hide();
-            btn_start->show();
+            progress_timer->cancel();
+            subtitle->text(msg);
+            subtitle->color(Palette::ColorId::label_text, c);
+        }
+    };
+
+    // Verificación inicial simulada
+    auto initial_check = make_shared<PeriodicTimer>(chrono::seconds(1));
+    initial_check->on_timeout([=]() {
+        initial_check->cancel();
+        subtitle->text("Connecting to Wifi");
+        progress_timer->start();
+
+        // Simular éxito a los 3s (ajusta a tu flujo Wi-Fi real)
+        auto success_timer = make_shared<PeriodicTimer>(chrono::seconds(3));
+        success_timer->on_timeout([=]() {
+            success_timer->cancel();
+            handle_done("Wi-Fi Connected", Color(76, 175, 80));
             if (on_connection_complete) on_connection_complete();
-        }
-    };
-
-    auto handle_needs_setup = [=]() {
-        if (!*connection_complete) {
-            *connection_complete = true;
-            spinner_timer->cancel();
-            subtitle->text("Wi-Fi Setup Required");
-            subtitle->color(Palette::ColorId::label_text, Palette::orange);
-            spinner->hide();
-            btn_start->text("Setup Wi-Fi");
-            btn_start->show();
-            // NO llamar on_connection_complete aquí - necesita configuración
-        }
-    };
-
-    auto handle_connection_success = [=]() {
-        if (!*connection_complete) {
-            *connection_complete = true;
-            spinner_timer->cancel();
-            subtitle->text("Wi-Fi Connected");
-            subtitle->color(Palette::ColorId::label_text, Palette::green);
-            spinner->hide();
-            btn_start->show();
-            if (on_connection_complete) on_connection_complete();
-        }
-    };
-
-    auto handle_failure = [=]() {
-        if (!*connection_complete) {
-            *connection_complete = true;
-            spinner_timer->cancel();
-            subtitle->text("Connection Failed - Continue Offline");
-            subtitle->color(Palette::ColorId::label_text, Palette::red);
-            spinner->hide();
-            btn_start->text("Continue Offline");
-            btn_start->show();
-            if (on_connection_failed) on_connection_failed();
-        }
-    };
-
-    // Verificación inicial del estado Wi-Fi después de 1 segundo
-    auto initial_check_timer = make_shared<PeriodicTimer>(chrono::seconds(1));
-    initial_check_timer->on_timeout([=]() {
-        initial_check_timer->cancel();
-        
-        bool already_connected = check_wifi_status();
-        
-        if (already_connected) {
-            // YA CONECTADO - mostrar Start directamente
-            printf("Wi-Fi already connected.\n");
-            handle_already_connected();
-        } else {
-            // NO CONECTADO - mostrar progreso de conexión
-            subtitle->text("Connecting Wi-Fi...");
-            spinner_timer->start();
-            
-            // Timeout automático después de 6 segundos si no se conecta
-            auto timeout_timer = make_shared<PeriodicTimer>(chrono::seconds(6));
-            timeout_timer->on_timeout([=]() {
-                timeout_timer->cancel();
-                handle_needs_setup(); // Cambiar a "Setup Required" en lugar de fallo
-            });
-            timeout_timer->start();
-
-            // Simulación de éxito después de 3 segundos (para demo)
-            auto success_timer = make_shared<PeriodicTimer>(chrono::seconds(3));
-            success_timer->on_timeout([=]() {
-                success_timer->cancel();
-                //handle_connection_success();
-                handle_failure();
-            });
-            success_timer->start();
-        }
+            // btn->show(); // si usas el botón de continuar
+        });
+        success_timer->start();
     });
-    initial_check_timer->start();
+    initial_check->start();
 
     return container;
 }
