@@ -176,7 +176,7 @@ shared_ptr<Widget> create_start_screen_with_wifi(
         
         // Opción 2: Usar NetworkManager
         int result = system("nmcli -t -f WIFI,STATE g | grep -q 'enabled:connected'");
-        return 0;
+        return 1;
         
         // Opción 3: Verificar interfaz específica
         // int result = system("cat /sys/class/net/wlan0/operstate | grep -q 'up'");

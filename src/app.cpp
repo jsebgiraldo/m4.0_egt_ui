@@ -8,7 +8,7 @@
 #include "screens/screen_wifi_network_details.h"
 #include "screens/screen_mode_select.h"
 #include "screens/screen_training.h"
-#include "screens/screen_password_prompt.h"  // ← AGREGAR ESTA LÍNEA
+#include "screens/screen_password_prompt.h"
 
 void run_app(int argc, char** argv)
 {
@@ -21,14 +21,20 @@ void run_app(int argc, char** argv)
     std::function<void()> show_wifi_setup;
     std::function<void()> show_override_prompt;
 
-    // Technical login (after Wi-Fi or override)
+    // Technical login (after Wi-Fi or override) - USANDO LA NUEVA FUNCIÓN CON NAVEGACIÓN
     show_login = [&]() {
-        screens.show(create_login_screen(
+        screens.show(create_login_screen_with_navigation(
             [&]() { // on_success
                 show_mode_select();
             },
             [&]() { // on_cancel
                 app.quit();
+            },
+            [&](const std::string& user) { // on_select_user
+                printf("User selected: %s\n", user.c_str());
+            },
+            [&](std::shared_ptr<egt::Widget> screen) { // on_show_screen - CALLBACK PARA NAVEGACIÓN
+                screens.show(screen);
             }
         ));
     };
@@ -121,12 +127,9 @@ void run_app(int argc, char** argv)
     // Mostrar pantalla de inicio con progreso
     screens.show(create_start_screen_with_wifi(
         [&]() { // on_next - cuando se presiona Start
-            // Si el botón dice "Setup Wi-Fi", ir a configuración
-            // Si dice "Start", ir directo al login
             show_wifi_setup();
         },
         [&]() { // on_connection_complete - conexión exitosa
-            // Wi-Fi ya conectado - ir directo al login saltando setup
             printf("Wi-Fi connection complete, proceeding to login...\n");
             show_login();
         },
