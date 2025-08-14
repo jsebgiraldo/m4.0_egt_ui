@@ -50,22 +50,22 @@ class ProgressCircle : public Frame
 {
 public:
     explicit ProgressCircle(const Rect& r, int stroke = 8)
-        : Frame(r), m_progress(0), m_stroke(stroke)
+        : Frame(r), m_progress(0.f), m_stroke(stroke)
     {
         color(Palette::ColorId::bg, Color(0, 0, 0, 0));
         border(0);
     }
 
-    void progress(int value)
+    void progress(float value)
     {
-        m_progress = std::clamp(value, 0, 100);
+        m_progress = std::clamp(value, 0.f, 100.f);
         damage();
     }
 
 protected:
     void draw(Painter& p, const Rect& r) override
     {
-        if (m_progress <= 0) return;
+        if (m_progress <= 0.f) return;
 
         const float w = static_cast<float>(r.width());
         const float h = static_cast<float>(r.height());
@@ -75,7 +75,7 @@ protected:
         const float radius = std::min(w, h) / 2.0f - stroke / 2.0f;
 
         p.line_width(stroke);
-        // p.line_cap(LineCap::round); // opcional
+        p.line_cap(Painter::LineCap::round);
         p.set(Color(76, 175, 80)); // verde
 
         const float ang = (m_progress / 100.0f) * 2.0f * M_PI;
@@ -85,8 +85,8 @@ protected:
     }
 
 private:
-    int m_progress;
-    int m_stroke;
+    float m_progress;
+    int   m_stroke;
 };
 
 //------------------------------------------------------------------------------
@@ -103,37 +103,42 @@ shared_ptr<Widget> create_start_screen_with_wifi(
     auto container = make_shared<Frame>(Rect(0, 0, width, height));
     container->color(Palette::ColorId::bg, Palette::white);
 
-    // Geometría del círculo
-    const int circle_size = 280;
-    const int circle_x = (width  - circle_size) / 2;
-    const int circle_y = (height - circle_size) / 2 - 20;
-    const int track = 8; // grosor de ambos aros
+    //----- Ajustes de tamaño --------------------------------------------------
+    const int circle_size = 280;      // diámetro visual original
+    const int stroke      = 8;        // grosor de ambos aros
+    const int padding     = 2;        // margen extra para que no se corte arriba/izquierda
+    const int ring_diam   = circle_size + padding * 2;   // nuevo tamaño del frame que contiene el dibujo
+    const int ring_x = (width  - ring_diam) / 2;
+    const int ring_y = (height - ring_diam) / 2 - 20;
 
-    // Contenedor del círculo (sin borde) para mantener layout
-    auto circle_background = make_shared<Frame>(Rect(circle_x, circle_y, circle_size, circle_size));
-    circle_background->border_radius(circle_size / 2);
-    circle_background->color(Palette::ColorId::bg, Color(245, 245, 245)); // relleno suave
-    circle_background->border(0); // <— sin border() para evitar desalineos
+    // Contenedor (un poco más grande) para evitar clipping en top/left
+    auto circle_background = make_shared<Frame>(Rect(ring_x, ring_y, ring_diam, ring_diam));
+    circle_background->border_radius(ring_diam / 2);
+    circle_background->color(Palette::ColorId::bg, Color(245, 245, 245));
+    circle_background->border(0);
     container->add(circle_background);
 
-    // MISMO rect local para track + progreso (reducido en 'track' para centrar el trazo)
-    const Rect ring_rect(track / 2, track / 2, circle_size - track, circle_size - track);
+    // Rect completo (ya NO lo reducimos) — el radio se ajusta internamente
+    const Rect ring_rect(0, 0, ring_diam, ring_diam);
 
-    // Aro gris (debajo)
-    auto ring_track = make_shared<RingTrack>(ring_rect, track);
+    // Aro gris
+    auto ring_track = make_shared<RingTrack>(ring_rect, stroke);
     circle_background->add(ring_track);
 
-    // Progreso verde (encima)
-    auto progress_circle = make_shared<ProgressCircle>(ring_rect, track);
+    // Progreso verde
+    auto progress_circle = make_shared<ProgressCircle>(ring_rect, stroke);
     circle_background->add(progress_circle);
 
-    // Logo centrado (coordenadas globales)
+    // Centro real (con padding) para posicionar logo y texto correctamente
+    const int center_y = ring_y + ring_diam / 2;
+
+    // Logo (sin cambios de tamaño)
     try
     {
         const int logo_w = 120;
         const int logo_h = 90;
         const int logo_x = (width - logo_w) / 2;
-        const int logo_y = circle_y + (circle_size / 2) - (logo_h / 2) - 15;
+        const int logo_y = center_y - (logo_h / 2) - 15;
 
         auto logo = make_shared<ImageLabel>(Image("file:assets/image/Lice-logo.png"));
         logo->resize(Size(logo_w, logo_h));
@@ -142,10 +147,9 @@ shared_ptr<Widget> create_start_screen_with_wifi(
     }
     catch (...)
     {
-        // Placeholder sencillo si no hay logo
         const int logo_w = 120, logo_h = 90;
         const int logo_x = (width - logo_w) / 2;
-        const int logo_y = circle_y + (circle_size / 2) - (logo_h / 2) - 15;
+        const int logo_y = center_y - (logo_h / 2) - 15;
 
         auto ph = make_shared<Frame>(Rect(logo_x, logo_y, logo_w, logo_h));
         ph->color(Palette::ColorId::bg, Palette::lightgray);
@@ -160,8 +164,8 @@ shared_ptr<Widget> create_start_screen_with_wifi(
         container->add(ph);
     }
 
-    // Texto de estado
-    const int text_y = circle_y + (circle_size / 2) + 40;
+    // Texto (basado en nuevo centro)
+    const int text_y = center_y + 40;
     auto subtitle = make_shared<Label>("Connecting to Wifi", Rect(0, text_y, width, 25));
     subtitle->align(AlignFlag::center_horizontal);
     subtitle->font(Font(14));
@@ -183,42 +187,86 @@ shared_ptr<Widget> create_start_screen_with_wifi(
     // Estado global
     auto connection_complete = make_shared<bool>(false);
 
-    // Animación del progreso
-    auto progress_value = make_shared<int>(0);
-    auto progress_timer = make_shared<PeriodicTimer>(chrono::milliseconds(100));
+    // Timers (usar constructor con intervalo)
+    auto progress_timer  = make_shared<PeriodicTimer>(chrono::milliseconds(16));  // ~60 FPS
+    auto initial_check   = make_shared<PeriodicTimer>(chrono::seconds(1));
+    auto success_timer   = make_shared<PeriodicTimer>(chrono::seconds(3));
+    auto failure_timer   = make_shared<PeriodicTimer>(chrono::seconds(6)); // placeholder
+    auto setup_req_timer = make_shared<PeriodicTimer>(chrono::seconds(6)); // placeholder
+
+    // Capturas débiles
+    weak_ptr<ProgressCircle> w_progress_circle = progress_circle;
+    weak_ptr<Label>          w_subtitle        = subtitle;
+    weak_ptr<Widget>         w_container       = container;
+
+    // Animación fluida (loop de 0..100%)
+    auto anim_start = make_shared<chrono::steady_clock::time_point>(chrono::steady_clock::now());
+    constexpr float percent_per_ms = 100.f / 3000.f; // vuelta en 3s
+
     progress_timer->on_timeout([=]() {
-        if (!*connection_complete)
+        if (*connection_complete) return;
+        // Si el container fue destruido, cancelar para evitar segfault.
+        if (!w_container.lock())
         {
-            (*progress_value) = ((*progress_value) + 2) % 101;
-            progress_circle->progress(*progress_value);
+            progress_timer->cancel();
+            return;
         }
+        auto pc = w_progress_circle.lock();
+        if (!pc) return;
+
+        auto elapsed_ms = chrono::duration_cast<chrono::milliseconds>(
+                              chrono::steady_clock::now() - *anim_start).count();
+        float cycle = fmod(elapsed_ms * percent_per_ms, 100.f);
+        // (Opcional) rampa suave inicial (primer 8%)
+        constexpr float RAMP = 0.08f;
+        float norm = cycle / 100.f;
+        if (norm < RAMP)
+        {
+            float t = norm / RAMP;
+            norm = (t * t * (2.f - t)) * RAMP; // easeOutQuad re-escalado
+            cycle = norm * 100.f;
+        }
+        pc->progress(cycle);
     });
 
-    // Callbacks de estado (puedes adaptarlos a tu lógica real)
-    auto handle_done = [&](const char* msg, const Color& c) {
-        if (!*connection_complete)
-        {
-            *connection_complete = true;
-            progress_timer->cancel();
-            subtitle->text(msg);
-            subtitle->color(Palette::ColorId::label_text, c);
-        }
+    // Helper cancelar timers
+    auto cancel_all_timers = [=]() {
+        progress_timer->cancel();
+        initial_check->cancel();
+        success_timer->cancel();
+        failure_timer->cancel();
+        setup_req_timer->cancel();
     };
 
-    // Verificación inicial simulada
-    auto initial_check = make_shared<PeriodicTimer>(chrono::seconds(1));
+    auto handle_done = [=](const char* msg, const Color& c) {
+        if (*connection_complete) return;
+        *connection_complete = true;
+        cancel_all_timers();
+        if (auto sub = w_subtitle.lock())
+        {
+            sub->text(msg);
+            sub->color(Palette::ColorId::label_text, c);
+        }
+        if (auto pc = w_progress_circle.lock())
+            pc->progress(100.f);
+    };
+
+    // Inicial (una sola vez)
     initial_check->on_timeout([=]() {
         initial_check->cancel();
-        subtitle->text("Connecting to Wifi");
-        progress_timer->start();
 
-        // Simular éxito a los 3s (ajusta a tu flujo Wi-Fi real)
-        auto success_timer = make_shared<PeriodicTimer>(chrono::seconds(3));
+        if (auto sub = w_subtitle.lock())
+            sub->text("Connecting to Wifi");
+
+        *anim_start = chrono::steady_clock::now();
+        if (!*connection_complete)
+            progress_timer->start();
+
+        // Simular éxito (puedes sustituir por lógica real)
         success_timer->on_timeout([=]() {
             success_timer->cancel();
             handle_done("Wi-Fi Connected", Color(76, 175, 80));
             if (on_connection_complete) on_connection_complete();
-            // btn->show(); // si usas el botón de continuar
         });
         success_timer->start();
     });
