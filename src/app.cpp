@@ -31,6 +31,7 @@ void run_app(int argc, char** argv)
             [&]() { // on_connection_complete - conexión exitosa
                 printf("Wi-Fi connection complete, proceeding to login...\n");
                 show_login();
+				//show_wifi_setup();
             },
             [&]() { // on_connection_failed - conexión fallida
                 show_wifi_setup();

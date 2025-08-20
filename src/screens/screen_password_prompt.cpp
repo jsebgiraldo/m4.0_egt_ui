@@ -63,64 +63,129 @@ shared_ptr<Widget> create_password_prompt_screen(
     card->border_radius(16);  // Bordes más redondeados para look moderno
     main_frame->add(card);
 
-    // Título superior centrado y visible
-    auto title = make_shared<Label>(
-        title_text.empty() ? "Enter Password" : title_text);
-    title->resize(Size(CARD_W - PAD*2, 40));  // Altura adecuada
-    title->move(Point(PAD, 12));  // Posición superior visible
-    title->font(Font(18, Font::Weight::bold));  // Fuente bold para visibilidad
-    title->align(AlignFlag::center);
-    title->color(Palette::ColorId::label_text, Color(17, 24, 39));  // Color oscuro definido
-    card->add(title);
+    // ---- INICIO: Layout dinámico superior ----
+    int y_cursor = 12; // margen superior mínimo
 
+    // Título (usa title_text si viene, sino fallback)
+    auto title = make_shared<Label>(title_text.empty() ? string("Enter Password") : title_text);
+    title->resize(Size(CARD_W - PAD * 2, 34));
+    title->move(Point(PAD, y_cursor));
+    title->font(Font(22, Font::Weight::bold));
+    title->align(AlignFlag::center_horizontal);
+    title->color(Palette::ColorId::label_text, Color(17, 24, 39));
+    card->add(title);
+    y_cursor += 34; // avanzar debajo del título
+
+    // Mensaje opcional
+    if (!message.empty()) {
+        y_cursor += 4; // pequeño gap
+        auto subtitle = make_shared<Label>(message);
+        subtitle->resize(Size(CARD_W - PAD * 2, 22));
+        subtitle->move(Point(PAD, y_cursor));
+        subtitle->font(Font(14));
+        subtitle->align(AlignFlag::center_horizontal);
+        subtitle->color(Palette::ColorId::label_text, Color(90, 90, 90));
+        card->add(subtitle);
+        y_cursor += 22; // avanzar debajo del subtitle
+    }
+
+    y_cursor += 10; // espacio antes del input
+    // ---- FIN: Layout dinámico superior ----
 
     // Layout horizontal: campo de contraseña + botones de acción
-    auto input_row = make_shared<Frame>(Rect(32, 60, CARD_W - 64, 70));  // Posición ajustada para dar espacio al título
-    input_row->color(Palette::ColorId::bg, Color(0, 0, 0, 0)); // Transparente
+    auto input_row = make_shared<Frame>(Rect(32, y_cursor, CARD_W - 64, 70));
+    input_row->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
     card->add(input_row);
 
-    // Campo de password ajustado para mejor alineación con botones
-    auto pwd = make_shared<TextBox>("Password...");  
-    pwd->resize(Size(CARD_W - 280, 44));  // Más estrecho para dar más espacio a botones
-    pwd->move(Point(0, 13));  // Centrado verticalmente en la fila más alta
+    // Campo de password
+    auto pwd = make_shared<TextBox>("Password...");
+    pwd->resize(Size(CARD_W - 280, 44));
+    pwd->move(Point(0, 13));
     pwd->font(Font(16));
+    // Placeholder gris claro inicial
+    pwd->color(Palette::ColorId::text, Color(150, 150, 150));
     pwd->color(Palette::ColorId::bg, Color(255, 255, 255));
-    pwd->color(Palette::ColorId::border, Color(209, 213, 219));  // #D1D5DB
-    pwd->color(Palette::ColorId::text, Color(17, 24, 39));  // #111827
+    pwd->color(Palette::ColorId::border, Color(209, 213, 219));
     pwd->border(1);
-    pwd->border_radius(8);  // Radio más pequeño para layout compacto
+    pwd->border_radius(8);
     input_row->add(pwd);
 
-    // Botón Cancel - movido más a la izquierda
-    auto btn_cancel = make_shared<Button>(
-        cancel_label.empty() ? "Cancel" : cancel_label);
-    btn_cancel->resize(Size(75, 44));  // Más compacto
-    btn_cancel->move(Point(CARD_W - 225, 13));  // Centrado en la fila más alta
+    // Estado para limpiar el placeholder solo la primera vez
+    auto first_edit = make_shared<bool>(true);
+
+    // Habilitar foco inicial para recibir teclado físico
+    (void)pwd->focus();
+
+    // Manejador: limpiar placeholder en click directo
+    pwd->on_event([=](Event& event){
+        if (*first_edit && event.id() == EventId::pointer_click) {
+            *first_edit = false;
+            pwd->text("");
+            pwd->color(Palette::ColorId::text, Color(17, 24, 39));
+        }
+        return false;
+    });
+
+    // Capturar teclado físico global sin necesidad de foco previo
+    main_frame->on_event([=](Event& event){
+        if (event.id() == EventId::keyboard_down) {
+            auto key = event.key();
+            // Forzar foco al textbox
+            pwd->focus();
+            if (*first_edit) {
+                *first_edit = false;
+                pwd->text("");
+                pwd->color(Palette::ColorId::text, Color(17, 24, 39));
+            }
+            if (key.keycode == EKEY_BACKSPACE) {
+                std::string curr = pwd->text();
+                if (!curr.empty()) {
+                    curr.pop_back();
+                    pwd->text(curr);
+                }
+            } else if (key.keycode == EKEY_ENTER) {
+                std::string curr = pwd->text();
+                if (!curr.empty() && on_join) on_join(curr);
+            } else if (key.unicode != 0) {
+                // Caracter imprimible
+                std::string curr = pwd->text();
+                curr += static_cast<char>(key.unicode);
+                pwd->text(curr);
+            }
+        }
+        return false;
+    });
+
+    // Botón Cancel
+    auto btn_cancel = make_shared<Button>(cancel_label.empty() ? "Cancel" : cancel_label);
+    btn_cancel->resize(Size(75, 44));
+    btn_cancel->move(Point(CARD_W - 225, 13));
     btn_cancel->font(Font(14, Font::Weight::normal));
-    btn_cancel->color(Palette::ColorId::button_bg, Color(229, 231, 235));  // #E5E7EB fondo gris
-    btn_cancel->color(Palette::ColorId::label_text, Color(55, 65, 81));    // #374151 texto
-    btn_cancel->color(Palette::ColorId::border, Color(209, 213, 219));     // #D1D5DB borde
+    btn_cancel->color(Palette::ColorId::button_bg, Color(229, 231, 235));
+    btn_cancel->color(Palette::ColorId::label_text, Color(55, 65, 81));
+    btn_cancel->color(Palette::ColorId::border, Color(209, 213, 219));
     btn_cancel->border(1);
     btn_cancel->border_radius(8);
     btn_cancel->on_click([=](Event&){ if (on_cancel) on_cancel(); });
     input_row->add(btn_cancel);
 
-    // Botón Join - movido más a la izquierda junto con Cancel
-    auto btn_join = make_shared<Button>(
-        join_label.empty() ? "Join" : join_label);
-    btn_join->resize(Size(75, 44));  // Mismo tamaño que Cancel
-    btn_join->move(Point(CARD_W - 140, 13));  // Centrado en la fila más alta
+    // Botón Join
+    auto btn_join = make_shared<Button>(join_label.empty() ? "Join" : join_label);
+    btn_join->resize(Size(75, 44));
+    btn_join->move(Point(CARD_W - 140, 13));
     btn_join->font(Font(14, Font::Weight::bold));
-    btn_join->color(Palette::ColorId::button_bg, Color(37, 99, 235));  // #2563EB 
-    btn_join->color(Palette::ColorId::label_text, Color(255, 255, 255)); // Blanco
-    btn_join->color(Palette::ColorId::border, Color(37, 99, 235));       // Mismo azul
-    btn_join->border(0);  // Sin borde
+    btn_join->color(Palette::ColorId::button_bg, Color(37, 99, 235));
+    btn_join->color(Palette::ColorId::label_text, Color(255, 255, 255));
+    btn_join->color(Palette::ColorId::border, Color(37, 99, 235));
+    btn_join->border(0);
     btn_join->border_radius(8);
     btn_join->on_click([=](Event&){ if (on_join) on_join(pwd->text()); });
     input_row->add(btn_join);
 
-    // Teclado virtual con posición optimizada
-    auto keyboard_frame = make_shared<Frame>(Rect(32, 150, CARD_W - 64, 350));  // Posición ajustada
+    // Recalcular y base del teclado según nueva altura ocupada
+    int keyboard_top = y_cursor + 70 + 10; // input_row height + separador (subido 10px)
+
+    auto keyboard_frame = make_shared<Frame>(Rect(32, keyboard_top, CARD_W - 64, CARD_H - keyboard_top - 10));
     keyboard_frame->color(Palette::ColorId::bg, Palette::white);
     card->add(keyboard_frame);
 
@@ -303,9 +368,6 @@ shared_ptr<Widget> create_password_prompt_screen(
                row4_y, num_key_w, key_h, [=]() {
         // TODO: Cambiar a teclado numérico
     });
-
-    // Foco inicial
-    (void)pwd->focus();
 
     return main_frame;
 }
