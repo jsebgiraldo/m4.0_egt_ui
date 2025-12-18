@@ -48,4 +48,13 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Build directories
 build/*
+cmake-build-*/
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
