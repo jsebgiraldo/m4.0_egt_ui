@@ -49,12 +49,29 @@ Thumbs.db
 *.wmv
 
 # Build directories
-build/*
+build/
+build-native/
 cmake-build-*/
 
-# CMake files
+# CMake generated files
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-*.cmake
+
+# Development screenshots (iterating on UI)
+screenshots/
+screenshot_egt.png
+*.png
+
+# Figma parsing scripts (local dev tools, reference local paths)
+dump_demo.py
+dump_flow.py
+parse_figma.py
+parse_figma2.py
+
+# Legacy screens (replaced)
+src/screens/_legacy/
+
+# VSCode MCP config (contains API tokens)
+.vscode/mcp.json

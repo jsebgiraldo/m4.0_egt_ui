@@ -28,12 +28,16 @@ file(GLOB SRC
     "src/*.cpp"
     "src/screens/*.cpp"
     "src/wifi/*.cpp"
+    "src/ui/*.cpp"
+    "src/treatment/*.cpp"
 )
 
 file(GLOB HEADERS
     "src/*.h"
     "src/screens/*.h"
     "src/wifi/*.h"
+    "src/ui/*.h"
+    "src/treatment/*.h"
 )
 
 # Crear ejecutable

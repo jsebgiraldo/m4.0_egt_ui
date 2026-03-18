@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install required build tools and dependencies
 RUN apt-get update && apt-get install -y \
     git build-essential automake autoconf libtool pkg-config \
-    cmake g++ \
+    cmake g++ ninja-build \
     libdrm-dev libinput-dev libcairo-dev libjpeg-dev libmagic-dev gettext \
     librsvg2-dev liblua5.3-dev libcurl4-openssl-dev \
     libxkbcommon-dev xkb-data \
@@ -15,21 +15,21 @@ RUN apt-get update && apt-get install -y \
     sudo wget \
     xxd x11-apps network-manager dbus \
     libnm-dev \
-	libdbus-1-dev \
-    libglib2.0-bin
+    libdbus-1-dev \
+    libglib2.0-bin \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Clone and build EGT
+# Clone and build EGT (v1.12 uses CMake)
 WORKDIR /opt
 RUN git clone --recursive https://github.com/linux4sam/egt.git
 WORKDIR /opt/egt
-RUN ./autogen.sh && ./configure && make && sudo make install && sudo ldconfig
+RUN mkdir build && cd build && \
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
 
-# Copy user application excluding build and CMakeCache.txt
-COPY . /app
+# Set working directory for the application
 WORKDIR /app
 
-# Cleanup CMakeCache.txt if exists
-RUN rm -f CMakeCache.txt && rm -rf build
-
-# Build user application
-RUN mkdir -p build && cd build && cmake .. && make
+CMD ["bash"]

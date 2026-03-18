@@ -10,7 +10,7 @@ namespace egt_wifi {
 static std::string run_command(const std::string& cmd) {
     std::array<char, 256> buffer;
     std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+    std::unique_ptr<FILE, int(*)(FILE*)> pipe(popen(cmd.c_str(), "r"), pclose);
     if (!pipe) return "";
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
         result += buffer.data();

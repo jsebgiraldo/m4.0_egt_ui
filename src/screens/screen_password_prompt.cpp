@@ -131,7 +131,7 @@ shared_ptr<Widget> create_password_prompt_screen(
         if (event.id() == EventId::keyboard_down) {
             auto key = event.key();
             // Forzar foco al textbox
-            pwd->focus();
+            (void)pwd->focus();
             if (*first_edit) {
                 *first_edit = false;
                 pwd->text("");

@@ -3,7 +3,8 @@
 
 #include "screen_wifi_settings.h"
 #include "screen_password_prompt.h"
-#include "../app.h"
+#include "../ui/components.h"
+#include "../ui/design_tokens.h"
 
 #include <map>
 
@@ -21,138 +22,111 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     egt_wifi::WiFiManager wifi;
     auto network_map = make_shared<map<string, egt_wifi::WiFiNetwork>>();
 
-    const int width = 800;
-    const int height = 480;
+    auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
+    container->fill_flags({Theme::FillFlag::blend});
+    container->color(Palette::ColorId::bg, dt::kBgWhite);
 
-    auto root = std::make_shared<Window>(Rect(0, 0, width, height));
-    root->color(Palette::ColorId::bg, Palette::white);
-    root->show();
+    // ── Logo (top-left) ─────────────────────────────────────────────────────
+    auto logo = ui::create_logo(10, 10, 166, 103);
+    container->add(logo);
 
-    auto vsizer = std::make_shared<BoxSizer>(Orientation::vertical);
-    root->add(vsizer);
+    // ── Title (Figma: "Establish Wi-Fi Connection", gray) ───────────────────
+    auto title = make_shared<Label>("Establish Wi-Fi Connection",
+        Rect(180, 30, 400, 30));
+    title->align(AlignFlag::left);
+    title->font(dt::fontSubtitle());
+    title->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(title);
 
-    // Título centrado
-    auto title = make_shared<Label>("Establish Wi-Fi Connection", Rect(0, 0, width, 40));
-    title->align(AlignFlag::expand_horizontal);
-    title->font(Font(24, Font::Weight::bold));
-    vsizer->add(title);
+    // ── Divider line ────────────────────────────────────────────────────────
+    auto divider = make_shared<Frame>(Rect(0, 120, dt::SCREEN_W, 1));
+    divider->fill_flags({Theme::FillFlag::blend});
+    divider->color(Palette::ColorId::bg, dt::kGrayLight);
+    divider->border(0);
+    container->add(divider);
 
-    // Frame exterior
-    auto outer_frame = std::make_shared<Window>(Rect(0, 0, 700, 360));
-    outer_frame->color(Palette::ColorId::bg, Palette::lightblue);
-    outer_frame->show();
-    vsizer->add(outer_frame);
+    // ── "Choose a Network..." label ─────────────────────────────────────────
+    auto choose_label = make_shared<Label>("Choose a Network...",
+        Rect(40, 130, 300, 25));
+    choose_label->font(dt::fontBody());
+    choose_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(choose_label);
 
-    auto outer_vsizer = std::make_shared<BoxSizer>(Orientation::vertical);
-    outer_vsizer->align(AlignFlag::center);
-    outer_frame->add(outer_vsizer);
-
-    auto choose_label = make_shared<Label>("Choose network...", Rect(0, 0, 500, 40));
-    choose_label->align(AlignFlag::center);
-    outer_vsizer->add(choose_label);
-
-    const int spacing = 4;
-
-    auto listbox = std::make_shared<ListBox>(Rect(0, 0, 600, 300));
-    listbox->align(AlignFlag::center);
-    listbox->margin(spacing);
-
-    // Escanear y poblar el ComboBox
+    // ── Network list (Figma shows flat list with dividers) ──────────────────
     auto networks = wifi.scan_networks();
-    for (const auto& net : networks)
-    {
-        std::string label = net.ssid + " (" + std::to_string(net.signal) + "%)";
-        if (net.connected)
-            label += " [✔]";
-        auto item = std::make_shared<StringItem>(label);
-        listbox->add_item(item);
-        (*network_map)[label] = net;
-    }
 
-    // Demo WiFiNetwork para test
-    egt_wifi::WiFiNetwork demo_net;
+    // Add demo network for testing
+    WiFiNetwork demo_net;
     demo_net.ssid = "DemoNetwork";
     demo_net.signal = 75;
     demo_net.security = "WPA2";
     demo_net.connected = false;
-    std::string demo_label = demo_net.ssid + " (" + std::to_string(demo_net.signal) + "%)";
-    auto demo_item = std::make_shared<StringItem>(demo_label);
-    listbox->add_item(demo_item);
-    (*network_map)[demo_label] = demo_net;
+    networks.push_back(demo_net);
 
-    auto item = make_shared<StringItem>("Other...");
-    listbox->add_item(item);
+    const int list_x = 40;
+    const int list_y = 160;
+    const int item_h = 45;
+    const int list_w = dt::SCREEN_W - 80;
 
-    // Configurar tamaño de items
-    auto content = listbox->content_area();  
-    int N = static_cast<int>(listbox->item_count());
-    Size item_sz{
-        content.width(),
-        (content.height() - spacing * (N - 1)) / N
-    };
+    for (size_t i = 0; i < networks.size() && i < 6; i++) {
+        const auto& net = networks[i];
+        int y = list_y + static_cast<int>(i) * item_h;
 
-    for (int i = 0; i < N; ++i)
-    {
-        auto w = listbox->item_at(i);
-        w->resize(item_sz);
-        w->margin(spacing);
+        string label = net.ssid;
+        (*network_map)[label] = net;
+
+        // Network name label
+        Color text_color = net.connected ? dt::kGreen : dt::kTextPrimary;
+        string suffix = net.connected ? " [Connected]" : "";
+
+        auto net_btn = make_shared<Button>(label + suffix,
+            Rect(list_x, y, list_w, item_h - 5));
+        net_btn->font(dt::fontBody());
+        net_btn->color(Palette::ColorId::button_bg, dt::kWhite);
+        net_btn->color(Palette::ColorId::button_text, text_color);
+        net_btn->color(Palette::ColorId::border, dt::kGrayLight);
+        net_btn->border(1);
+        net_btn->border_radius(dt::RADIUS_SM);
+
+        net_btn->on_click([=](Event&) {
+            auto selected_net = (*network_map)[label];
+            auto pwd_screen = create_password_prompt_screen(
+                "Network: " + selected_net.ssid,
+                "Enter password to join",
+                "Join", "Back",
+                [=](const string& password) {
+                    on_connect(selected_net.ssid, password);
+                },
+                [=]() {
+                    if (on_show_screen) {
+                        auto wifi_screen = create_wifi_settings_panel(
+                            on_back, on_scan_wifi, on_connect,
+                            on_item_selected, on_show_screen);
+                        on_show_screen(wifi_screen);
+                    }
+                });
+            if (on_show_screen) on_show_screen(pwd_screen);
+        });
+        container->add(net_btn);
     }
 
-    listbox->damage();
-    
-    // Evento de selección - USANDO TRANSICIÓN COMPLETA
-    listbox->on_selected_changed([=]() {
-        int selected_index = listbox->selected();
-        if (selected_index >= 0 && selected_index < listbox->item_count())
-        {
-            auto string_item = listbox->item_at(selected_index);
-            if (string_item)
-            {
-                std::string label = string_item->text();
-                auto it = network_map->find(label);
-                if (it != network_map->end()) {
-                    auto selected_net = it->second;
-                    
-                    auto pwd_screen = create_password_prompt_screen(
-                        "Network: " + selected_net.ssid,
-                        "Enter password to join",
-                        "Join",
-                        "Back",
-                        [=](const std::string& password) {
-                            on_connect(selected_net.ssid, password);
-                        },
-                        [=]() {
-                            // REGRESAR CON TRANSICIÓN COMPLETA
-                            if (on_show_screen) {
-                                auto wifi_screen = create_wifi_settings_panel(
-                                    on_back, 
-                                    on_scan_wifi, 
-                                    on_connect, 
-                                    on_item_selected, 
-                                    on_show_screen
-                                );
-                                on_show_screen(wifi_screen);
-                            }
-                        }
-                    );
+    // ── "Other..." entry ────────────────────────────────────────────────────
+    int other_y = list_y + static_cast<int>(min(networks.size(), (size_t)6)) * item_h;
+    auto btn_other = make_shared<Button>("Other...",
+        Rect(list_x, other_y, list_w, item_h - 5));
+    btn_other->font(dt::fontBody());
+    btn_other->color(Palette::ColorId::button_bg, dt::kWhite);
+    btn_other->color(Palette::ColorId::button_text, dt::kTextPrimary);
+    btn_other->color(Palette::ColorId::border, dt::kGrayLight);
+    btn_other->border(1);
+    btn_other->border_radius(dt::RADIUS_SM);
+    container->add(btn_other);
 
-                    // USAR TRANSICIÓN EN LUGAR DE OVERLAY
-                    if (on_show_screen) {
-                        on_show_screen(pwd_screen);
-                    }
-                }
-            }
-        }
-    });
+    // ── Back button (bottom-left) ───────────────────────────────────────────
+    auto btn_back = ui::create_outlined_button("Back",
+        Rect(30, dt::SCREEN_H - 80, 156, 61),
+        on_back);
+    container->add(btn_back);
 
-    outer_vsizer->add(listbox);
-
-    auto btn_back = make_shared<Button>("Back", Rect(0, 0, 100, 40));
-    btn_back->align(AlignFlag::bottom | AlignFlag::expand_horizontal);
-    btn_back->on_click([=](Event&) {
-        on_back();
-    });
-    vsizer->add(btn_back);
-
-    return root;
+    return container;
 }
