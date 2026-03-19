@@ -17,6 +17,9 @@
 // ── Treatment flow ──
 #include "treatment/treatment_controller.h"
 
+// ── WiFi backend ──
+#include "wifi/wifi_backend.h"
+
 void run_app(int argc, char** argv)
 {
     egt::Application app(argc, argv);
@@ -46,9 +49,9 @@ void run_app(int argc, char** argv)
     show_home = [&]() {
         printf("[NAV] -> HOME\n"); fflush(stdout);
         screens.show(create_home_screen(
-            [&]() { show_login(false); },    // Begin Treatment -> Login
-            [&]() { show_demo_info(true); }, // Demo Mode -> Demo Info
-            [&]() { show_wifi_setup(); }     // Settings -> Wi-Fi
+            [&]() { show_patient_info(false); }, // Begin Treatment -> Patient Info
+            [&]() { show_demo_info(true); },     // Demo Mode -> Demo Info
+            [&]() { show_wifi_setup(); }          // Settings -> Wi-Fi
         ));
     };
 
@@ -68,7 +71,7 @@ void run_app(int argc, char** argv)
             technicians,
             [&, demo](const std::string& user) { // on_login_success
                 printf("Logged in as: %s\n", user.c_str());
-                show_patient_info(demo);
+                show_home();
             },
             [&]() { show_home(); }, // on_back
             [&](std::shared_ptr<egt::Widget> scr) { // on_show_screen
@@ -134,10 +137,22 @@ void run_app(int argc, char** argv)
             [&]() { show_home(); },            // on_back
             [&]() { show_wifi_setup(); },      // on_scan_wifi (refresh)
             [&](const std::string& ssid, const std::string& password) {
-                if (!ssid.empty() && !password.empty())
-                    show_home();
-                else
+                if (!ssid.empty() && !password.empty()) {
+                    // Actually try to connect via nmcli
+                    egt_wifi::WiFiManager wifi;
+                    printf("[WIFI] Connecting to '%s'...\n", ssid.c_str());
+                    fflush(stdout);
+                    if (wifi.connect(ssid, password)) {
+                        printf("[WIFI] Connected!\n"); fflush(stdout);
+                        show_home();
+                    } else {
+                        printf("[WIFI] Connection failed\n"); fflush(stdout);
+                        // Stay on wifi settings so user can retry
+                        show_wifi_setup();
+                    }
+                } else {
                     show_override_prompt();
+                }
             },
             [&](const egt_wifi::WiFiNetwork& net) { (void)net; },
             [&](std::shared_ptr<egt::Widget> scr) { screens.show(scr); }

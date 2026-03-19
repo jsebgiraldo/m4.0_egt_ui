@@ -58,25 +58,36 @@ struct TreatmentScreen {
     shared_ptr<Label> cumulative_time_label;  // for dynamic updates
 };
 
+// ── Figma-matched layout constants (432×261 → 800×480) ─────────────────────
+// Cumulative time header area (Figma: Group 159 at y=23, line at y=56)
+static constexpr int CUM_TIME_Y     = 15;   // y for time labels
+static constexpr int CUM_SEP_Y      = 55;   // y for separator line
+static constexpr int CUM_LEFT_X     = 110;  // x start (right of logo)
+static constexpr int CUM_WIDTH      = 470;  // width of cumulative area
+
+// Main content area
+static constexpr int CONTENT_Y      = 75;   // y for large number/percentage
+static constexpr int CONTENT_H      = 120;  // height of large number area
+static constexpr int STATUS_Y       = 210;  // y for status text below countdown
+static constexpr int DOTS_Y         = 260;  // y for segmented progress dots
+static constexpr int BTN_Y          = 345;  // y for bottom buttons
+static constexpr int BTN_W          = 220;  // button width
+static constexpr int BTN_H          = 80;   // button height
+static constexpr int BTN_LEFT_X     = 40;   // left button x
+static constexpr int BTN_RIGHT_X    = 540;  // right button x
+
 // ── Common helpers ──────────────────────────────────────────────────────────
 static TreatmentScreen make_treatment_container(
     shared_ptr<TreatmentState> state,
-    const string& status_text)
+    bool show_cumulative)
 {
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
+    container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
     // Logo (top-left, small)
     auto logo = ui::create_logo(15, 10, 80, 50);
     container->add(logo);
-
-    // Status text (top-center)
-    auto status = make_shared<Label>(status_text,
-        Rect(100, 15, dt::SCREEN_W - 200, 40));
-    status->align(AlignFlag::center);
-    status->font(dt::fontSubtitle());
-    status->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(status);
 
     // Demo mode badge (top-right)
     if (state->config.demo_mode) {
@@ -85,11 +96,46 @@ static TreatmentScreen make_treatment_container(
         container->add(badge.frame);
     }
 
-    // Segmented progress bar
+    shared_ptr<Label> cum_time_lbl;
+
+    // Cumulative time in header area (Figma: between logo and badge)
+    if (show_cumulative) {
+        // Separator line
+        auto sep = make_shared<Frame>(Rect(CUM_LEFT_X, CUM_SEP_Y, CUM_WIDTH, 1));
+        sep->fill_flags({Theme::FillFlag::blend});
+        sep->color(Palette::ColorId::bg, dt::kGrayLight);
+        sep->border(0);
+        container->add(sep);
+
+        // Time value (right side)
+        cum_time_lbl = make_shared<Label>(
+            TreatmentState::format_time(state->cumulative_seconds),
+            Rect(CUM_LEFT_X + CUM_WIDTH / 2, CUM_TIME_Y, CUM_WIDTH / 2, 35),
+            AlignFlag::right);
+        cum_time_lbl->font(Font(24, Font::Weight::bold));
+        cum_time_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        container->add(cum_time_lbl);
+
+        // Description (left side)
+        auto desc = make_shared<Label>("Cumulative treatment time",
+            Rect(CUM_LEFT_X, CUM_TIME_Y + 3, CUM_WIDTH / 2, 30),
+            AlignFlag::left);
+        desc->font(dt::fontSmall());
+        desc->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        container->add(desc);
+    }
+
+    return {container, cum_time_lbl};
+}
+
+// Helper: add segmented progress dots at standard y position
+static void add_segmented_progress(
+    shared_ptr<Frame> container,
+    shared_ptr<TreatmentState> state)
+{
     int seg_total = state->total_cycles();
     int seg_filled = state->cycles_completed;
     int seg_display = min(seg_total, dt::SEGMENT_COUNT);
-    // Map cycles to 6-segment display
     int filled_display = 0;
     if (seg_total > 0)
         filled_display = min(seg_display,
@@ -97,20 +143,10 @@ static TreatmentScreen make_treatment_container(
 
     auto seg_bar = ui::create_segmented_progress(
         (dt::SCREEN_W - (seg_display * (dt::SEGMENT_W + dt::SEGMENT_GAP) - dt::SEGMENT_GAP)) / 2,
-        dt::HEADER_H + 5,
+        DOTS_Y,
         seg_display);
     ui::update_segmented_progress(seg_bar, filled_display, seg_display);
     container->add(seg_bar);
-
-    // Cumulative time footer
-    auto footer = ui::create_cumulative_time_footer(
-        (dt::SCREEN_W - 400) / 2,
-        dt::SCREEN_H - 65,
-        400);
-    footer.time_label->text(TreatmentState::format_time(state->cumulative_seconds));
-    container->add(footer.frame);
-
-    return {container, footer.time_label};
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────
@@ -126,24 +162,32 @@ void start_treatment_flow(
 }
 
 // ── WARMING SCREEN ──────────────────────────────────────────────────────────
+// Figma Group 47: Logo, DEMO MODE, Spinner with %, status text, progress bar.
+// No cumulative time, no segmented dots, no buttons.
 static void show_warming(shared_ptr<TreatmentState> state)
 {
-    auto [container, _cum_lbl] = make_treatment_container(state, "Warming up");
+    auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // Large percentage display
+    // Large percentage display (Figma: y=60, 64px)
     auto pct_label = make_shared<Label>("0%",
-        Rect(0, dt::HEADER_H + 40, dt::SCREEN_W, 120));
-    pct_label->align(AlignFlag::center);
+        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     pct_label->font(dt::fontHuge());
     pct_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(pct_label);
 
-    // Linear progress bar
-    const int bar_w = 500;
+    // "Warming up for Treatment" text below percentage (Figma: y=136)
+    auto status = make_shared<Label>("Warming up for Treatment",
+        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
+    status->font(dt::fontBody());
+    status->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status);
+
+    // Linear progress bar near bottom (Figma: y=190/261=73% → ~350)
+    const int bar_w = 700;
     auto progress_bar = ui::create_linear_progress_bar(
         (dt::SCREEN_W - bar_w) / 2,
-        dt::HEADER_H + 180,
-        bar_w, 16);
+        BTN_Y,
+        bar_w, 10);
     container->add(progress_bar);
 
     state->callbacks.on_show_screen(container);
@@ -177,43 +221,44 @@ static void show_warming(shared_ptr<TreatmentState> state)
 }
 
 // ── POSITION TIP SCREEN ────────────────────────────────────────────────────
+// Figma Group 209: Logo, DEMO MODE, countdown, status text, Pause/End buttons.
+// No cumulative time, no segmented dots.
 static void show_position_tip(shared_ptr<TreatmentState> state)
 {
+    auto [container, _cum_lbl2] = make_treatment_container(state, false);
+
     bool is_reposition = state->cycles_completed > 0;
     string title = is_reposition
         ? "Reposition the Applicator Tip"
         : "Position the Applicator Tip";
 
-    auto [container, _cum_lbl2] = make_treatment_container(state, title);
-
-    // Large countdown display
+    // Large countdown display (Figma: y=60, 64px)
     auto countdown_val = make_shared<int>(state->config.position_tip_seconds);
     auto countdown_label = make_shared<Label>(
         TreatmentState::format_time(*countdown_val),
-        Rect(0, dt::HEADER_H + 50, dt::SCREEN_W, 140));
-    countdown_label->align(AlignFlag::center);
+        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     countdown_label->font(dt::fontHuge());
     countdown_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(countdown_label);
 
-    // Pause / End buttons
-    const int btn_y = dt::SCREEN_H - 140;
-    const int btn_w = 180;
-    const int btn_h = 70;
-    const int gap = 40;
-    const int total_w = btn_w * 2 + gap;
-    const int btn_x = (dt::SCREEN_W - total_w) / 2;
+    // Status text below countdown (Figma: y=130)
+    auto status = make_shared<Label>(title,
+        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
+    status->font(dt::fontBody());
+    status->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status);
 
-    auto btn_pause = ui::create_outlined_button("Pause",
-        Rect(btn_x, btn_y, btn_w, btn_h),
+    // Pause / End buttons (Figma: y=194, left=21, right=290)
+    auto btn_pause = ui::create_outlined_button("Pause\nTreatment",
+        Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
         [=]() {
             if (state->active_timer) state->active_timer->cancel();
             show_treatment_paused(state);
         });
     container->add(btn_pause);
 
-    auto btn_end = ui::create_outlined_button("End",
-        Rect(btn_x + btn_w + gap, btn_y, btn_w, btn_h),
+    auto btn_end = ui::create_outlined_button("End\nTreatment",
+        Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
         [=]() {
             if (state->active_timer) state->active_timer->cancel();
             show_end_confirmation(state);
@@ -242,45 +287,49 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
 }
 
 // ── TREATMENT ACTIVE SCREEN ────────────────────────────────────────────────
+// ── TREATMENT ACTIVE SCREEN ────────────────────────────────────────────────
+// Figma Group 150: Logo, DEMO MODE, cumulative time (header), countdown,
+// status text, segmented dots, Pause/End buttons.
 static void show_treatment_active(shared_ptr<TreatmentState> state)
 {
-    auto [container, cum_time_lbl] = make_treatment_container(state, "Treatment started");
+    auto [container, cum_time_lbl] = make_treatment_container(state, true);
 
-    // Large countdown (seconds remaining in this cycle)
+    // Large countdown (Figma: y=60, 64px)
     int cycle_remaining = state->config.cycle_seconds;
-    // If we'd exceed target, clamp
     int remaining_total = state->config.total_target_seconds - state->cumulative_seconds;
     cycle_remaining = min(cycle_remaining, remaining_total);
 
     auto remaining = make_shared<int>(cycle_remaining);
     auto countdown_label = make_shared<Label>(
         to_string(*remaining),
-        Rect(0, dt::HEADER_H + 40, dt::SCREEN_W, 140));
-    countdown_label->align(AlignFlag::center);
+        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     countdown_label->font(dt::fontHuge());
     countdown_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(countdown_label);
 
-    // Pause / End buttons
-    const int btn_y = dt::SCREEN_H - 140;
-    const int btn_w = 180;
-    const int btn_h = 70;
-    const int gap = 40;
-    const int total_w = btn_w * 2 + gap;
-    const int btn_x = (dt::SCREEN_W - total_w) / 2;
+    // Status text below countdown (Figma: y=130)
+    auto status = make_shared<Label>("Treatment started",
+        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
+    status->font(dt::fontBody());
+    status->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status);
 
+    // Segmented progress dots (Figma: y=154)
+    add_segmented_progress(container, state);
+
+    // Pause / End buttons (Figma: y=194, left=21, right=290)
     auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
 
-    auto btn_pause = ui::create_outlined_button("Pause",
-        Rect(btn_x, btn_y, btn_w, btn_h),
+    auto btn_pause = ui::create_outlined_button("Pause\nTreatment",
+        Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_treatment_paused(state);
         });
     container->add(btn_pause);
 
-    auto btn_end = ui::create_outlined_button("End",
-        Rect(btn_x + btn_w + gap, btn_y, btn_w, btn_h),
+    auto btn_end = ui::create_outlined_button("End\nTreatment",
+        Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_end_confirmation(state);
@@ -340,48 +389,47 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
 }
 
 // ── TREATMENT PAUSED SCREEN ────────────────────────────────────────────────
+// Figma Group 160: Logo, DEMO MODE, cumulative time (header), large paused time,
+// status text, tip message, Resume/End buttons. No segmented dots.
 static void show_treatment_paused(shared_ptr<TreatmentState> state)
 {
-    auto [container, _cum_lbl3] = make_treatment_container(state, "Treatment Paused");
+    auto [container, _cum_lbl3] = make_treatment_container(state, true);
     state->is_paused = true;
 
-    // Cumulative time (large)
+    // Large paused time display (Figma: y=60, 64px)
     auto time_display = make_shared<Label>(
         TreatmentState::format_time(state->cumulative_seconds),
-        Rect(0, dt::HEADER_H + 50, dt::SCREEN_W, 120));
-    time_display->align(AlignFlag::center);
+        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     time_display->font(dt::fontHuge());
     time_display->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(time_display);
 
-    // Tip message
+    // "Treatment Paused" text below (Figma: y=130)
+    auto status = make_shared<Label>("Treatment Paused",
+        Rect(0, STATUS_Y, dt::SCREEN_W, 25));
+    status->font(dt::fontBody());
+    status->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status);
+
+    // Tip message (Figma: y=155, cyan text with decorative brackets)
     auto tip = make_shared<Label>(
-        "Tip: Keep pauses short to quickly rewarm\nand get back to treatment faster!",
-        Rect(60, dt::HEADER_H + 190, dt::SCREEN_W - 120, 60));
-    tip->align(AlignFlag::center);
+        "Tip: Keep pauses short to quickly rewarm and get back to treatment faster!",
+        Rect(60, STATUS_Y + 30, dt::SCREEN_W - 120, 50));
     tip->font(dt::fontSmall());
     tip->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(tip);
 
-    // Resume / End buttons
-    const int btn_y = dt::SCREEN_H - 140;
-    const int btn_w = 180;
-    const int btn_h = 70;
-    const int gap = 40;
-    const int total_w = btn_w * 2 + gap;
-    const int btn_x = (dt::SCREEN_W - total_w) / 2;
-
-    auto btn_resume = ui::create_filled_button("Resume",
-        Rect(btn_x, btn_y, btn_w, btn_h),
+    // Resume / End buttons (Figma: y=198, Resume=filled left, End=outlined right)
+    auto btn_resume = ui::create_filled_button("Resume\nTreatment",
+        Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
         [=]() {
             state->is_paused = false;
-            // Re-warm then continue
             show_warming(state);
         });
     container->add(btn_resume);
 
-    auto btn_end = ui::create_outlined_button("End",
-        Rect(btn_x + btn_w + gap, btn_y, btn_w, btn_h),
+    auto btn_end = ui::create_outlined_button("End\nTreatment",
+        Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
         [=]() {
             show_end_confirmation(state);
         });
@@ -391,97 +439,98 @@ static void show_treatment_paused(shared_ptr<TreatmentState> state)
 }
 
 // ── END CONFIRMATION DIALOG ────────────────────────────────────────────────
+// Figma Group 51: Logo, DEMO MODE, card with "End Treatment" title + question,
+// Cancel/End buttons at bottom. No cumulative, no dots.
 static void show_end_confirmation(shared_ptr<TreatmentState> state)
 {
-    auto [container, _cum_lbl4] = make_treatment_container(state, "End Treatment");
+    auto [container, _cum_lbl4] = make_treatment_container(state, false);
 
-    // Center card
+    // Card frame (Figma: Rectangle 38 at y=53, 232×116 → scaled ~430×215)
     const int card_w = 440;
     const int card_h = 220;
-    auto card = make_shared<Frame>(
-        Rect((dt::SCREEN_W - card_w) / 2, (dt::SCREEN_H - card_h) / 2, card_w, card_h));
+    const int card_x = (dt::SCREEN_W - card_w) / 2;
+    const int card_y = CONTENT_Y - 15;
+    auto card = make_shared<Frame>(Rect(card_x, card_y, card_w, card_h));
     card->fill_flags({Theme::FillFlag::blend});
     card->color(Palette::ColorId::bg, dt::kGrayBg);
     card->border_radius(dt::RADIUS_LG);
     card->border(0);
     container->add(card);
 
-    // Question
+    // "End Treatment" title (Figma: y=80, 16px bold)
+    auto title = make_shared<Label>("End Treatment",
+        Rect(20, 15, card_w - 40, 30));
+    title->font(dt::fontTitle());
+    title->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    card->add(title);
+
+    // Question text (Figma: y=106)
     auto question = make_shared<Label>(
         "Are you sure you want to\nend treatment?",
-        Rect(20, 20, card_w - 40, 80));
-    question->align(AlignFlag::center);
-    question->font(dt::fontSubtitle());
+        Rect(20, 55, card_w - 40, 60));
+    question->font(dt::fontBody());
     question->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(question);
 
-    // End / Cancel buttons
-    const int btn_w = 180;
-    const int btn_h = 60;
-    const int gap = 20;
-
-    auto btn_end = ui::create_filled_button("End Treatment",
-        Rect((card_w - btn_w * 2 - gap) / 2, card_h - 90, btn_w, btn_h),
-        [=]() {
-            if (state->active_timer) state->active_timer->cancel();
-            show_treatment_completed(state, true);
-        });
-    card->add(btn_end);
-
+    // Cancel (left, outlined) / End Treatment (right, filled)
+    // Figma: Cancel at left (21,194), End at right (297,194)
     auto btn_cancel = ui::create_outlined_button("Cancel",
-        Rect((card_w + gap) / 2, card_h - 90, btn_w, btn_h),
+        Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
         [=]() {
-            // Go back to active or paused
             if (state->is_paused)
                 show_treatment_paused(state);
             else
                 show_treatment_active(state);
         });
-    card->add(btn_cancel);
+    container->add(btn_cancel);
+
+    auto btn_end = ui::create_filled_button("End\nTreatment",
+        Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
+        [=]() {
+            if (state->active_timer) state->active_timer->cancel();
+            show_treatment_completed(state, true);
+        });
+    container->add(btn_end);
 
     state->callbacks.on_show_screen(container);
 }
 
 // ── TREATMENT COMPLETED / ENDED SCREEN ─────────────────────────────────────
+// Figma Group 152/174: Logo, DEMO MODE, cumulative time (header), large "0",
+// "Treatment Completed", segmented dots (all filled), checkmark icon.
 static void show_treatment_completed(shared_ptr<TreatmentState> state, bool early)
 {
     string title = early ? "Treatment Ended" : "Treatment Completed";
-    auto [container, _cum_lbl5] = make_treatment_container(state, title);
+    auto [container, _cum_lbl5] = make_treatment_container(state, true);
 
-    // Checkmark or end icon placeholder
-    auto icon_label = make_shared<Label>(early ? "✕" : "✓",
-        Rect(0, dt::HEADER_H + 30, dt::SCREEN_W, 80));
-    icon_label->align(AlignFlag::center);
-    icon_label->font(Font(60, Font::Weight::bold));
+    // Large final counter (Figma: "0" at y=60, 64px)
+    auto icon_label = make_shared<Label>(early ? "✕" : "0",
+        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
+    icon_label->font(dt::fontHuge());
     icon_label->color(Palette::ColorId::label_text,
-        early ? dt::kOrange : dt::kGreen);
+        early ? dt::kOrange : dt::kTextPrimary);
     container->add(icon_label);
 
-    // Title
+    // Title text (Figma: y=130, 16px bold)
     auto title_lbl = make_shared<Label>(title,
-        Rect(0, dt::HEADER_H + 110, dt::SCREEN_W, 40));
-    title_lbl->align(AlignFlag::center);
-    title_lbl->font(dt::fontTitle());
+        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
+    title_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
     title_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title_lbl);
 
-    // Cumulative time (large)
-    auto time_label = make_shared<Label>(
-        TreatmentState::format_time(state->cumulative_seconds),
-        Rect(0, dt::HEADER_H + 170, dt::SCREEN_W, 60));
-    time_label->align(AlignFlag::center);
-    time_label->font(dt::fontLarge());
-    time_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(time_label);
+    // Segmented dots (all filled for completed)
+    add_segmented_progress(container, state);
 
-    auto desc = make_shared<Label>("Cumulative treatment time",
-        Rect(0, dt::HEADER_H + 230, dt::SCREEN_W, 25));
-    desc->align(AlignFlag::center);
-    desc->font(dt::fontSmall());
-    desc->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(desc);
+    // Checkmark below dots (Figma: y=176, 35×35 → ~65×65)
+    if (!early) {
+        auto check = make_shared<Label>("✓",
+            Rect(0, DOTS_Y + 25, dt::SCREEN_W, 50));
+        check->font(Font(36, Font::Weight::bold));
+        check->color(Palette::ColorId::label_text, dt::kGreen);
+        container->add(check);
+    }
 
-    // Back to Home button
+    // Back to Home button at bottom
     auto go_home = [=]() {
         if (state->active_timer) state->active_timer->cancel();
         if (early && state->callbacks.on_treatment_ended_early)
@@ -491,7 +540,7 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     };
 
     auto btn_home = ui::create_filled_button("Back to Home",
-        Rect((dt::SCREEN_W - 200) / 2, dt::SCREEN_H - 100, 200, 60),
+        Rect((dt::SCREEN_W - BTN_W) / 2, BTN_Y, BTN_W, BTN_H),
         go_home);
     container->add(btn_home);
 

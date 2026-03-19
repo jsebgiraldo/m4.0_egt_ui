@@ -30,6 +30,7 @@ file(GLOB SRC
     "src/wifi/*.cpp"
     "src/ui/*.cpp"
     "src/treatment/*.cpp"
+    "src/generated/*.cpp"
 )
 
 file(GLOB HEADERS
@@ -83,12 +84,7 @@ add_custom_target(copy_assets ALL
 # Hacer que egt-app dependa de copy_assets
 add_dependencies(egt-app copy_assets)
 
-# Instalar binario
+# Instalar binario (assets are embedded in binary)
 include(GNUInstallDirs)
 install(TARGETS egt-app
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-# Instalar assets
-install(DIRECTORY assets/
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/egt-app/assets
-        FILES_MATCHING PATTERN "*.png" PATTERN "*.jpg" PATTERN "*.jpeg")

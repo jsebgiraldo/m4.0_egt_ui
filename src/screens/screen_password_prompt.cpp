@@ -71,7 +71,6 @@ shared_ptr<Widget> create_password_prompt_screen(
     title->resize(Size(CARD_W - PAD * 2, 34));
     title->move(Point(PAD, y_cursor));
     title->font(Font(22, Font::Weight::bold));
-    title->align(AlignFlag::center_horizontal);
     title->color(Palette::ColorId::label_text, Color(17, 24, 39));
     card->add(title);
     y_cursor += 34; // avanzar debajo del título
@@ -83,7 +82,6 @@ shared_ptr<Widget> create_password_prompt_screen(
         subtitle->resize(Size(CARD_W - PAD * 2, 22));
         subtitle->move(Point(PAD, y_cursor));
         subtitle->font(Font(14));
-        subtitle->align(AlignFlag::center_horizontal);
         subtitle->color(Palette::ColorId::label_text, Color(90, 90, 90));
         card->add(subtitle);
         y_cursor += 22; // avanzar debajo del subtitle
@@ -183,191 +181,187 @@ shared_ptr<Widget> create_password_prompt_screen(
     input_row->add(btn_join);
 
     // Recalcular y base del teclado según nueva altura ocupada
-    int keyboard_top = y_cursor + 70 + 10; // input_row height + separador (subido 10px)
+    int keyboard_top = y_cursor + 70 + 10;
 
     auto keyboard_frame = make_shared<Frame>(Rect(32, keyboard_top, CARD_W - 64, CARD_H - keyboard_top - 10));
     keyboard_frame->color(Palette::ColorId::bg, Palette::white);
     card->add(keyboard_frame);
 
-    // Estado para mayúsculas/minúsculas
-    auto shift_state = make_shared<bool>(false);
+    auto shift_on = make_shared<bool>(false);
+    int tw = CARD_W - 64;  // total keyboard width
+    int kw = 54, kh = 55, gx = 5, gy = 12, sy = 15;
 
-    // Función helper para crear teclas con estilo unificado
-    auto create_key = [=](const string& text, int x, int y, int w, int h, 
-                          std::function<void()> on_press) -> shared_ptr<Frame> {
-        auto key_frame = make_shared<Frame>(Rect(x, y, w, h));
-        
-        // Estilo unificado: fondo #F3F4F6, borde #E5E7EB, radio 10-12px
-        key_frame->color(Palette::ColorId::bg, Color(243, 244, 246));  // #F3F4F6
-        key_frame->color(Palette::ColorId::border, Color(229, 231, 235));  // #E5E7EB
-        key_frame->border(1);
-        key_frame->border_radius(10);  // Radio 10px
-        
-        // Crear label con texto #111827, tamaño reducido
-        auto label = make_shared<Label>(text);
-        label->resize(Size(w, h));
-        label->move(Point(0, 0));
-        label->font(Font(13, Font::Weight::normal));  // Un punto menos que el actual
-        label->color(Palette::ColorId::label_text, Color(17, 24, 39));  // #111827
-        label->align(AlignFlag::center);
-        
-        key_frame->add(label);
-        
-        // Efecto hover y click con elevación sutil
-        if (on_press) {
-            key_frame->on_event([=](Event& event) mutable {
-                if (event.id() == EventId::pointer_click) {
-                    // Efecto pressed
-                    key_frame->color(Palette::ColorId::bg, Color(229, 231, 235));  // Más oscuro
-                    on_press();
-                    // Restaurar
-                    key_frame->color(Palette::ColorId::bg, Color(243, 244, 246));
-                    return true;
-                }
-                return false;
-            });
+    // Two sub-frames: QWERTY and numeric (toggle with ?123 / ABC)
+    auto kb_alpha = make_shared<Frame>(Rect(0, 0, tw, CARD_H - keyboard_top - 10));
+    kb_alpha->fill_flags({Theme::FillFlag::blend});
+    kb_alpha->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
+    keyboard_frame->add(kb_alpha);
+
+    auto kb_num = make_shared<Frame>(Rect(0, 0, tw, CARD_H - keyboard_top - 10));
+    kb_num->fill_flags({Theme::FillFlag::blend});
+    kb_num->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
+    kb_num->hide();
+    keyboard_frame->add(kb_num);
+
+    // Helper: type a character into pwd, clearing placeholder on first use
+    auto type_ch = [pwd, first_edit](char c) {
+        if (*first_edit) {
+            *first_edit = false;
+            pwd->text("");
+            pwd->color(Palette::ColorId::text, Color(17, 24, 39));
         }
-        
-        keyboard_frame->add(key_frame);
-        return key_frame;
+        pwd->text(pwd->text() + string(1, c));
+    };
+    auto do_bksp = [pwd]() {
+        string t = pwd->text();
+        if (!t.empty()) { t.pop_back(); pwd->text(t); }
+    };
+    auto do_enter = [pwd, on_join]() {
+        string t = pwd->text();
+        if (!t.empty() && on_join) on_join(t);
     };
 
-    // Dimensiones optimizadas del teclado para ocupar máximo espacio horizontal
-    int total_width = CARD_W - 64;     // Ancho alineado con el campo de password
-    int total_height = 350;            // Alto máximo expandido del teclado
-    
-    // Dimensiones optimizadas: teclas ajustadas para ocupar todo el ancho
-    int key_w = 54;                    // Teclas optimizadas para encajar mejor
-    int key_h = 55;                    // Teclas más altas para mejor touch
-    int gap_x = 5;                     // Gap horizontal reducido para mejor aprovechamiento
-    int gap_y = 12;                    // Gap vertical aumentado para mejor separación
-    
-    // Centrar horizontalmente SIN márgenes innecesarios para maximizar espacio
-    int total_keys_width = 11 * key_w + 10 * gap_x; // Para 11 teclas en fila 1
-    int margin_x = 5;                  // Margen mínimo reducido
-    int start_x = (total_width - total_keys_width) / 2; // Centrado perfecto
-    int start_y = 15;                  // Margen superior en el teclado
-
-    // Función para toggle de mayúsculas
-    auto toggle_shift = [=]() {
-        *shift_state = !(*shift_state);
-        // TODO: Actualizar visual de las teclas shift
+    // Helper: create a styled keyboard Button (not Frame+Label)
+    auto mk = [](shared_ptr<Frame> parent, const string& label,
+                  int x, int y, int w, int h,
+                  function<void()> action) {
+        auto b = make_shared<Button>(label, Rect(x, y, w, h));
+        b->font(Font(13, Font::Weight::normal));
+        b->color(Palette::ColorId::button_bg, Color(243, 244, 246));
+        b->color(Palette::ColorId::button_text, Color(17, 24, 39));
+        b->color(Palette::ColorId::border, Color(229, 231, 235));
+        b->border(1);
+        b->border_radius(10);
+        if (action) b->on_click([action](Event&) { action(); });
+        parent->add(b);
+        return b;
     };
 
-    // Fila 1: Q W E R T Y U I O P ← (11 teclas distribuidas)
-    string row1_chars = "QWERTYUIOP";
-    for (size_t i = 0; i < row1_chars.length(); i++) {
-        char c = row1_chars[i];
-        create_key(string(1, c), 
-                   start_x + i * (key_w + gap_x), 
-                   start_y, key_w, key_h, [=]() {
-            string curr = pwd->text();
-            char char_to_add = *shift_state ? c : tolower(c);
-            curr += char_to_add;
-            pwd->text(curr);
-        });
-    }
-    
-    // Backspace con ícono más claro
-    create_key("←", 
-               start_x + 10 * (key_w + gap_x), 
-               start_y, key_w, key_h, [=]() {
-        string curr = pwd->text();
-        if (!curr.empty()) {
-            curr.pop_back();
-            pwd->text(curr);
+    auto switch_num = [kb_alpha, kb_num]() { kb_alpha->hide(); kb_num->show(); };
+    auto switch_abc = [kb_alpha, kb_num]() { kb_alpha->show(); kb_num->hide(); };
+
+    // ── QWERTY layout ──────────────────────────────────────────────
+    {
+        int rw = 11 * kw + 10 * gx;
+        int sx = (tw - rw) / 2;
+
+        // Row 1: Q W E R T Y U I O P ←
+        string r1 = "QWERTYUIOP";
+        for (size_t i = 0; i < r1.size(); i++) {
+            char c = r1[i];
+            mk(kb_alpha, string(1, c),
+               sx + (int)i * (kw + gx), sy, kw, kh,
+               [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
         }
-    });
+        mk(kb_alpha, "\xe2\x86\x90",
+           sx + 10 * (kw + gx), sy, kw, kh, do_bksp);
 
-    // Fila 2: A S D F G H J K L Return (centrada y optimizada)
-    string row2_chars = "ASDFGHJKL";
-    int row2_y = start_y + key_h + gap_y;
-    int row2_width = 9 * key_w + 8 * gap_x + (key_w + 25); // 9 teclas + Return optimizada
-    int start_x_row2 = (total_width - row2_width) / 2; // Centrado perfecto
-    
-    for (size_t i = 0; i < row2_chars.length(); i++) {
-        char c = row2_chars[i];
-        create_key(string(1, c), 
-                   start_x_row2 + i * (key_w + gap_x), 
-                   row2_y, key_w, key_h, [=]() {
-            string curr = pwd->text();
-            char char_to_add = *shift_state ? c : tolower(c);
-            curr += char_to_add;
-            pwd->text(curr);
-        });
-    }
-    
-    // Return con lógica mejorada: Join si campo no está vacío
-    create_key("Return", 
-               start_x_row2 + 9 * (key_w + gap_x), 
-               row2_y, key_w + 25, key_h, [=]() {  // Tecla Return optimizada
-        string curr = pwd->text();
-        if (!curr.empty() && on_join) {
-            on_join(curr);  // Dispara Join si hay contenido
-        } else {
-            curr += "\n";   // Inserta Enter si está vacío
-            pwd->text(curr);
+        // Row 2: A S D F G H J K L Return
+        int y2 = sy + kh + gy;
+        string r2 = "ASDFGHJKL";
+        int r2w = 9 * kw + 8 * gx + kw + 25;
+        int sx2 = (tw - r2w) / 2;
+        for (size_t i = 0; i < r2.size(); i++) {
+            char c = r2[i];
+            mk(kb_alpha, string(1, c),
+               sx2 + (int)i * (kw + gx), y2, kw, kh,
+               [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
         }
-    });
+        mk(kb_alpha, "Return",
+           sx2 + 9 * (kw + gx), y2, kw + 25, kh, do_enter);
 
-    // Fila 3: ⇧ Z X C V B N M , ? ⇧ (optimizada para ocupar todo el ancho)
-    int row3_y = row2_y + key_h + gap_y;
-    int shift_w = key_w + 18; // Teclas Shift optimizadas
-    int row3_content_width = 2 * shift_w + 9 * key_w + 10 * gap_x; // Todo el contenido
-    int start_x_row3 = (total_width - row3_content_width) / 2; // Centrado perfecto
-    
-    // Shift izquierdo con funcionalidad
-    create_key("⇧", start_x_row3, row3_y, shift_w, key_h, toggle_shift);
-    
-    // Teclas centrales Z X C V B N M , ?
-    string row3_chars = "ZXCVBNM,?";
-    for (size_t i = 0; i < row3_chars.length(); i++) {
-        char c = row3_chars[i];
-        create_key(string(1, c), 
-                   start_x_row3 + shift_w + gap_x + i * (key_w + gap_x), 
-                   row3_y, key_w, key_h, [=]() {
-            string curr = pwd->text();
-            if (c == ',') curr += ",";
-            else if (c == '?') curr += "?";
-            else {
-                char char_to_add = *shift_state ? toupper(c) : tolower(c);
-                curr += char_to_add;
-            }
-            pwd->text(curr);
-        });
+        // Row 3: ⇧ Z X C V B N M , ? ⇧
+        int y3 = y2 + kh + gy;
+        int shw = kw + 18;
+        string r3 = "ZXCVBNM";
+        int r3w = 2 * shw + 9 * kw + 10 * gx;
+        int sx3 = (tw - r3w) / 2;
+        mk(kb_alpha, "\xe2\x87\xa7", sx3, y3, shw, kh,
+           [shift_on]() { *shift_on = !(*shift_on); });
+        for (size_t i = 0; i < r3.size(); i++) {
+            char c = r3[i];
+            mk(kb_alpha, string(1, c),
+               sx3 + shw + gx + (int)i * (kw + gx), y3, kw, kh,
+               [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
+        }
+        mk(kb_alpha, ",",
+           sx3 + shw + gx + 7 * (kw + gx), y3, kw, kh,
+           [type_ch]() { type_ch(','); });
+        mk(kb_alpha, "?",
+           sx3 + shw + gx + 8 * (kw + gx), y3, kw, kh,
+           [type_ch]() { type_ch('?'); });
+        mk(kb_alpha, "\xe2\x87\xa7",
+           sx3 + shw + gx + 9 * (kw + gx), y3, shw, kh,
+           [shift_on]() { *shift_on = !(*shift_on); });
+
+        // Row 4: ?123 [space] ?123
+        int y4 = y3 + kh + gy;
+        int nkw = kw + 20;
+        int spw = tw - 2 * nkw - 4 * gx;
+        int sx4 = (tw - (2 * nkw + spw + 2 * gx)) / 2;
+        mk(kb_alpha, "?123", sx4, y4, nkw, kh, switch_num);
+        mk(kb_alpha, "",
+           sx4 + nkw + gx, y4, spw, kh,
+           [type_ch]() { type_ch(' '); });
+        mk(kb_alpha, "?123",
+           sx4 + nkw + gx + spw + gx, y4, nkw, kh, switch_num);
     }
-    
-    // Shift derecho con la misma funcionalidad
-    create_key("⇧", 
-               start_x_row3 + shift_w + gap_x + 9 * (key_w + gap_x), 
-               row3_y, shift_w, key_h, toggle_shift);
 
-    // Fila 4: ?123 [barra espaciadora] ?123 (optimizada para ocupar todo el ancho)
-    int row4_y = row3_y + key_h + gap_y;
-    int num_key_w = key_w + 20;    // Teclas ?123 optimizadas
-    int space_w = total_width - 2 * num_key_w - 4 * gap_x; // Barra espaciadora maximizada
-    int start_x_row4 = (total_width - (2 * num_key_w + space_w + 2 * gap_x)) / 2; // Centrado perfecto
-    
-    // ?123 izquierdo (optimizado)
-    create_key("?123", start_x_row4, row4_y, num_key_w, key_h, [=]() {
-        // TODO: Cambiar a teclado numérico
-    });
-    
-    // Barra espaciadora maximizada (sin texto visible)
-    create_key("", 
-               start_x_row4 + num_key_w + gap_x, 
-               row4_y, space_w, key_h, [=]() {
-        string curr = pwd->text();
-        curr += " ";
-        pwd->text(curr);
-    });
-    
-    // ?123 derecho
-    create_key("?123", 
-               start_x_row4 + num_key_w + gap_x + space_w + gap_x, 
-               row4_y, num_key_w, key_h, [=]() {
-        // TODO: Cambiar a teclado numérico
-    });
+    // ── Numeric / Symbol layout ─────────────────────────────────────
+    {
+        int rw = 11 * kw + 10 * gx;
+        int sx = (tw - rw) / 2;
+
+        // Row 1: 1 2 3 4 5 6 7 8 9 0 ←
+        string n1 = "1234567890";
+        for (size_t i = 0; i < n1.size(); i++) {
+            char c = n1[i];
+            mk(kb_num, string(1, c),
+               sx + (int)i * (kw + gx), sy, kw, kh,
+               [type_ch, c]() { type_ch(c); });
+        }
+        mk(kb_num, "\xe2\x86\x90",
+           sx + 10 * (kw + gx), sy, kw, kh, do_bksp);
+
+        // Row 2: @ # $ _ & - + ( ) Return
+        int y2 = sy + kh + gy;
+        string n2 = "@#$_&-+()";
+        int r2w = 9 * kw + 8 * gx + kw + 25;
+        int sx2 = (tw - r2w) / 2;
+        for (size_t i = 0; i < n2.size(); i++) {
+            char c = n2[i];
+            mk(kb_num, string(1, c),
+               sx2 + (int)i * (kw + gx), y2, kw, kh,
+               [type_ch, c]() { type_ch(c); });
+        }
+        mk(kb_num, "Return",
+           sx2 + 9 * (kw + gx), y2, kw + 25, kh, do_enter);
+
+        // Row 3: = * " ' : ; ! ~ / .
+        int y3 = y2 + kh + gy;
+        const char* n3_labels[] = {"=","*","\"","'",":",";","!","~","/","."};
+        const char  n3_chars[]  = {'=','*','"','\'',':',';','!','~','/','.'};
+        int r3w = 10 * kw + 9 * gx;
+        int sx3 = (tw - r3w) / 2;
+        for (int i = 0; i < 10; i++) {
+            char c = n3_chars[i];
+            mk(kb_num, n3_labels[i],
+               sx3 + i * (kw + gx), y3, kw, kh,
+               [type_ch, c]() { type_ch(c); });
+        }
+
+        // Row 4: ABC [space] ABC
+        int y4 = y3 + kh + gy;
+        int nkw = kw + 20;
+        int spw = tw - 2 * nkw - 4 * gx;
+        int sx4 = (tw - (2 * nkw + spw + 2 * gx)) / 2;
+        mk(kb_num, "ABC", sx4, y4, nkw, kh, switch_abc);
+        mk(kb_num, "",
+           sx4 + nkw + gx, y4, spw, kh,
+           [type_ch]() { type_ch(' '); });
+        mk(kb_num, "ABC",
+           sx4 + nkw + gx + spw + gx, y4, nkw, kh, switch_abc);
+    }
 
     return main_frame;
 }

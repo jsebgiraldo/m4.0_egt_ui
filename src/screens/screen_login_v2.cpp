@@ -126,7 +126,6 @@ shared_ptr<Widget> create_login_screen_v2(
                             auto err_msg = make_shared<Label>(
                                 "Incorrect password!\nPlease try again.",
                                 Rect(0, dt::SCREEN_H / 2 - 40, dt::SCREEN_W, 80));
-                            err_msg->align(AlignFlag::center);
                             err_msg->font(dt::fontTitle());
                             err_msg->color(Palette::ColorId::label_text, dt::kRed);
                             err_screen->add(err_msg);

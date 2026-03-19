@@ -22,7 +22,9 @@ std::shared_ptr<egt::Widget> create_wifi_settings_panel(
     std::function<void()> on_scan_wifi,
     std::function<void(const std::string& ssid, const std::string& password)> on_connect,
     std::function<void(const egt_wifi::WiFiNetwork&)> on_item_selected,
-    std::function<void(std::shared_ptr<egt::Widget>)> on_show_screen = nullptr
+    std::function<void(std::shared_ptr<egt::Widget>)> on_show_screen = nullptr,
+    int scroll_offset = 0,
+    std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> cached_networks = nullptr
 );
 
 #endif // SCREEN_SETTINGS_H

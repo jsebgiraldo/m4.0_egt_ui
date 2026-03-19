@@ -19,16 +19,14 @@ shared_ptr<Widget> create_demo_info_screen(
 
     // ── "Demonstration Mode" title (Figma: 141×18 @147,34 → 272,63) ────────
     auto title = make_shared<Label>("Demonstration Mode",
-        Rect(272, 55, 280, 40));
-    title->align(AlignFlag::left);
+        Rect(272, 55, 280, 40), AlignFlag::left);
     title->font(Font(22, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
 
     // ── DEMO MODE badge (top-right, Figma: 79×44 @353,6 → 654,11) ──────────
     auto demo_label = make_shared<Label>("DEMO MODE",
-        Rect(dt::SCREEN_W - 170, 10, 160, 80));
-    demo_label->align(AlignFlag::right);
+        Rect(dt::SCREEN_W - 170, 10, 160, 80), AlignFlag::right);
     demo_label->font(Font(30, Font::Weight::bold));
     demo_label->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(demo_label);
@@ -54,7 +52,6 @@ shared_ptr<Widget> create_demo_info_screen(
         "and a lower fan speed.\n"
         "Do Not Use For Treatments !",
         Rect(160, 170, 480, 200));
-    warning->align(AlignFlag::center);
     warning->font(Font(dt::FONT_SUBTITLE, Font::Weight::bold));
     warning->color(Palette::ColorId::label_text, dt::kBlack);
     container->add(warning);

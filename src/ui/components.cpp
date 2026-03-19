@@ -1,24 +1,56 @@
 #include "components.h"
 #include "design_tokens.h"
+#include "../generated/embedded_assets.h"
 #include <cmath>
+#include <fstream>
 
 using namespace egt;
 using namespace std;
 
 namespace ui {
 
+// Write embedded PNG to temp file once, return path
+static string get_logo_path()
+{
+    static const string path = "/tmp/egt-logo.png";
+    static bool written = false;
+    if (!written)
+    {
+        ofstream f(path, ios::binary);
+        f.write(reinterpret_cast<const char*>(assets_image_Lice_logo_png),
+                assets_image_Lice_logo_png_len);
+        written = f.good();
+        printf("[LOGO] wrote %u bytes to %s: %s\n",
+               assets_image_Lice_logo_png_len, path.c_str(),
+               written ? "OK" : "FAIL");
+        fflush(stdout);
+    }
+    return path;
+}
+
 // ── Logo ────────────────────────────────────────────────────────────────────
 shared_ptr<Widget> create_logo(int x, int y, int w, int h)
 {
     try
     {
-        auto logo = make_shared<ImageLabel>(Image("file:assets/image/Lice-logo.png"));
-        logo->resize(Size(w, h));
+        auto path = get_logo_path();
+        float hscale = static_cast<float>(w) / 315.0f;
+        float vscale = static_cast<float>(h) / 197.0f;
+        float s = min(hscale, vscale);
+        auto img = Image("file:" + path, s, s);
+        printf("[LOGO] file image: %dx%d (scale %.3f)\n", img.width(), img.height(), s);
+        fflush(stdout);
+        auto logo = make_shared<ImageLabel>(img);
+        logo->fill_flags({Theme::FillFlag::blend});
+        logo->image_align(AlignFlag::center);
         logo->move(Point(x, y));
+        logo->resize(Size(w, h));
         return logo;
     }
-    catch (...)
+    catch (const std::exception& e)
     {
+        printf("[LOGO] EXCEPTION: %s\n", e.what());
+        fflush(stdout);
         auto ph = make_shared<Frame>(Rect(x, y, w, h));
         ph->fill_flags({Theme::FillFlag::blend});
         ph->color(Palette::ColorId::bg, dt::kGrayBg);
@@ -26,7 +58,6 @@ shared_ptr<Widget> create_logo(int x, int y, int w, int h)
         ph->color(Palette::ColorId::border, dt::kGrayLight);
 
         auto lbl = make_shared<Label>("LOGO", Rect(0, 0, w, h));
-        lbl->align(AlignFlag::center);
         lbl->font(Font(10));
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         ph->add(lbl);
@@ -50,7 +81,6 @@ shared_ptr<Frame> create_header_bar(
     if (!title.empty()) {
         auto lbl = make_shared<Label>(title,
             Rect(100, 0, dt::SCREEN_W - 200, dt::HEADER_H));
-        lbl->align(AlignFlag::center);
         lbl->font(dt::fontSubtitle());
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         bar->add(lbl);
@@ -59,8 +89,7 @@ shared_ptr<Frame> create_header_bar(
     // Demo mode badge text (top-right area)
     if (demo_mode) {
         auto badge = make_shared<Label>("DEMO MODE",
-            Rect(dt::SCREEN_W - 200, 15, 180, 30));
-        badge->align(AlignFlag::right);
+            Rect(dt::SCREEN_W - 200, 15, 180, 30), AlignFlag::right);
         badge->font(Font(16, Font::Weight::bold));
         badge->color(Palette::ColorId::label_text, dt::kAccentCyan);
         bar->add(badge);
@@ -237,18 +266,16 @@ CumulativeTimeFooter create_cumulative_time_footer(int x, int y, int width)
 
     // Time label (left)
     auto time_lbl = make_shared<Label>("00:00",
-        Rect(0, 8, width / 2, 30));
+        Rect(0, 8, width / 2, 30), AlignFlag::left);
     time_lbl->font(Font(24, Font::Weight::bold));
     time_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    time_lbl->align(AlignFlag::left);
     frame->add(time_lbl);
 
     // Description (right)
     auto desc = make_shared<Label>("Cumulative treatment time",
-        Rect(width / 2, 8, width / 2, 30));
+        Rect(width / 2, 8, width / 2, 30), AlignFlag::right);
     desc->font(dt::fontSmall());
     desc->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    desc->align(AlignFlag::right);
     frame->add(desc);
 
     return {frame, time_lbl};
@@ -279,7 +306,6 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave)
         Rect(70, 0, 130, 44));
     badge->font(Font(20, Font::Weight::bold));
     badge->color(Palette::ColorId::label_text, dt::kAccentCyan);
-    badge->align(AlignFlag::center);
     frame->add(badge);
 
     return {frame, leave_btn};
@@ -337,7 +363,6 @@ shared_ptr<Frame> create_error_overlay(
 
     auto sev_label = make_shared<Label>(severity_text,
         Rect(0, 0, card_w, 80));
-    sev_label->align(AlignFlag::center);
     sev_label->font(Font(24, Font::Weight::bold));
     sev_label->color(Palette::ColorId::label_text, dt::kWhite);
     banner->add(sev_label);
@@ -347,7 +372,6 @@ shared_ptr<Frame> create_error_overlay(
         Rect(30, 100, card_w - 60, 40));
     title_lbl->font(dt::fontTitle());
     title_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    title_lbl->align(AlignFlag::center);
     card->add(title_lbl);
 
     // Message
@@ -355,7 +379,6 @@ shared_ptr<Frame> create_error_overlay(
         Rect(30, 150, card_w - 60, 100));
     msg_lbl->font(dt::fontBody());
     msg_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    msg_lbl->align(AlignFlag::center);
     card->add(msg_lbl);
 
     // Error code (if provided)
@@ -364,7 +387,6 @@ shared_ptr<Frame> create_error_overlay(
             Rect(30, 260, card_w - 60, 30));
         code_lbl->font(dt::fontSmall());
         code_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-        code_lbl->align(AlignFlag::center);
         card->add(code_lbl);
     }
 

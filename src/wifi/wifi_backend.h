@@ -18,6 +18,7 @@ public:
     bool connect(const std::string& ssid, const std::string& password);
     bool disconnect();
     std::string get_current_ssid();
+    bool is_connected();
 };
 
 } // namespace egt_wifi
