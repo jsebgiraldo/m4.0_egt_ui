@@ -51,6 +51,7 @@ static void show_treatment_active(shared_ptr<TreatmentState> state);
 static void show_treatment_paused(shared_ptr<TreatmentState> state);
 static void show_end_confirmation(shared_ptr<TreatmentState> state);
 static void show_treatment_completed(shared_ptr<TreatmentState> state, bool early);
+static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int remaining_seconds);
 
 // ── Container result with dynamic labels ────────────────────────────────────
 struct TreatmentScreen {
@@ -79,11 +80,16 @@ static constexpr int BTN_RIGHT_X    = 540;  // right button x
 // ── Common helpers ──────────────────────────────────────────────────────────
 static TreatmentScreen make_treatment_container(
     shared_ptr<TreatmentState> state,
-    bool show_cumulative)
+    bool show_cumulative,
+    bool green_mode = false)
 {
+    const Color text_color  = green_mode ? dt::kWhite : dt::kTextPrimary;
+    const Color sep_color   = green_mode ? Color(255,255,255,120) : dt::kGrayLight;
+    const Color bg_color    = green_mode ? dt::kGreen : dt::kBgWhite;
+
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
-    container->color(Palette::ColorId::bg, dt::kBgWhite);
+    container->color(Palette::ColorId::bg, bg_color);
 
     // Logo (top-left, small)
     auto logo = ui::create_logo(15, 10, 80, 50);
@@ -103,7 +109,7 @@ static TreatmentScreen make_treatment_container(
         // Separator line
         auto sep = make_shared<Frame>(Rect(CUM_LEFT_X, CUM_SEP_Y, CUM_WIDTH, 1));
         sep->fill_flags({Theme::FillFlag::blend});
-        sep->color(Palette::ColorId::bg, dt::kGrayLight);
+        sep->color(Palette::ColorId::bg, sep_color);
         sep->border(0);
         container->add(sep);
 
@@ -113,7 +119,7 @@ static TreatmentScreen make_treatment_container(
             Rect(CUM_LEFT_X + CUM_WIDTH / 2, CUM_TIME_Y, CUM_WIDTH / 2, 35),
             AlignFlag::right);
         cum_time_lbl->font(Font(24, Font::Weight::bold));
-        cum_time_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        cum_time_lbl->color(Palette::ColorId::label_text, text_color);
         container->add(cum_time_lbl);
 
         // Description (left side)
@@ -121,7 +127,7 @@ static TreatmentScreen make_treatment_container(
             Rect(CUM_LEFT_X, CUM_TIME_Y + 3, CUM_WIDTH / 2, 30),
             AlignFlag::left);
         desc->font(dt::fontSmall());
-        desc->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        desc->color(Palette::ColorId::label_text, text_color);
         container->add(desc);
     }
 
@@ -354,12 +360,17 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
         });
     container->add(btn_pause);
 
-    auto btn_end = ui::create_outlined_button("End\nTreatment",
-        Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
-        [=]() {
-            if (*timer_ref) (*timer_ref)->cancel();
-            show_end_confirmation(state);
-        });
+    // End Treatment: green fill + white text (Figma green/white palette)
+    auto btn_end = make_shared<Button>("End\nTreatment", Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H));
+    btn_end->font(dt::fontButton());
+    btn_end->color(Palette::ColorId::button_bg, dt::kGreen);
+    btn_end->color(Palette::ColorId::button_text, dt::kWhite);
+    btn_end->border(0);
+    btn_end->border_radius(dt::RADIUS_MD);
+    btn_end->on_click([=](Event&) {
+        if (*timer_ref) (*timer_ref)->cancel();
+        show_end_confirmation(state);
+    });
     container->add(btn_end);
 
     state->callbacks.on_show_screen(container);
@@ -376,29 +387,25 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
         (*remaining)--;
         state->cumulative_seconds++;
 
-        if (auto lb = w_countdown.lock()) {
+        if (auto lb = w_countdown.lock())
             lb->text(to_string(*remaining));
-            // Color change near end
-            if (*remaining <= state->config.nearly_finished_threshold)
-                lb->color(Palette::ColorId::label_text, dt::kOrange);
-        }
 
-        // Update cumulative time footer dynamically
+        // Update cumulative time dynamically
         if (auto ct = w_cum_time.lock())
             ct->text(TreatmentState::format_time(state->cumulative_seconds));
 
-        // Check if treatment target reached
+        // Transition to green near-end screen at threshold
+        if (*remaining <= state->config.nearly_finished_threshold && *remaining > 0) {
+            timer->cancel();
+            show_treatment_nearly_done(state, *remaining);
+            return;
+        }
+
+        // Check if treatment target reached (e.g. last cycle short)
         if (state->is_complete()) {
             timer->cancel();
             state->cycles_completed++;
-            // Hold at zero for 3 seconds before transitioning (Figma design note)
-            auto hold_timer = make_shared<PeriodicTimer>(chrono::seconds(3));
-            state->active_timer = hold_timer;
-            hold_timer->on_timeout([=]() {
-                hold_timer->cancel();
-                show_treatment_completed(state, false);
-            });
-            hold_timer->start();
+            show_treatment_completed(state, false);
             return;
         }
 
@@ -407,7 +414,100 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
             timer->cancel();
             state->cycles_completed++;
             state->current_cycle++;
-            // Next cycle: reposition tip
+            show_position_tip(state);
+        }
+    });
+    timer->start();
+}
+
+// ── TREATMENT NEARLY DONE SCREEN ───────────────────────────────────────────
+// Figma: Full green background, white text, countdown from nearly_finished_threshold→0.
+// Transitions to completed (if treatment done) or position_tip (if next cycle).
+static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int remaining_seconds)
+{
+    auto [container, cum_time_lbl] = make_treatment_container(state, true, true);
+
+    auto remaining = make_shared<int>(remaining_seconds);
+
+    // Large countdown in white
+    auto countdown_label = make_shared<Label>(
+        to_string(*remaining),
+        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
+    countdown_label->font(dt::fontHuge());
+    countdown_label->color(Palette::ColorId::label_text, dt::kWhite);
+    container->add(countdown_label);
+
+    // Status text in white
+    auto status = make_shared<Label>("Treatment nearly finished",
+        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
+    status->font(dt::fontBody());
+    status->color(Palette::ColorId::label_text, dt::kWhite);
+    container->add(status);
+
+    // Segmented progress dots
+    add_segmented_progress(container, state);
+
+    // Buttons: white bg + green text (stand out on green background)
+    auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
+
+    auto make_white_btn = [](const string& text, const Rect& rect, function<void()> cb) {
+        auto btn = make_shared<Button>(text, rect);
+        btn->font(dt::fontButton());
+        btn->color(Palette::ColorId::button_bg, dt::kWhite);
+        btn->color(Palette::ColorId::button_text, dt::kGreen);
+        btn->border(0);
+        btn->border_radius(dt::RADIUS_MD);
+        if (cb) btn->on_click([cb](Event&) { cb(); });
+        return btn;
+    };
+
+    auto btn_pause = make_white_btn("Pause\nTreatment",
+        Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
+        [=]() {
+            if (*timer_ref) (*timer_ref)->cancel();
+            show_treatment_paused(state);
+        });
+    container->add(btn_pause);
+
+    auto btn_end = make_white_btn("End\nTreatment",
+        Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
+        [=]() {
+            if (*timer_ref) (*timer_ref)->cancel();
+            show_end_confirmation(state);
+        });
+    container->add(btn_end);
+
+    state->callbacks.on_show_screen(container);
+
+    auto timer = make_shared<PeriodicTimer>(chrono::seconds(1));
+    *timer_ref = timer;
+    state->active_timer = timer;
+
+    weak_ptr<Label> w_countdown = countdown_label;
+    weak_ptr<Label> w_cum_time  = cum_time_lbl;
+
+    timer->on_timeout([=]() {
+        (*remaining)--;
+        state->cumulative_seconds++;
+
+        if (auto lb = w_countdown.lock())
+            lb->text(to_string(*remaining));
+        if (auto ct = w_cum_time.lock())
+            ct->text(TreatmentState::format_time(state->cumulative_seconds));
+
+        // Treatment target reached?
+        if (state->is_complete()) {
+            timer->cancel();
+            state->cycles_completed++;
+            show_treatment_completed(state, false);
+            return;
+        }
+
+        // Cycle ended (multi-cycle scenario)
+        if (*remaining <= 0) {
+            timer->cancel();
+            state->cycles_completed++;
+            state->current_cycle++;
             show_position_tip(state);
         }
     });
@@ -547,13 +647,26 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     // Segmented dots (all filled for completed)
     add_segmented_progress(container, state);
 
-    // Checkmark below dots (Figma: y=176, 35×35 → ~65×65)
+    // Circle checkmark icon (green ring + green ✓ inside)
     if (!early) {
-        auto check = make_shared<Label>("✓",
-            Rect(0, DOTS_Y + 25, dt::SCREEN_W, 50));
-        check->font(Font(36, Font::Weight::bold));
-        check->color(Palette::ColorId::label_text, dt::kGreen);
-        container->add(check);
+        const int icon_sz = 72;
+        const int icon_x  = (dt::SCREEN_W - icon_sz) / 2;
+        const int icon_y  = DOTS_Y + 28;
+
+        auto circle = make_shared<Frame>(Rect(icon_x, icon_y, icon_sz, icon_sz));
+        circle->fill_flags({Theme::FillFlag::blend});
+        circle->color(Palette::ColorId::bg, dt::kBgWhite);
+        circle->color(Palette::ColorId::border, dt::kGreen);
+        circle->border(4);
+        circle->border_radius(icon_sz / 2);
+        container->add(circle);
+
+        // ✓ inside the circle (positioned relative to circle)
+        auto check_lbl = make_shared<Label>("✓",
+            Rect(0, 0, icon_sz, icon_sz));
+        check_lbl->font(Font(38, Font::Weight::bold));
+        check_lbl->color(Palette::ColorId::label_text, dt::kGreen);
+        circle->add(check_lbl);
     }
 
     // Back to Home button at bottom
