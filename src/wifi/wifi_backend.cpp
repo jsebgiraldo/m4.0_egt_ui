@@ -123,4 +123,13 @@ bool WiFiManager::is_connected() {
     return !get_current_ssid().empty();
 }
 
+bool WiFiManager::has_saved_networks() {
+    if (std::getenv("EGT_MOCK_WIFI"))
+        return false;
+    std::string cmd = "nmcli -t -f TYPE connection show 2>/dev/null";
+    std::string output = run_command(cmd);
+    // Each line is a connection type; wifi entries mean saved networks
+    return output.find("802-11-wireless") != std::string::npos;
+}
+
 } // namespace egt_wifi

@@ -29,7 +29,7 @@ void run_app(int argc, char** argv)
     // ── Forward declarations for navigation ──────────────────────────
     std::function<void()> show_wifi_init;
     std::function<void()> show_home;
-    std::function<void()> show_wifi_setup;
+    std::function<void(std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>>)> show_wifi_setup;
     std::function<void()> show_override_prompt;
     std::function<void(bool demo)> show_login;
     std::function<void(bool demo)> show_patient_info;
@@ -41,7 +41,9 @@ void run_app(int argc, char** argv)
         printf("[NAV] -> WIFI_INIT\n"); fflush(stdout);
         screens.show(create_wifi_init_screen(
             [&]() { show_login(false); },  // on_connected -> Technician Login
-            [&]() { show_wifi_setup(); }   // on_failed -> WiFi Settings
+            [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> nets) {
+                show_wifi_setup(nets);     // on_failed -> WiFi Settings (with pre-scanned nets)
+            }
         ));
     };
 
@@ -51,7 +53,7 @@ void run_app(int argc, char** argv)
         screens.show(create_home_screen(
             [&]() { show_patient_info(false); }, // Begin Treatment -> Patient Info
             [&]() { show_demo_info(true); },     // Demo Mode -> Demo Info
-            [&]() { show_wifi_setup(); }          // Settings -> Wi-Fi
+            [&]() { show_wifi_setup(nullptr); }          // Settings -> Wi-Fi
         ));
     };
 
@@ -132,10 +134,10 @@ void run_app(int argc, char** argv)
     };
 
     // ── WI-FI SETTINGS (existing screen, kept as-is) ────────────────
-    show_wifi_setup = [&]() {
+    show_wifi_setup = [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> cached = nullptr) {
         screens.show(create_wifi_settings_panel(
             [&]() { show_home(); },            // on_back
-            [&]() { show_wifi_setup(); },      // on_scan_wifi (refresh)
+            [&]() { show_wifi_setup(nullptr); },      // on_scan_wifi (refresh)
             [&](const std::string& ssid, const std::string& password) {
                 if (!ssid.empty() && !password.empty()) {
                     // Actually try to connect via nmcli
@@ -148,14 +150,15 @@ void run_app(int argc, char** argv)
                     } else {
                         printf("[WIFI] Connection failed\n"); fflush(stdout);
                         // Stay on wifi settings so user can retry
-                        show_wifi_setup();
+                        show_wifi_setup(nullptr);
                     }
                 } else {
                     show_override_prompt();
                 }
             },
             [&](const egt_wifi::WiFiNetwork& net) { (void)net; },
-            [&](std::shared_ptr<egt::Widget> scr) { screens.show(scr); }
+            [&](std::shared_ptr<egt::Widget> scr) { screens.show(scr); },
+            cached
         ));
     };
 

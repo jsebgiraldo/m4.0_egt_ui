@@ -6,41 +6,26 @@
 #include <vector>
 #include <cctype>
 
+#include "../ui/design_tokens.h"
+
 using namespace egt;
 using namespace std;
 
-// Constantes de diseño y colores - TOKENS DE TEMA EGT
+// Layout constants
 static constexpr int SCREEN_W       = 800;
 static constexpr int SCREEN_H       = 480;
-static constexpr int CARD_W         = 780;  
-static constexpr int CARD_H         = 460;  
-static constexpr int PAD            = 15;   
-static constexpr int GAP_H          = 12;   
+static constexpr int CARD_W         = 780;
+static constexpr int CARD_H         = 460;
+static constexpr int PAD            = 15;
 
-// Tokens de colores del tema
-static const Color kColorPrimary     = Color(59, 130, 246);   // #3B82F6
-static const Color kColorPrimaryDark = Color(37, 99, 235);    // #2563EB
-static const Color kGray100          = Color(243, 244, 246);  // #F3F4F6
-static const Color kGray300          = Color(209, 213, 219);  // #D1D5DB
-static const Color kGray700          = Color(55, 65, 81);     // #374151
-static const Color kGray900          = Color(17, 24, 39);     // #111827
-static const Color kWhite            = Color(255, 255, 255);  // #FFFFFF
-
-// Tokens de radio
-static constexpr int kRadiusSm       = 8;
-static constexpr int kRadiusLg       = 12;
-
-// Colores específicos mantenidos para compatibilidad
-static const Color BTN_BLUE      = kColorPrimary;
-static const Color BTN_BLUE_DN   = kColorPrimaryDark;
-static const Color CANCEL_BG     = Color(229, 231, 235);     // #E5E7EB
-static const Color CANCEL_FG     = kGray700;
-static const Color CANCEL_BORDER = kGray300;
-static const Color KEY_BG        = kGray100;
-static const Color KEY_BORDER    = Color(229, 231, 235);     // #E5E7EB
-static const Color KEY_TEXT      = kGray900;
-static const Color INPUT_BG      = kWhite;
-static const Color INPUT_BORDER  = kGray300;
+// Figma-matched colors
+static const Color KEY_BG        = Color(244, 244, 244);     // gradient top approximation
+static const Color KEY_SPECIAL   = Color(228, 229, 232);     // special key bg (backspace, Return, shift, .?123)
+static const Color KEY_TEXT      = dt::kTextPrimary;          // rgb(100,101,105)
+static const Color INPUT_BG      = Color(217, 217, 217, 128);// Figma: gray at 50% opacity
+static const Color JOIN_BG       = dt::kAccentCyan;           // rgb(48,163,196) Figma gradient top
+static const Color CANCEL_BG     = dt::kWhite;               // Figma: white fill
+static const Color CANCEL_FG     = dt::kTextPrimary;         // rgb(100,101,105)
 
 shared_ptr<Widget> create_password_prompt_screen(
     const string& title_text,
@@ -50,28 +35,27 @@ shared_ptr<Widget> create_password_prompt_screen(
     function<void(const string&)> on_join,
     function<void()> on_cancel)
 {
-    // Frame principal con fondo semitransparente mejorado
+    // Figma: clean white background, no dark overlay
     auto main_frame = make_shared<Frame>(Rect(0, 0, SCREEN_W, SCREEN_H));
-    main_frame->color(Palette::ColorId::bg, Color(0, 0, 0, 120));  // Menos opaco para look más moderno
+    main_frame->color(Palette::ColorId::bg, dt::kGrayBg);
 
-    // Tarjeta central con estilo mejorado
+    // Card — minimal styling matching Figma Rectangle 9
     auto card = make_shared<Frame>(
         Rect((SCREEN_W - CARD_W) / 2, (SCREEN_H - CARD_H) / 2, CARD_W, CARD_H));
-    card->color(Palette::ColorId::bg, Color(255, 255, 255));
-    card->color(Palette::ColorId::border, Color(230, 230, 235));
-    card->border(1);
-    card->border_radius(16);  // Bordes más redondeados para look moderno
+    card->color(Palette::ColorId::bg, dt::kWhite);
+    card->border(0);
+    card->border_radius(8);
     main_frame->add(card);
 
     // ---- INICIO: Layout dinámico superior ----
     int y_cursor = 12; // margen superior mínimo
 
-    // Título (usa title_text si viene, sino fallback)
+    // Título — Figma: Gothic A1/12/700, rgb(100,101,105) (scaled to 22px)
     auto title = make_shared<Label>(title_text.empty() ? string("Enter Password") : title_text);
     title->resize(Size(CARD_W - PAD * 2, 34));
     title->move(Point(PAD, y_cursor));
     title->font(Font(22, Font::Weight::bold));
-    title->color(Palette::ColorId::label_text, Color(17, 24, 39));
+    title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(title);
     y_cursor += 34; // avanzar debajo del título
 
@@ -82,7 +66,7 @@ shared_ptr<Widget> create_password_prompt_screen(
         subtitle->resize(Size(CARD_W - PAD * 2, 22));
         subtitle->move(Point(PAD, y_cursor));
         subtitle->font(Font(14));
-        subtitle->color(Palette::ColorId::label_text, Color(90, 90, 90));
+        subtitle->color(Palette::ColorId::label_text, dt::kTextPrimary);
         card->add(subtitle);
         y_cursor += 22; // avanzar debajo del subtitle
     }
@@ -95,17 +79,16 @@ shared_ptr<Widget> create_password_prompt_screen(
     input_row->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
     card->add(input_row);
 
-    // Campo de password
+    // Password field — Figma: gray fill, r=2, inner shadow
     auto pwd = make_shared<TextBox>("Password...");
     pwd->resize(Size(CARD_W - 280, 44));
     pwd->move(Point(0, 13));
     pwd->font(Font(16));
-    // Placeholder gris claro inicial
     pwd->color(Palette::ColorId::text, Color(150, 150, 150));
-    pwd->color(Palette::ColorId::bg, Color(255, 255, 255));
-    pwd->color(Palette::ColorId::border, Color(209, 213, 219));
+    pwd->color(Palette::ColorId::bg, INPUT_BG);
+    pwd->color(Palette::ColorId::border, Color(200, 200, 200));
     pwd->border(1);
-    pwd->border_radius(8);
+    pwd->border_radius(4);
     input_row->add(pwd);
 
     // Estado para limpiar el placeholder solo la primera vez
@@ -154,29 +137,29 @@ shared_ptr<Widget> create_password_prompt_screen(
         return false;
     });
 
-    // Botón Cancel
+    // Cancel button — Figma: white fill, r=4, shadow, gray text
     auto btn_cancel = make_shared<Button>(cancel_label.empty() ? "Cancel" : cancel_label);
-    btn_cancel->resize(Size(75, 44));
-    btn_cancel->move(Point(CARD_W - 225, 13));
-    btn_cancel->font(Font(14, Font::Weight::normal));
-    btn_cancel->color(Palette::ColorId::button_bg, Color(229, 231, 235));
-    btn_cancel->color(Palette::ColorId::label_text, Color(55, 65, 81));
-    btn_cancel->color(Palette::ColorId::border, Color(209, 213, 219));
+    btn_cancel->resize(Size(85, 44));
+    btn_cancel->move(Point(CARD_W - 240, 13));
+    btn_cancel->font(Font(14, Font::Weight::bold));
+    btn_cancel->color(Palette::ColorId::button_bg, CANCEL_BG);
+    btn_cancel->color(Palette::ColorId::button_text, CANCEL_FG);
+    btn_cancel->color(Palette::ColorId::border, Color(220, 220, 220));
     btn_cancel->border(1);
-    btn_cancel->border_radius(8);
+    btn_cancel->border_radius(4);
     btn_cancel->on_click([=](Event&){ if (on_cancel) on_cancel(); });
     input_row->add(btn_cancel);
 
-    // Botón Join
+    // Join button — Figma: cyan→blue gradient, r=4, shadow, white text
     auto btn_join = make_shared<Button>(join_label.empty() ? "Join" : join_label);
-    btn_join->resize(Size(75, 44));
-    btn_join->move(Point(CARD_W - 140, 13));
+    btn_join->resize(Size(85, 44));
+    btn_join->move(Point(CARD_W - 145, 13));
     btn_join->font(Font(14, Font::Weight::bold));
-    btn_join->color(Palette::ColorId::button_bg, Color(37, 99, 235));
-    btn_join->color(Palette::ColorId::label_text, Color(255, 255, 255));
-    btn_join->color(Palette::ColorId::border, Color(37, 99, 235));
+    btn_join->color(Palette::ColorId::button_bg, JOIN_BG);
+    btn_join->color(Palette::ColorId::button_text, dt::kWhite);
+    btn_join->color(Palette::ColorId::border, JOIN_BG);
     btn_join->border(0);
-    btn_join->border_radius(8);
+    btn_join->border_radius(4);
     btn_join->on_click([=](Event&){ if (on_join) on_join(pwd->text()); });
     input_row->add(btn_join);
 
@@ -184,12 +167,12 @@ shared_ptr<Widget> create_password_prompt_screen(
     int keyboard_top = y_cursor + 70 + 10;
 
     auto keyboard_frame = make_shared<Frame>(Rect(32, keyboard_top, CARD_W - 64, CARD_H - keyboard_top - 10));
-    keyboard_frame->color(Palette::ColorId::bg, Palette::white);
+    keyboard_frame->color(Palette::ColorId::bg, dt::kWhite);
     card->add(keyboard_frame);
 
     auto shift_on = make_shared<bool>(false);
     int tw = CARD_W - 64;  // total keyboard width
-    int kw = 54, kh = 55, gx = 5, gy = 12, sy = 15;
+    int kw = 54, kh = 50, gx = 5, gy = 8, sy = 10;
 
     // Two sub-frames: QWERTY and numeric (toggle with ?123 / ABC)
     auto kb_alpha = make_shared<Frame>(Rect(0, 0, tw, CARD_H - keyboard_top - 10));
@@ -221,17 +204,20 @@ shared_ptr<Widget> create_password_prompt_screen(
         if (!t.empty() && on_join) on_join(t);
     };
 
-    // Helper: create a styled keyboard Button (not Frame+Label)
+    // Helper: create a styled keyboard key — Figma: gradient fill, r=2, DROP_SHADOW
     auto mk = [](shared_ptr<Frame> parent, const string& label,
                   int x, int y, int w, int h,
-                  function<void()> action) {
+                  function<void()> action, bool special = false) {
         auto b = make_shared<Button>(label, Rect(x, y, w, h));
-        b->font(Font(13, Font::Weight::normal));
-        b->color(Palette::ColorId::button_bg, Color(243, 244, 246));
-        b->color(Palette::ColorId::button_text, Color(17, 24, 39));
-        b->color(Palette::ColorId::border, Color(229, 231, 235));
+        b->font(Font(14, Font::Weight::normal));
+        b->color(Palette::ColorId::button_bg, special ? KEY_SPECIAL : KEY_BG);
+        b->color(Palette::ColorId::button_text, KEY_TEXT);
+        b->color(Palette::ColorId::border, Color(210, 210, 210));
+        b->color(Palette::ColorId::button_bg, dt::kGreenLight, Palette::GroupId::active);
+        b->color(Palette::ColorId::button_bg, dt::kGreenLight, Palette::GroupId::checked);
         b->border(1);
-        b->border_radius(10);
+        b->border_radius(4);
+        b->border_flags({Theme::BorderFlag::drop_shadow});
         if (action) b->on_click([action](Event&) { action(); });
         parent->add(b);
         return b;
@@ -254,7 +240,7 @@ shared_ptr<Widget> create_password_prompt_screen(
                [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
         }
         mk(kb_alpha, "\xe2\x86\x90",
-           sx + 10 * (kw + gx), sy, kw, kh, do_bksp);
+           sx + 10 * (kw + gx), sy, kw, kh, do_bksp, true);
 
         // Row 2: A S D F G H J K L Return
         int y2 = sy + kh + gy;
@@ -268,7 +254,7 @@ shared_ptr<Widget> create_password_prompt_screen(
                [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
         }
         mk(kb_alpha, "Return",
-           sx2 + 9 * (kw + gx), y2, kw + 25, kh, do_enter);
+           sx2 + 9 * (kw + gx), y2, kw + 25, kh, do_enter, true);
 
         // Row 3: ⇧ Z X C V B N M , ? ⇧
         int y3 = y2 + kh + gy;
@@ -277,7 +263,7 @@ shared_ptr<Widget> create_password_prompt_screen(
         int r3w = 2 * shw + 9 * kw + 10 * gx;
         int sx3 = (tw - r3w) / 2;
         mk(kb_alpha, "\xe2\x87\xa7", sx3, y3, shw, kh,
-           [shift_on]() { *shift_on = !(*shift_on); });
+           [shift_on]() { *shift_on = !(*shift_on); }, true);
         for (size_t i = 0; i < r3.size(); i++) {
             char c = r3[i];
             mk(kb_alpha, string(1, c),
@@ -292,19 +278,19 @@ shared_ptr<Widget> create_password_prompt_screen(
            [type_ch]() { type_ch('?'); });
         mk(kb_alpha, "\xe2\x87\xa7",
            sx3 + shw + gx + 9 * (kw + gx), y3, shw, kh,
-           [shift_on]() { *shift_on = !(*shift_on); });
+           [shift_on]() { *shift_on = !(*shift_on); }, true);
 
         // Row 4: ?123 [space] ?123
         int y4 = y3 + kh + gy;
         int nkw = kw + 20;
         int spw = tw - 2 * nkw - 4 * gx;
         int sx4 = (tw - (2 * nkw + spw + 2 * gx)) / 2;
-        mk(kb_alpha, "?123", sx4, y4, nkw, kh, switch_num);
+        mk(kb_alpha, "?123", sx4, y4, nkw, kh, switch_num, true);
         mk(kb_alpha, "",
            sx4 + nkw + gx, y4, spw, kh,
            [type_ch]() { type_ch(' '); });
         mk(kb_alpha, "?123",
-           sx4 + nkw + gx + spw + gx, y4, nkw, kh, switch_num);
+           sx4 + nkw + gx + spw + gx, y4, nkw, kh, switch_num, true);
     }
 
     // ── Numeric / Symbol layout ─────────────────────────────────────
@@ -321,7 +307,7 @@ shared_ptr<Widget> create_password_prompt_screen(
                [type_ch, c]() { type_ch(c); });
         }
         mk(kb_num, "\xe2\x86\x90",
-           sx + 10 * (kw + gx), sy, kw, kh, do_bksp);
+           sx + 10 * (kw + gx), sy, kw, kh, do_bksp, true);
 
         // Row 2: @ # $ _ & - + ( ) Return
         int y2 = sy + kh + gy;
@@ -335,7 +321,7 @@ shared_ptr<Widget> create_password_prompt_screen(
                [type_ch, c]() { type_ch(c); });
         }
         mk(kb_num, "Return",
-           sx2 + 9 * (kw + gx), y2, kw + 25, kh, do_enter);
+           sx2 + 9 * (kw + gx), y2, kw + 25, kh, do_enter, true);
 
         // Row 3: = * " ' : ; ! ~ / .
         int y3 = y2 + kh + gy;
@@ -355,12 +341,12 @@ shared_ptr<Widget> create_password_prompt_screen(
         int nkw = kw + 20;
         int spw = tw - 2 * nkw - 4 * gx;
         int sx4 = (tw - (2 * nkw + spw + 2 * gx)) / 2;
-        mk(kb_num, "ABC", sx4, y4, nkw, kh, switch_abc);
+        mk(kb_num, "ABC", sx4, y4, nkw, kh, switch_abc, true);
         mk(kb_num, "",
            sx4 + nkw + gx, y4, spw, kh,
            [type_ch]() { type_ch(' '); });
         mk(kb_num, "ABC",
-           sx4 + nkw + gx + spw + gx, y4, nkw, kh, switch_abc);
+           sx4 + nkw + gx + spw + gx, y4, nkw, kh, switch_abc, true);
     }
 
     return main_frame;

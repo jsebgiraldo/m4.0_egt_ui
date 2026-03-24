@@ -20,8 +20,9 @@ using namespace std;
 // ── WiFi signal-arc icon (3 concentric arcs + dot) ──────────────────────────
 class WifiIcon : public Widget {
 public:
-    WifiIcon(const Rect& rect, const Color& col)
-        : Widget(rect), m_color(col)
+    /// @param signal  0-100 RSSI percentage
+    WifiIcon(const Rect& rect, const Color& col, int signal)
+        : Widget(rect), m_color(col), m_signal(signal)
     {
         fill_flags({Theme::FillFlag::blend});
         border(0);
@@ -36,22 +37,35 @@ public:
         constexpr float start = -M_PI * 0.75f;   // -135°
         constexpr float end   = -M_PI * 0.25f;   // -45°
 
-        painter.line_width(2.5f);
-        painter.set(m_color);
+        // How many arcs to light up based on signal strength
+        // 0-25  → 0 arcs (dot only)
+        // 26-50 → 1 arc
+        // 51-75 → 2 arcs
+        // 76+   → 3 arcs
+        int active = (m_signal > 75) ? 3 : (m_signal > 50) ? 2 : (m_signal > 25) ? 1 : 0;
+
+        Color dim(m_color.red(), m_color.green(), m_color.blue(), 60);
 
         float radii[] = {7.0f, 13.0f, 19.0f};
-        for (float r : radii) {
-            painter.draw(Arc(center, r, start, end));
+        painter.line_width(2.5f);
+        for (int i = 0; i < 3; i++) {
+            painter.set(i < active ? m_color : dim);
+            painter.draw(Arc(center, radii[i], start, end));
             painter.stroke();
         }
 
-        // small dot at the base
+        // small dot at the base (always solid)
+        painter.set(m_color);
         painter.draw(Arc(center, 2.0f, 0.0f, 2.0f * M_PI));
         painter.fill();
     }
 
 private:
     Color m_color;
+    int m_signal;
+
+public:
+    void set_color(const Color& c) { m_color = c; damage(); }
 };
 
 std::shared_ptr<Widget> create_wifi_settings_panel(
@@ -68,9 +82,15 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         egt_wifi::WiFiManager wifi;
         nets = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
     }
+    // Sort by signal strength (strongest first)
+    sort(nets->begin(), nets->end(),
+         [](const WiFiNetwork& a, const WiFiNetwork& b) {
+             return a.signal > b.signal;
+         });
     const int total = static_cast<int>(nets->size());
 
     auto network_map = make_shared<map<string, egt_wifi::WiFiNetwork>>();
+    auto alive = make_shared<bool>(true);
 
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -186,29 +206,9 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         ssid_lbl->border(0);
         row_frame->add(ssid_lbl);
 
-        // Tap anywhere on the row → open password prompt
-        row_frame->on_event([=](Event&) {
-            auto selected_net = (*network_map)[label];
-            auto pwd_screen = create_password_prompt_screen(
-                "Network: " + selected_net.ssid,
-                "Enter password to join",
-                "Join", "Back",
-                [=](const string& password) {
-                    on_connect(selected_net.ssid, password);
-                },
-                [=]() {
-                    if (on_show_screen) {
-                        on_show_screen(create_wifi_settings_panel(
-                            on_back, on_scan_wifi, on_connect,
-                            on_item_selected, on_show_screen, nets));
-                    }
-                });
-            if (on_show_screen) on_show_screen(pwd_screen);
-        }, {EventId::pointer_click});
-
-        // WiFi signal indicator – arc icon
+        // WiFi signal indicator – arc icon (arcs reflect signal strength)
         auto wifi_icon = make_shared<WifiIcon>(
-            Rect(card_w - 110, (row_h - 30) / 2, 30, 30), text_color);
+            Rect(card_w - 110, (row_h - 30) / 2, 30, 30), text_color, net.signal);
         row_frame->add(wifi_icon);
 
         // Chevron – white circle with shadow + colored ">" stroke
@@ -233,6 +233,54 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         chevron->font(Font(14, Font::Weight::bold));
         chevron->color(Palette::ColorId::label_text, text_color);
         row_frame->add(chevron);
+
+        // --- Green highlight on touch (text + icon + chevron) ---
+        auto hover_timer = make_shared<Timer>(chrono::milliseconds(1500));
+        hover_timer->on_timeout([=]() {
+            ssid_lbl->color(Palette::ColorId::label_text, text_color);
+            wifi_icon->set_color(text_color);
+            chevron->color(Palette::ColorId::label_text, text_color);
+            row_frame->damage();
+        });
+        row_frame->on_event([=](Event& event) {
+            if (event.id() == EventId::raw_pointer_down) {
+                hover_timer->stop();
+                ssid_lbl->color(Palette::ColorId::label_text, dt::kGreen);
+                wifi_icon->set_color(dt::kGreen);
+                chevron->color(Palette::ColorId::label_text, dt::kGreen);
+                row_frame->damage();
+            } else if (event.id() == EventId::raw_pointer_up) {
+                hover_timer->start();
+            } else if (event.id() == EventId::pointer_drag_start ||
+                       event.id() == EventId::pointer_drag) {
+                hover_timer->stop();
+                ssid_lbl->color(Palette::ColorId::label_text, text_color);
+                wifi_icon->set_color(text_color);
+                chevron->color(Palette::ColorId::label_text, text_color);
+                row_frame->damage();
+            }
+        });
+
+        // Tap anywhere on the row → open password prompt
+        row_frame->on_event([=](Event&) {
+            *alive = false;
+            auto selected_net = (*network_map)[label];
+            auto pwd_screen = create_password_prompt_screen(
+                "Network: " + selected_net.ssid,
+                "Enter password to join",
+                "Join", "Back",
+                [=](const string& password) {
+                    on_connect(selected_net.ssid, password);
+                },
+                [=]() {
+                    if (on_show_screen) {
+                        on_show_screen(create_wifi_settings_panel(
+                            on_back, on_scan_wifi, on_connect,
+                            on_item_selected, on_show_screen, nets));
+                    }
+                });
+            if (on_show_screen) on_show_screen(pwd_screen);
+        }, {EventId::pointer_click});
 
         // Separator line (white — subtle, matches Figma)
         auto sep = make_shared<Frame>(
@@ -262,6 +310,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     other_frame->add(other_lbl);
 
     other_frame->on_event([=](Event&) {
+        *alive = false;
         auto ssid_screen = create_password_prompt_screen(
             "Other Network",
             "Enter the network name (SSID)",
@@ -326,6 +375,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         auto retry_count = make_shared<int>(0);
         auto retry_timer = make_shared<PeriodicTimer>(chrono::milliseconds(3000));
         retry_timer->on_timeout([=]() {
+            if (!*alive) { retry_timer->cancel(); return; }
             (*retry_count)++;
             printf("[WIFI_SETTINGS] auto-retry scan %d/10\n", *retry_count);
             fflush(stdout);
@@ -338,12 +388,46 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             auto fresh = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
             if (!fresh->empty()) {
                 retry_timer->cancel();
+                *alive = false;
                 on_show_screen(create_wifi_settings_panel(
                     on_back, on_scan_wifi, on_connect,
                     on_item_selected, on_show_screen, fresh));
             }
         });
         retry_timer->start();
+    }
+
+    // ── Periodic refresh of the network list (every 15 s) ───────────────────
+    if (!nets->empty() && on_show_screen) {
+        auto refresh_timer = make_shared<PeriodicTimer>(chrono::seconds(15));
+        refresh_timer->on_timeout([=]() {
+            if (!*alive) { refresh_timer->cancel(); return; }
+            WiFiManager wifi;
+            auto fresh = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
+
+            // Build simple fingerprint: sorted "ssid:connected," for each network
+            auto fingerprint = [](const vector<WiFiNetwork>& v) {
+                vector<string> parts;
+                parts.reserve(v.size());
+                for (const auto& n : v)
+                    parts.push_back(n.ssid + ":" + (n.connected ? "1" : "0"));
+                sort(parts.begin(), parts.end());
+                string fp;
+                for (const auto& p : parts) fp += p + ",";
+                return fp;
+            };
+
+            if (fingerprint(*fresh) != fingerprint(*nets)) {
+                printf("[WIFI_SETTINGS] network list changed — refreshing\n");
+                fflush(stdout);
+                refresh_timer->cancel();
+                *alive = false;
+                on_show_screen(create_wifi_settings_panel(
+                    on_back, on_scan_wifi, on_connect,
+                    on_item_selected, on_show_screen, fresh));
+            }
+        });
+        refresh_timer->start();
     }
 
     return container;

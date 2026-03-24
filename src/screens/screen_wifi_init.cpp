@@ -60,7 +60,7 @@ private:
 
 shared_ptr<Widget> create_wifi_init_screen(
     function<void()> on_connected,
-    function<void()> on_failed)
+    function<void(shared_ptr<vector<egt_wifi::WiFiNetwork>>)> on_failed)
 {
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -105,7 +105,7 @@ shared_ptr<Widget> create_wifi_init_screen(
     // State for WiFi polling
     auto poll_count = make_shared<int>(0);
     const bool mock_mode = (std::getenv("EGT_MOCK_WIFI") != nullptr);
-    const int MAX_POLLS = mock_mode ? 2 : 15;   // mock: 4s, real: 30s
+    const int MAX_POLLS = mock_mode ? 2 : 5;    // mock: 4s, real: 10s
     const int POLL_MS   = 2000;
 
     // WiFi check timer — polls every 2s
@@ -145,7 +145,7 @@ shared_ptr<Widget> create_wifi_init_screen(
             fail_timer->on_timeout([=]() {
                 fail_timer->cancel();
                 anim_timer->cancel();
-                if (on_failed) on_failed();
+                if (on_failed) on_failed(nullptr);
             });
             fail_timer->start();
         } else {
@@ -162,6 +162,47 @@ shared_ptr<Widget> create_wifi_init_screen(
         fflush(stdout);
 
         egt_wifi::WiFiManager wifi;
+
+        // No saved networks → scan for available networks before showing list
+        if (!wifi.has_saved_networks()) {
+            printf("[WIFI_INIT] no saved networks, scanning first...\n");
+            fflush(stdout);
+            status_label->text("Scanning networks...");
+
+            // Poll until scan stabilises (count unchanged between two consecutive polls)
+            auto scan_count = make_shared<int>(0);
+            auto prev_count = make_shared<int>(-1);  // last poll's network count
+            const int MAX_SCAN = mock_mode ? 2 : 5;
+            auto scan_timer = make_shared<PeriodicTimer>(chrono::milliseconds(2000));
+            scan_timer->on_timeout([=]() {
+                (*scan_count)++;
+                printf("[WIFI_INIT] scan poll %d/%d\n", *scan_count, MAX_SCAN);
+                fflush(stdout);
+
+                egt_wifi::WiFiManager wm;
+                auto nets = make_shared<vector<egt_wifi::WiFiNetwork>>(wm.scan_networks());
+                int cur = static_cast<int>(nets->size());
+                printf("[WIFI_INIT] scan poll %d: %d networks\n", *scan_count, cur);
+                fflush(stdout);
+
+                // Done when: list stabilised (same count as previous poll, non-empty,
+                //            and at least MIN_SCAN polls done) OR max polls reached
+                const int MIN_SCAN = mock_mode ? 1 : 3;
+                bool stable = (*scan_count >= MIN_SCAN && cur > 0 && cur == *prev_count);
+                *prev_count = cur;
+
+                if (stable || *scan_count >= MAX_SCAN) {
+                    printf("[WIFI_INIT] scan done, %d networks (stable=%d)\n", cur, stable);
+                    fflush(stdout);
+                    scan_timer->cancel();
+                    anim_timer->cancel();
+                    if (on_failed) on_failed(nets);
+                }
+            });
+            scan_timer->start();
+            return;
+        }
+
         std::string ssid = wifi.get_current_ssid();
 
         if (!ssid.empty()) {
