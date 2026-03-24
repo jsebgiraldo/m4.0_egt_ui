@@ -163,7 +163,24 @@ shared_ptr<Widget> create_wifi_init_screen(
 
         egt_wifi::WiFiManager wifi;
 
-        // No saved networks → scan for available networks before showing list
+        // PRIORITY 1: Already connected — skip everything, go straight to login
+        std::string ssid = wifi.get_current_ssid();
+        if (!ssid.empty()) {
+            printf("[WIFI_INIT] already connected to '%s'\n", ssid.c_str());
+            fflush(stdout);
+            status_label->text("Connected to " + ssid);
+
+            auto done_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1500));
+            done_timer->on_timeout([=]() {
+                done_timer->cancel();
+                anim_timer->cancel();
+                if (on_connected) on_connected();
+            });
+            done_timer->start();
+            return;
+        }
+
+        // PRIORITY 2: No saved networks → scan and show the WiFi list
         if (!wifi.has_saved_networks()) {
             printf("[WIFI_INIT] no saved networks, scanning first...\n");
             fflush(stdout);
@@ -203,26 +220,9 @@ shared_ptr<Widget> create_wifi_init_screen(
             return;
         }
 
-        std::string ssid = wifi.get_current_ssid();
-
-        if (!ssid.empty()) {
-            // Already connected — go straight through
-            printf("[WIFI_INIT] already connected to '%s'\n", ssid.c_str());
-            fflush(stdout);
-            status_label->text("Connected to " + ssid);
-
-            auto done_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1500));
-            done_timer->on_timeout([=]() {
-                done_timer->cancel();
-                anim_timer->cancel();
-                if (on_connected) on_connected();
-            });
-            done_timer->start();
-        } else {
-            // Not connected yet — start polling
-            status_label->text("Connecting to WiFi...");
-            wifi_timer->start();
-        }
+        // PRIORITY 3: Saved networks but not connected yet — poll for reconnection
+        status_label->text("Connecting to WiFi...");
+        wifi_timer->start();
     });
     initial_timer->start();
 
