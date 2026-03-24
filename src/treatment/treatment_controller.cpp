@@ -62,16 +62,16 @@ struct TreatmentScreen {
 // ── Figma-matched layout constants (432×261 → 800×480) ─────────────────────
 // Cumulative time header area (Figma: Group 159 at y=23, line at y=56)
 static constexpr int CUM_TIME_Y     = 15;   // y for time labels
-static constexpr int CUM_SEP_Y      = 55;   // y for separator line
-static constexpr int CUM_LEFT_X     = 110;  // x start (right of logo)
-static constexpr int CUM_WIDTH      = 470;  // width of cumulative area
+static constexpr int CUM_SEP_Y      = 110;  // y for separator line (below logo at y=5+103=108)
+static constexpr int CUM_LEFT_X     = 180;  // x start (right of logo at x=10+166=176)
+static constexpr int CUM_WIDTH      = 400;  // width of cumulative area (up to demo badge at x=580)
 
 // Main content area
-static constexpr int CONTENT_Y      = 75;   // y for large number/percentage
+static constexpr int CONTENT_Y      = 120;  // y for large number/percentage
 static constexpr int CONTENT_H      = 120;  // height of large number area
-static constexpr int STATUS_Y       = 210;  // y for status text below countdown
-static constexpr int DOTS_Y         = 260;  // y for segmented progress dots
-static constexpr int BTN_Y          = 345;  // y for bottom buttons
+static constexpr int STATUS_Y       = 255;  // y for status text below countdown
+static constexpr int DOTS_Y         = 305;  // y for segmented progress dots
+static constexpr int BTN_Y          = 390;  // y for bottom buttons
 static constexpr int BTN_W          = 220;  // button width
 static constexpr int BTN_H          = 80;   // button height
 static constexpr int BTN_LEFT_X     = 40;   // left button x
@@ -91,8 +91,8 @@ static TreatmentScreen make_treatment_container(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, bg_color);
 
-    // Logo (top-left, small)
-    auto logo = ui::create_logo(15, 10, 80, 50);
+    // Logo (top-left, full Figma size)
+    auto logo = ui::create_logo(10, 5, dt::LOGO_W, dt::LOGO_H);
     container->add(logo);
 
     // Demo mode badge (top-right)
@@ -174,12 +174,12 @@ static void show_warming(shared_ptr<TreatmentState> state)
 {
     // Warming-screen-local layout (independent from other treatment screens)
     // Number font 120px → rendered height ~145px
-    const int W_NUM_Y      = 65;   // top of big number area
+    const int W_NUM_Y      = 120;  // top of big number area (below full-size logo)
     const int W_NUM_H      = 155;  // height of number rect (120px font)
-    const int W_PCT_Y      = 80;   // % superscript y (raised from baseline)
-    const int W_STATUS1_Y  = 240;  // "Warming up"
-    const int W_STATUS2_Y  = 268;  // "for Treatment"
-    const int W_BAR_Y      = 360;  // progress bar y
+    const int W_PCT_Y      = 125;  // % superscript y (raised from baseline)
+    const int W_STATUS1_Y  = 285;  // "Warming up"
+    const int W_STATUS2_Y  = 313;  // "for Treatment"
+    const int W_BAR_Y      = 405;  // progress bar y
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
