@@ -1,10 +1,69 @@
 #include <egt/ui>
+#include <egt/svgimage.h>
 #include "screen_patient_info.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
 
+#include <fstream>
+
 using namespace egt;
 using namespace std;
+
+// ── SVG icon helpers ─────────────────────────────────────────────────────────
+static string write_svg_tmp(const char* name, const char* svg_data)
+{
+    string path = string("/tmp/egt-icon-") + name + ".svg";
+    ofstream f(path);
+    f << svg_data;
+    return path;
+}
+
+static Image load_svg_icon(const char* name, const char* svg_data, int size)
+{
+    try {
+        auto path = write_svg_tmp(name, svg_data);
+        SvgImage svg("file:" + path, SizeF(size, size));
+        return static_cast<Image>(svg);
+    } catch (...) {
+        return {};
+    }
+}
+
+// Male person silhouette (pants) — kTextPrimary #646469
+static const char* kMaleSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 7h-5V8h-2v1H6l2 7h2v4h2v-4h2l2-7z" fill="#646469"/>
+</svg>)svg";
+
+// Female person silhouette (skirt) — kTextPrimary #646469
+static const char* kFemaleSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 7H6l2 8h3v5h2v-5h3l2-8z" fill="#646469"/>
+</svg>)svg";
+
+// Arrow left — Back button (#646469)
+static const char* kArrowBackSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="#646469"/>
+</svg>)svg";
+
+// Skip-next — Skip button (#646469)
+static const char* kSkipNextSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="#646469"/>
+</svg>)svg";
+
+// Arrow right (white) — Continue button on green bg
+static const char* kArrowFwdSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="#FFFFFF"/>
+</svg>)svg";
+
+// Refresh/reset — Reset button (#646469)
+static const char* kRefreshSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="#646469"/>
+</svg>)svg";
 
 // Figma Group 231: Patient Information — 3 sub-screens (Gender, Age, ZIP)
 // Canvas: 432×261, screen: 800×480 → scale ≈ 1.852
@@ -47,6 +106,42 @@ static shared_ptr<Button> create_green_button(
     if (on_click) {
         btn->on_click([on_click](Event&) { on_click(); });
     }
+    return btn;
+}
+
+// ── Icon button helpers ───────────────────────────────────────────────────────
+// Outlined button with a leading icon (gray border, kTextPrimary text)
+static shared_ptr<ImageButton> make_icon_outlined_btn(
+    const char* icon_name, const char* icon_svg,
+    const string& text, const Rect& rect, function<void()> on_click)
+{
+    auto ico = load_svg_icon(icon_name, icon_svg, 22);
+    auto btn = make_shared<ImageButton>(ico, text, rect, AlignFlag::center);
+    btn->image_align(AlignFlag::left | AlignFlag::center_vertical);
+    btn->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    btn->color(Palette::ColorId::button_bg, dt::kWhite);
+    btn->color(Palette::ColorId::button_text, dt::kTextPrimary);
+    btn->color(Palette::ColorId::border, dt::kGrayLight);
+    btn->border(2);
+    btn->border_radius(dt::RADIUS_MD);
+    if (on_click) btn->on_click([on_click](Event&) { on_click(); });
+    return btn;
+}
+
+// Green filled button with a leading icon (white icon/text on kGreen bg)
+static shared_ptr<ImageButton> make_icon_green_btn(
+    const char* icon_name, const char* icon_svg,
+    const string& text, const Rect& rect, function<void()> on_click)
+{
+    auto ico = load_svg_icon(icon_name, icon_svg, 22);
+    auto btn = make_shared<ImageButton>(ico, text, rect, AlignFlag::center);
+    btn->image_align(AlignFlag::left | AlignFlag::center_vertical);
+    btn->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    btn->color(Palette::ColorId::button_bg, dt::kGreen);
+    btn->color(Palette::ColorId::button_text, dt::kWhite);
+    btn->border(0);
+    btn->border_radius(dt::RADIUS_SM);
+    if (on_click) btn->on_click([on_click](Event&) { on_click(); });
     return btn;
 }
 
@@ -154,6 +249,15 @@ static shared_ptr<Widget> create_gender_step(
     male_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(male_lbl);
 
+    // Male person icon (just left of "Male" text)
+    {
+        auto ico = load_svg_icon("male-pi", kMaleSvg, 28);
+        if (!ico.empty()) {
+            auto lbl = make_shared<ImageLabel>(ico, "", Rect(188, 237, 28, 28));
+            container->add(lbl);
+        }
+    }
+
     // Toggle track (pill) @(350, 233, 102×37) r=18
     auto track = make_shared<Frame>(Rect(350, 233, 102, 37));
     track->fill_flags({Theme::FillFlag::blend});
@@ -184,6 +288,15 @@ static shared_ptr<Widget> create_gender_step(
     female_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(female_lbl);
 
+    // Female person icon (just right of "Female" text)
+    {
+        auto ico = load_svg_icon("female-pi", kFemaleSvg, 28);
+        if (!ico.empty()) {
+            auto lbl = make_shared<ImageLabel>(ico, "", Rect(568, 237, 28, 28));
+            container->add(lbl);
+        }
+    }
+
     // Click on Male label → select Male, rebuild
     auto select_and_rebuild = [=](bool female) {
         info->gender = female ? "Female" : "Male";
@@ -203,11 +316,13 @@ static shared_ptr<Widget> create_gender_step(
     });
 
     // Bottom buttons: Back @(26,400), Skip @(293,400), Continue @(556,400)
-    auto btn_back = ui::create_outlined_button("< Back",
+    auto btn_back = make_icon_outlined_btn(
+        "arrow-back-pi", kArrowBackSvg, "Back",
         Rect(26, 400, 172, 61), on_back);
     container->add(btn_back);
 
-    auto btn_skip = ui::create_outlined_button("Skip",
+    auto btn_skip = make_icon_outlined_btn(
+        "skip-next-pi", kSkipNextSvg, "Skip",
         Rect(293, 400, 156, 61),
         [=]() {
             if (on_show_screen)
@@ -216,7 +331,8 @@ static shared_ptr<Widget> create_gender_step(
         });
     container->add(btn_skip);
 
-    auto btn_continue = create_green_button("Continue",
+    auto btn_continue = make_icon_green_btn(
+        "arrow-fwd-pi", kArrowFwdSvg, "Continue",
         Rect(556, 400, 217, 61),
         [=]() {
             if (on_show_screen)
@@ -313,7 +429,8 @@ static shared_ptr<Widget> create_age_step(
     container->add(right_arr);
 
     // Bottom buttons
-    auto btn_back = ui::create_outlined_button("< Back",
+    auto btn_back = make_icon_outlined_btn(
+        "arrow-back-pi", kArrowBackSvg, "Back",
         Rect(26, 400, 172, 61),
         [=]() {
             if (on_show_screen)
@@ -322,7 +439,8 @@ static shared_ptr<Widget> create_age_step(
         });
     container->add(btn_back);
 
-    auto btn_skip = ui::create_outlined_button("Skip",
+    auto btn_skip = make_icon_outlined_btn(
+        "skip-next-pi", kSkipNextSvg, "Skip",
         Rect(293, 400, 156, 61),
         [=]() {
             if (on_show_screen)
@@ -331,7 +449,8 @@ static shared_ptr<Widget> create_age_step(
         });
     container->add(btn_skip);
 
-    auto btn_continue = create_green_button("Continue",
+    auto btn_continue = make_icon_green_btn(
+        "arrow-fwd-pi", kArrowFwdSvg, "Continue",
         Rect(556, 400, 217, 61),
         [=]() {
             if (info->age > 0) {
@@ -419,7 +538,8 @@ static shared_ptr<Widget> create_zip_step(
     }
 
     // Bottom buttons: Reset @(26,400), Skip @(293,400), Continue @(556,400)
-    auto btn_reset = ui::create_outlined_button("Reset",
+    auto btn_reset = make_icon_outlined_btn(
+        "refresh-pi", kRefreshSvg, "Reset",
         Rect(26, 400, 172, 61),
         [=]() {
             info->zip_code.clear();
@@ -429,14 +549,16 @@ static shared_ptr<Widget> create_zip_step(
         });
     container->add(btn_reset);
 
-    auto btn_skip = ui::create_outlined_button("Skip",
+    auto btn_skip = make_icon_outlined_btn(
+        "skip-next-pi", kSkipNextSvg, "Skip",
         Rect(293, 400, 156, 61),
         [=]() {
             if (on_complete) on_complete(*info);
         });
     container->add(btn_skip);
 
-    auto btn_continue = create_green_button("Continue",
+    auto btn_continue = make_icon_green_btn(
+        "arrow-fwd-pi", kArrowFwdSvg, "Continue",
         Rect(556, 400, 217, 61),
         [=]() {
             if (info->zip_code.length() >= 3) {
