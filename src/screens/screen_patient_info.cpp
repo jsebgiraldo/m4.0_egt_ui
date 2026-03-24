@@ -93,6 +93,14 @@ static shared_ptr<Widget> create_zip_step(
     function<void(shared_ptr<Widget>)> on_show_screen,
     function<void()> on_leave_demo);
 
+static shared_ptr<Widget> create_summary_step(
+    bool demo_mode,
+    shared_ptr<PatientInfo> info,
+    function<void(const PatientInfo&)> on_complete,
+    function<void()> on_back_to_zip,
+    function<void(shared_ptr<Widget>)> on_show_screen,
+    function<void()> on_leave_demo);
+
 // ── Green "Continue" button (Figma: bg=#5BC500, white text) ─────────────────
 static shared_ptr<Button> create_green_button(
     const string& text, const Rect& rect, function<void()> on_click)
@@ -561,11 +569,95 @@ static shared_ptr<Widget> create_zip_step(
         "arrow-fwd-pi", kArrowFwdSvg, "Continue",
         Rect(556, 400, 217, 61),
         [=]() {
-            if (info->zip_code.length() >= 3) {
-                if (on_complete) on_complete(*info);
-            }
+            if (info->zip_code.length() >= 3 && on_show_screen)
+                on_show_screen(create_summary_step(demo_mode, info, on_complete,
+                    [=]() {
+                        if (on_show_screen)
+                            on_show_screen(create_zip_step(demo_mode, info, on_complete,
+                                on_back, on_show_screen, on_leave_demo));
+                    },
+                    on_show_screen, on_leave_demo));
         });
     container->add(btn_continue);
+
+    return container;
+}
+
+// ── Step 4: Summary (Gender / Age / ZIP review before GO) ──────────────────
+static shared_ptr<Widget> create_summary_step(
+    bool demo_mode,
+    shared_ptr<PatientInfo> info,
+    function<void(const PatientInfo&)> on_complete,
+    function<void()> on_back_to_zip,
+    function<void(shared_ptr<Widget>)> on_show_screen,
+    function<void()> on_leave_demo)
+{
+    auto container = make_patient_step(2, demo_mode, on_leave_demo);
+
+    // Summary card background
+    auto card = make_shared<Frame>(Rect(90, 145, 620, 215));
+    card->fill_flags({Theme::FillFlag::blend});
+    card->color(Palette::ColorId::bg, dt::kBgWhite);
+    card->border(1);
+    card->color(Palette::ColorId::border, dt::kGrayLight);
+    card->border_radius(dt::RADIUS_MD);
+    container->add(card);
+
+    // Row: label + bold value
+    struct SummaryRow { const char* label; string value; int y; };
+    SummaryRow rows[] = {
+        {"Gender :",  info->gender,
+                      165},
+        {"Age:",      info->age > 0 ? to_string(info->age) : "-",
+                      225},
+        {"ZIP Code:", info->zip_code.empty() ? "-" : info->zip_code,
+                      285},
+    };
+
+    for (auto& r : rows) {
+        auto lbl = make_shared<Label>(r.label,
+            Rect(160, r.y, 180, 40),
+            AlignFlag::center_vertical | AlignFlag::right);
+        lbl->font(Font(20, Font::Weight::normal));
+        lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        container->add(lbl);
+
+        auto val = make_shared<Label>(r.value,
+            Rect(360, r.y, 220, 40),
+            AlignFlag::center_vertical | AlignFlag::left);
+        val->font(Font(20, Font::Weight::bold));
+        val->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        container->add(val);
+    }
+
+    // Dividers between rows
+    for (int dy : {218, 278}) {
+        auto div = make_shared<Frame>(Rect(100, dy, 600, 1));
+        div->fill_flags({Theme::FillFlag::blend});
+        div->color(Palette::ColorId::bg, dt::kGrayLight);
+        div->border(0);
+        container->add(div);
+    }
+
+    // Back button
+    auto btn_back = make_icon_outlined_btn(
+        "arrow-back-sum", kArrowBackSvg, "Back",
+        Rect(26, 400, 172, 61),
+        [=]() { if (on_back_to_zip) on_back_to_zip(); });
+    container->add(btn_back);
+
+    // GO button (green, bold, no icon)
+    auto btn_go = make_shared<Button>("GO", Rect(556, 400, 217, 61));
+    btn_go->color(Palette::ColorId::button_bg, dt::kGreen);
+    btn_go->color(Palette::ColorId::button_text, dt::kWhite);
+    btn_go->color(Palette::ColorId::border, dt::kGreen);
+    btn_go->border(0);
+    btn_go->border_radius(dt::RADIUS_SM);
+    btn_go->font(Font(dt::FONT_BUTTON + 4, Font::Weight::bold));
+    btn_go->on_click([=](Event&) {
+        if (on_complete) on_complete(*info);
+    });
+    container->add(btn_go);
 
     return container;
 }
