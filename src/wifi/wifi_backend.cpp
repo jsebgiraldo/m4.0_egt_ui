@@ -97,16 +97,19 @@ bool WiFiManager::disconnect() {
 }
 
 std::string WiFiManager::get_current_ssid() {
-    std::string cmd = "nmcli -t -f ACTIVE,SSID dev wifi";
+    // Use device-state query instead of "dev wifi" which triggers a slow scan.
+    // Format: DEVICE:TYPE:STATE:CONNECTION  e.g. wlan0:wifi:connected:MySSID
+    std::string cmd = "nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device 2>/dev/null";
     std::istringstream stream(run_command(cmd));
     std::string line;
     while (std::getline(stream, line)) {
-        if (line.substr(0, 4) == "yes:") {
-            std::string ssid = line.substr(4);
-            // Trim whitespace
+        // Match any wifi device in connected state: "*:wifi:connected:<ssid>"
+        auto p1 = line.find(":wifi:connected:");
+        if (p1 != std::string::npos) {
+            std::string ssid = line.substr(p1 + std::string(":wifi:connected:").size());
             while (!ssid.empty() && (ssid.back() == '\n' || ssid.back() == '\r' || ssid.back() == ' '))
                 ssid.pop_back();
-            return ssid;
+            if (!ssid.empty()) return ssid;
         }
     }
 
