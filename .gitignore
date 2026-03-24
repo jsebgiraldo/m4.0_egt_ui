@@ -51,6 +51,7 @@ Thumbs.db
 # Build directories
 build/
 build-native/
+build-docker/
 cmake-build-*/
 
 # CMake generated files

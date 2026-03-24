@@ -4,6 +4,7 @@
 #include "../wifi/wifi_backend.h"
 #include <cmath>
 #include <chrono>
+#include <cstdlib>
 
 using namespace egt;
 using namespace std;
@@ -65,10 +66,10 @@ shared_ptr<Widget> create_wifi_init_screen(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
-    // Figma: Spinner COMPONENT 214×214 → ~396px scaled
-    const int spin_sz = 380;
+    // Figma: Spinner COMPONENT 214×214 → ~396px scaled, centered vertically
+    const int spin_sz = 396;
     const int spin_x = (dt::SCREEN_W - spin_sz) / 2;
-    const int spin_y = 20;
+    const int spin_y = (dt::SCREEN_H - spin_sz) / 2;
 
     auto spinner = make_shared<SpinnerRing>(Rect(spin_x, spin_y, spin_sz, spin_sz));
     container->add(spinner);
@@ -103,8 +104,9 @@ shared_ptr<Widget> create_wifi_init_screen(
 
     // State for WiFi polling
     auto poll_count = make_shared<int>(0);
-    constexpr int MAX_POLLS = 5;          // 5 polls × 2s = 10s max wait
-    constexpr int POLL_MS = 2000;
+    const bool mock_mode = (std::getenv("EGT_MOCK_WIFI") != nullptr);
+    const int MAX_POLLS = mock_mode ? 2 : 15;   // mock: 4s, real: 30s
+    const int POLL_MS   = 2000;
 
     // WiFi check timer — polls every 2s
     auto wifi_timer = make_shared<PeriodicTimer>(chrono::milliseconds(POLL_MS));

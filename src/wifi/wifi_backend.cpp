@@ -55,10 +55,33 @@ std::vector<WiFiNetwork> WiFiManager::scan_networks() {
         networks.push_back(net);
     }
 
+    // Mock data when nmcli is unavailable (e.g. simulator without NetworkManager)
+    if (networks.empty() && std::getenv("EGT_MOCK_WIFI")) {
+        printf("[WIFI] Using mock WiFi data (EGT_MOCK_WIFI set)\n");
+        fflush(stdout);
+        networks = {
+            {"SunTek-Office",     92, "WPA2", true},
+            {"BTWifi-Home",       78, "WPA2", false},
+            {"Starbucks-Free",    65, "Open", false},
+            {"ATT-Fiber-5G",      55, "WPA3", false},
+            {"Xfinity-Guest",     42, "WPA2", false},
+            {"TP-Link_8A3C",      35, "WPA2", false},
+            {"NETGEAR-Living",    28, "WPA2", false},
+            {"Hidden_Network_7",  20, "WPA2", false},
+        };
+    }
+
     return networks;
 }
 
 bool WiFiManager::connect(const std::string& ssid, const std::string& password) {
+    // In mock mode, simulate successful connection
+    if (std::getenv("EGT_MOCK_WIFI")) {
+        printf("[WIFI] mock connect to '%s' -> OK\n", ssid.c_str());
+        fflush(stdout);
+        return true;
+    }
+
     std::string cmd = "nmcli dev wifi connect '" +
         shell_escape(ssid) + "' password '" +
         shell_escape(password) + "'";
@@ -86,6 +109,13 @@ std::string WiFiManager::get_current_ssid() {
             return ssid;
         }
     }
+
+    // Mock connected SSID when running in simulator
+    // Use EGT_MOCK_WIFI=connected to simulate being already connected
+    const char* mock = std::getenv("EGT_MOCK_WIFI");
+    if (mock && std::string(mock) == "connected")
+        return "SunTek-Office";
+
     return "";
 }
 

@@ -18,6 +18,7 @@ inline const egt::Color kBgWhite       {255, 255, 255};
 inline const egt::Color kTextPrimary   {100, 101, 105};  // rgb(100,101,105)
 inline const egt::Color kAccentCyan    { 48, 163, 196};  // rgb(48,163,196)  – Demo mode, filled buttons
 inline const egt::Color kGreen         { 91, 197,   0};  // rgb(91,197,0)    – Progress, success
+inline const egt::Color kGreenLight    {200, 235, 170};  // light green – scrollbar, hover highlights
 inline const egt::Color kGrayLight     {217, 217, 217};  // rgb(217,217,217) – Inactive segments, borders
 inline const egt::Color kGrayBg        {245, 245, 245};  // background for cards
 inline const egt::Color kWhite         {255, 255, 255};

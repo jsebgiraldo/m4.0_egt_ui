@@ -3,12 +3,15 @@
 ## Build Local (simulador x86)
 
 ```bash
-# Usar el contenedor de desarrollo egt-app-dev
-docker run --rm -v "$(pwd)":/app -w /app/build egt-app-dev bash -c "cmake .. && make -j$(nproc)"
+# Compilar con el contenedor de desarrollo egt-app-dev
+# Usa build-docker/ para evitar conflicto de CMakeCache con builds nativos
+docker run --rm -v "$(pwd)":/app -w /app egt-app-dev \
+  bash -c "mkdir -p build-docker && cd build-docker && cmake .. && make -j\$(nproc)"
 
 # Correr el simulador (WSLg/X11)
-docker run --rm -v "$(pwd)":/app -w /app/build \
+docker run --rm -v "$(pwd)":/app -w /app/build-docker \
   -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -e EGT_BACKEND=x11 -e EGT_SCREEN_SIZE=800x480 \
   egt-app-dev ./egt-app
 ```
 
