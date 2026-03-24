@@ -123,6 +123,16 @@ bool WiFiManager::is_connected() {
     return !get_current_ssid().empty();
 }
 
+bool WiFiManager::is_available() {
+    if (std::getenv("EGT_MOCK_WIFI"))
+        return true;
+    // nmcli exits with error and prints to stderr when NM not running;
+    // stdout will be empty. Redirect stderr so run_command sees the message.
+    std::string output = run_command("nmcli general status 2>&1");
+    return output.find("NetworkManager is not running") == std::string::npos
+        && !output.empty();
+}
+
 bool WiFiManager::has_saved_networks() {
     if (std::getenv("EGT_MOCK_WIFI"))
         return false;

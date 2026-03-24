@@ -102,129 +102,123 @@ shared_ptr<Widget> create_wifi_init_screen(
     });
     anim_timer->start();
 
-    // State for WiFi polling
-    auto poll_count = make_shared<int>(0);
     const bool mock_mode = (std::getenv("EGT_MOCK_WIFI") != nullptr);
-    const int MAX_POLLS = mock_mode ? 2 : 5;    // mock: 4s, real: 10s
-    const int POLL_MS   = 2000;
 
-    // WiFi check timer — polls every 2s
-    auto wifi_timer = make_shared<PeriodicTimer>(chrono::milliseconds(POLL_MS));
-    wifi_timer->on_timeout([=]() {
-        (*poll_count)++;
-        printf("[WIFI_INIT] poll %d/%d\n", *poll_count, MAX_POLLS);
+    // Helper: start the network scan and call on_failed with results
+    auto start_scan = [=]() {
+        printf("[WIFI_INIT] no saved networks, scanning...\n");
         fflush(stdout);
+        status_label->text("Scanning networks...");
+
+        auto scan_count = make_shared<int>(0);
+        auto prev_count = make_shared<int>(-1);
+        const int MAX_SCAN = mock_mode ? 2 : 5;
+        auto scan_timer = make_shared<PeriodicTimer>(chrono::milliseconds(2000));
+        scan_timer->on_timeout([=]() {
+            (*scan_count)++;
+            printf("[WIFI_INIT] scan poll %d/%d\n", *scan_count, MAX_SCAN);
+            fflush(stdout);
+
+            egt_wifi::WiFiManager wm;
+            auto nets = make_shared<vector<egt_wifi::WiFiNetwork>>(wm.scan_networks());
+            int cur = static_cast<int>(nets->size());
+            printf("[WIFI_INIT] scan poll %d: %d networks\n", *scan_count, cur);
+            fflush(stdout);
+
+            const int MIN_SCAN = mock_mode ? 1 : 3;
+            bool stable = (*scan_count >= MIN_SCAN && cur > 0 && cur == *prev_count);
+            *prev_count = cur;
+
+            if (stable || *scan_count >= MAX_SCAN) {
+                printf("[WIFI_INIT] scan done, %d networks (stable=%d)\n", cur, stable);
+                fflush(stdout);
+                scan_timer->cancel();
+                anim_timer->cancel();
+                if (on_failed) on_failed(nets);
+            }
+        });
+        scan_timer->start();
+    };
+
+    // ----------------------------------------------------------------
+    // Unified polling loop:
+    //   Phase 1 — wait until NetworkManager is running  (up to 15s)
+    //   Phase 2 — once NM is up, check connectivity     (up to 10s)
+    // Both phases share the same 1-second periodic timer so there is
+    // no race between "NM not ready" and "no saved networks".
+    // ----------------------------------------------------------------
+    auto nm_ready     = make_shared<bool>(false);
+    auto nm_wait_secs = make_shared<int>(0);   // seconds waiting for NM
+    auto conn_secs    = make_shared<int>(0);   // seconds waiting for connection
+    const int MAX_NM_WAIT   = 15;
+    const int MAX_CONN_WAIT = mock_mode ? 4 : 10;
+
+    auto main_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1000));
+    main_timer->on_timeout([=, start_scan = std::move(start_scan)]() {
 
         egt_wifi::WiFiManager wifi;
-        std::string ssid = wifi.get_current_ssid();
 
+        // ── Phase 1: wait for NetworkManager ─────────────────────────
+        if (!*nm_ready) {
+            if (!wifi.is_available()) {
+                (*nm_wait_secs)++;
+                printf("[WIFI_INIT] waiting for NetworkManager (%ds/%ds)\n",
+                    *nm_wait_secs, MAX_NM_WAIT);
+                fflush(stdout);
+                status_label->text("Initializing...");
+                if (*nm_wait_secs >= MAX_NM_WAIT) {
+                    printf("[WIFI_INIT] NetworkManager never started\n");
+                    fflush(stdout);
+                    main_timer->cancel();
+                    anim_timer->cancel();
+                    if (on_failed) on_failed(nullptr);
+                }
+                return;
+            }
+            *nm_ready = true;
+            printf("[WIFI_INIT] NetworkManager is ready\n");
+            fflush(stdout);
+        }
+
+        // ── Phase 2: NM is up — check connectivity ───────────────────
+        std::string ssid = wifi.get_current_ssid();
         if (!ssid.empty()) {
-            // Connected!
+            // Already connected → go straight to login
             printf("[WIFI_INIT] connected to '%s'\n", ssid.c_str());
             fflush(stdout);
             status_label->text("Connected to " + ssid);
-            wifi_timer->cancel();
+            main_timer->cancel();
 
-            // Brief pause to show the "Connected" message, then advance
-            auto done_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1500));
+            auto done_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1000));
             done_timer->on_timeout([=]() {
                 done_timer->cancel();
                 anim_timer->cancel();
                 if (on_connected) on_connected();
             });
             done_timer->start();
-        } else if (*poll_count >= MAX_POLLS) {
-            // Timed out — no WiFi connection
-            printf("[WIFI_INIT] timeout, no WiFi connection\n");
-            fflush(stdout);
-            status_label->text("No WiFi found");
-            wifi_timer->cancel();
+            return;
+        }
 
-            // Brief pause to show the failure message, then go to settings
-            auto fail_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1500));
-            fail_timer->on_timeout([=]() {
-                fail_timer->cancel();
+        (*conn_secs)++;
+        printf("[WIFI_INIT] not connected yet (%ds/%ds)\n", *conn_secs, MAX_CONN_WAIT);
+        fflush(stdout);
+        status_label->text("Connecting to WiFi...");
+
+        if (*conn_secs >= MAX_CONN_WAIT) {
+            main_timer->cancel();
+            if (!wifi.has_saved_networks()) {
+                // No saved networks — scan and show the WiFi list
+                start_scan();
+            } else {
+                // Saved networks but couldn't reconnect in time — let user retry
+                printf("[WIFI_INIT] timeout with saved networks, showing WiFi list\n");
+                fflush(stdout);
                 anim_timer->cancel();
                 if (on_failed) on_failed(nullptr);
-            });
-            fail_timer->start();
-        } else {
-            status_label->text("Connecting to WiFi...");
+            }
         }
     });
-
-    // Initial immediate check (after a short delay to let the UI render)
-    auto initial_timer = make_shared<PeriodicTimer>(chrono::milliseconds(500));
-    initial_timer->on_timeout([=]() {
-        initial_timer->cancel();
-
-        printf("[WIFI_INIT] initial check\n");
-        fflush(stdout);
-
-        egt_wifi::WiFiManager wifi;
-
-        // PRIORITY 1: Already connected — skip everything, go straight to login
-        std::string ssid = wifi.get_current_ssid();
-        if (!ssid.empty()) {
-            printf("[WIFI_INIT] already connected to '%s'\n", ssid.c_str());
-            fflush(stdout);
-            status_label->text("Connected to " + ssid);
-
-            auto done_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1500));
-            done_timer->on_timeout([=]() {
-                done_timer->cancel();
-                anim_timer->cancel();
-                if (on_connected) on_connected();
-            });
-            done_timer->start();
-            return;
-        }
-
-        // PRIORITY 2: No saved networks → scan and show the WiFi list
-        if (!wifi.has_saved_networks()) {
-            printf("[WIFI_INIT] no saved networks, scanning first...\n");
-            fflush(stdout);
-            status_label->text("Scanning networks...");
-
-            // Poll until scan stabilises (count unchanged between two consecutive polls)
-            auto scan_count = make_shared<int>(0);
-            auto prev_count = make_shared<int>(-1);  // last poll's network count
-            const int MAX_SCAN = mock_mode ? 2 : 5;
-            auto scan_timer = make_shared<PeriodicTimer>(chrono::milliseconds(2000));
-            scan_timer->on_timeout([=]() {
-                (*scan_count)++;
-                printf("[WIFI_INIT] scan poll %d/%d\n", *scan_count, MAX_SCAN);
-                fflush(stdout);
-
-                egt_wifi::WiFiManager wm;
-                auto nets = make_shared<vector<egt_wifi::WiFiNetwork>>(wm.scan_networks());
-                int cur = static_cast<int>(nets->size());
-                printf("[WIFI_INIT] scan poll %d: %d networks\n", *scan_count, cur);
-                fflush(stdout);
-
-                // Done when: list stabilised (same count as previous poll, non-empty,
-                //            and at least MIN_SCAN polls done) OR max polls reached
-                const int MIN_SCAN = mock_mode ? 1 : 3;
-                bool stable = (*scan_count >= MIN_SCAN && cur > 0 && cur == *prev_count);
-                *prev_count = cur;
-
-                if (stable || *scan_count >= MAX_SCAN) {
-                    printf("[WIFI_INIT] scan done, %d networks (stable=%d)\n", cur, stable);
-                    fflush(stdout);
-                    scan_timer->cancel();
-                    anim_timer->cancel();
-                    if (on_failed) on_failed(nets);
-                }
-            });
-            scan_timer->start();
-            return;
-        }
-
-        // PRIORITY 3: Saved networks but not connected yet — poll for reconnection
-        status_label->text("Connecting to WiFi...");
-        wifi_timer->start();
-    });
-    initial_timer->start();
+    main_timer->start();
 
     return container;
 }

@@ -20,6 +20,7 @@ public:
     std::string get_current_ssid();
     bool is_connected();
     bool has_saved_networks();
+    bool is_available();  // true when NetworkManager is running
 };
 
 } // namespace egt_wifi
