@@ -162,37 +162,63 @@ void start_treatment_flow(
 }
 
 // ── WARMING SCREEN ──────────────────────────────────────────────────────────
-// Figma Group 47: Logo, DEMO MODE, Spinner with %, status text, progress bar.
+// Figma Group 179: large % number + superscript %, two-line status, progress bar.
 // No cumulative time, no segmented dots, no buttons.
 static void show_warming(shared_ptr<TreatmentState> state)
 {
+    // Warming-screen-local layout (independent from other treatment screens)
+    // Number font 120px → rendered height ~145px
+    const int W_NUM_Y      = 65;   // top of big number area
+    const int W_NUM_H      = 155;  // height of number rect (120px font)
+    const int W_PCT_Y      = 80;   // % superscript y (raised from baseline)
+    const int W_STATUS1_Y  = 240;  // "Warming up"
+    const int W_STATUS2_Y  = 268;  // "for Treatment"
+    const int W_BAR_Y      = 360;  // progress bar y
+
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // Large percentage display (Figma: y=60, 64px)
-    auto pct_label = make_shared<Label>("0%",
-        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
-    pct_label->font(dt::fontHuge());
-    pct_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(pct_label);
+    // ── Large number, right-aligned toward center ─────────────────────────
+    // Right-aligning in [0..430] keeps the digit(s) flush against x=430
+    // so the "%" superscript at x=438 always sits right next to the number.
+    auto num_label = make_shared<Label>("0",
+        Rect(0, W_NUM_Y, 430, W_NUM_H),
+        AlignFlag::center_vertical | AlignFlag::right);
+    num_label->font(Font(120, Font::Weight::bold));
+    num_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(num_label);
 
-    // "Warming up for Treatment" text below percentage (Figma: y=136)
-    auto status = make_shared<Label>("Warming up for Treatment",
-        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
-    status->font(dt::fontBody());
-    status->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(status);
+    // ── "%" superscript (smaller, left-aligned right of center) ──────────
+    auto pct_sup = make_shared<Label>("%",
+        Rect(440, W_PCT_Y, 90, 80),
+        AlignFlag::top | AlignFlag::left);
+    pct_sup->font(Font(56, Font::Weight::bold));
+    pct_sup->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(pct_sup);
 
-    // Linear progress bar near bottom (Figma: y=190/261=73% → ~350)
+    // ── Two-line status text ──────────────────────────────────────────────
+    auto status1 = make_shared<Label>("Warming up",
+        Rect(0, W_STATUS1_Y, dt::SCREEN_W, 28));
+    status1->font(Font(20, Font::Weight::normal));
+    status1->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status1);
+
+    auto status2 = make_shared<Label>("for Treatment",
+        Rect(0, W_STATUS2_Y, dt::SCREEN_W, 28));
+    status2->font(Font(20, Font::Weight::normal));
+    status2->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status2);
+
+    // ── Linear progress bar ───────────────────────────────────────────────
     const int bar_w = 700;
     auto progress_bar = ui::create_linear_progress_bar(
         (dt::SCREEN_W - bar_w) / 2,
-        BTN_Y,
+        W_BAR_Y,
         bar_w, 10);
     container->add(progress_bar);
 
     state->callbacks.on_show_screen(container);
 
-    // Animate warming over configured seconds
+    // ── Animate warming over configured seconds ───────────────────────────
     auto progress_val = make_shared<float>(0.0f);
     auto elapsed_ms = make_shared<int>(0);
     const int total_ms = state->config.warming_seconds * 1000;
@@ -200,15 +226,15 @@ static void show_warming(shared_ptr<TreatmentState> state)
     auto timer = make_shared<PeriodicTimer>(chrono::milliseconds(50));
     state->active_timer = timer;
 
-    weak_ptr<Label> w_pct = pct_label;
+    weak_ptr<Label> w_num = num_label;
     weak_ptr<Frame> w_bar = progress_bar;
 
     timer->on_timeout([=]() {
         *elapsed_ms += 50;
         *progress_val = min(100.0f, (*elapsed_ms * 100.0f) / total_ms);
 
-        if (auto lb = w_pct.lock())
-            lb->text(to_string((int)*progress_val) + "%");
+        if (auto lb = w_num.lock())
+            lb->text(to_string((int)*progress_val));
         if (auto bar = w_bar.lock())
             ui::update_linear_progress(bar, *progress_val);
 
