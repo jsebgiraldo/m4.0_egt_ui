@@ -14,7 +14,7 @@ struct TreatmentConfig {
     int warming_seconds       = 15;     // time to warm up (configurable)
     int position_tip_seconds  = 5;      // countdown to position applicator
     int cycle_seconds         = 30;     // seconds per treatment cycle (e.g. 25-30)
-    int total_target_seconds  = 1800;   // 30 minutes total cumulative target
+    int total_target_seconds  = 150;    // DEBUG: 5 cycles × 30s (production: 1800)
     int nearly_finished_threshold = 5;  // last N seconds of a cycle trigger "nearly finished"
     bool demo_mode            = false;
 };

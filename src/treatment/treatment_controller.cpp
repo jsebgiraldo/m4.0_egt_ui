@@ -9,6 +9,72 @@
 using namespace egt;
 using namespace std;
 
+// ── Gradient background for "nearly done" green screen ─────────────────────
+// Vertical gradient with bright center band fading to dark green at top/bottom,
+// plus a soft radial glow overlay for depth — creates an "aurora" effect.
+class GreenGradientBg : public Widget {
+public:
+    explicit GreenGradientBg(const Rect& rect)
+        : Widget(rect)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+
+    void draw(Painter& painter, const Rect& /*rect*/) override
+    {
+        auto b = content_area();
+        int w = b.width();
+        int h = b.height();
+        int x0 = b.x();
+        int y0 = b.y();
+
+        // ── Layer 1: Vertical gradient (dark edges → bright center) ──
+        // Top/bottom: deep green (15, 80, 0)
+        // Center band: vibrant green (100, 210, 20)
+        constexpr float dr0 = 15.f,  dg0 = 80.f,  db0 = 0.f;   // dark
+        constexpr float dr1 = 100.f, dg1 = 210.f, db1 = 20.f;  // bright
+
+        constexpr int bands = 80;
+        int band_h = (h + bands - 1) / bands;
+
+        for (int i = 0; i < bands; i++) {
+            // t=0 at edges, t=1 at center; use pow for sharper falloff
+            float norm = static_cast<float>(i) / (bands - 1);
+            float dist = std::abs(norm - 0.5f) * 2.0f; // 0=center, 1=edge
+            float t = 1.0f - std::pow(dist, 1.4f);     // sharper than linear
+
+            auto r  = static_cast<uint8_t>(dr0 + (dr1 - dr0) * t);
+            auto g  = static_cast<uint8_t>(dg0 + (dg1 - dg0) * t);
+            auto bl = static_cast<uint8_t>(db0 + (db1 - db0) * t);
+
+            int by = y0 + i * band_h;
+            painter.set(Color(r, g, bl));
+            painter.draw(Rect(x0, by, w, band_h + 1));
+            painter.fill();
+        }
+
+        // ── Layer 2: Radial glow overlay (additive-style) ────────────
+        // Semi-transparent bright spot at screen center for depth.
+        float cx = static_cast<float>(x0 + w / 2);
+        float cy = static_cast<float>(y0 + h / 2);
+        float max_r = static_cast<float>(std::min(w, h)) * 0.6f;
+        constexpr int rings = 40;
+
+        for (int i = rings - 1; i >= 0; i--) {
+            float rt = static_cast<float>(i) / (rings - 1); // 0=center, 1=edge
+            float radius = max_r * rt;
+            // Bright translucent green that fades out
+            auto alpha = static_cast<uint8_t>((1.0f - rt) * 45.0f);
+
+            painter.set(Color(140, 255, 60, alpha));
+            painter.draw(Circle(Point(static_cast<int>(cx), static_cast<int>(cy)),
+                                radius));
+            painter.fill();
+        }
+    }
+};
+
 // ── Shared state across treatment screens ───────────────────────────────────
 struct TreatmentState {
     TreatmentConfig config;
@@ -91,6 +157,13 @@ static TreatmentScreen make_treatment_container(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, bg_color);
 
+    // Radial gradient overlay for green mode (nearly done state)
+    if (green_mode) {
+        auto grad = make_shared<GreenGradientBg>(
+            Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
+        container->add(grad);
+    }
+
     // Logo (top-left, full Figma size)
     auto logo = ui::create_logo(10, 5, dt::LOGO_W, dt::LOGO_H);
     container->add(logo);
@@ -126,7 +199,7 @@ static TreatmentScreen make_treatment_container(
         auto desc = make_shared<Label>("Cumulative treatment time",
             Rect(CUM_LEFT_X, CUM_TIME_Y + 3, CUM_WIDTH / 2, 30),
             AlignFlag::left);
-        desc->font(dt::fontSmall());
+        desc->font(Font(18, Font::Weight::normal));
         desc->color(Palette::ColorId::label_text, text_color);
         container->add(desc);
     }

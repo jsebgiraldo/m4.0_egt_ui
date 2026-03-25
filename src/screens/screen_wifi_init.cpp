@@ -62,6 +62,23 @@ shared_ptr<Widget> create_wifi_init_screen(
     function<void()> on_connected,
     function<void(shared_ptr<vector<egt_wifi::WiFiNetwork>>)> on_failed)
 {
+    // One-shot guard: once either callback fires, suppress all subsequent timer
+    // callbacks. This prevents background timers from navigating away from whatever
+    // screen replaced wifi_init (e.g. after treatment completes).
+    auto active = make_shared<bool>(true);
+    auto orig_connected = std::move(on_connected);
+    auto orig_failed    = std::move(on_failed);
+    on_connected = [active, orig_connected]() {
+        if (!*active) return;
+        *active = false;
+        if (orig_connected) orig_connected();
+    };
+    on_failed = [active, orig_failed](shared_ptr<vector<egt_wifi::WiFiNetwork>> nets) {
+        if (!*active) return;
+        *active = false;
+        if (orig_failed) orig_failed(nets);
+    };
+
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
