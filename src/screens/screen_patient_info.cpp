@@ -4,6 +4,7 @@
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
 
+#include <cstdlib>
 #include <fstream>
 
 using namespace egt;
@@ -29,40 +30,76 @@ static Image load_svg_icon(const char* name, const char* svg_data, int size)
     }
 }
 
-// Male person silhouette (pants) — kTextPrimary #646469
+// Male / Female silhouettes — disc + glyph composition.
+// Source SVGs live in assets/icons/{male,female}.svg; these inlined copies
+// keep the binary self-contained.
+// Single variant for both selected and unselected cards (gray disc + gray figure):
+// the contrast comes from the surrounding card bg, not from the icon.
+// Glyph scaled 0.75 inside the 24x24 viewBox (translate 3,3 keeps it centered).
+
 static const char* kMaleSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 7h-5V8h-2v1H6l2 7h2v4h2v-4h2l2-7z" fill="#646469"/>
+  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
+  <g transform="translate(3,3) scale(0.75)">
+    <circle cx="12" cy="5.5" r="2.5" fill="#646469"/>
+    <rect x="7.5" y="9" width="9" height="8" rx="1.2" fill="#646469"/>
+    <rect x="8.5" y="16.5" width="2.6" height="5.5" rx="0.6" fill="#646469"/>
+    <rect x="12.9" y="16.5" width="2.6" height="5.5" rx="0.6" fill="#646469"/>
+  </g>
 </svg>)svg";
 
-// Female person silhouette (skirt) — kTextPrimary #646469
 static const char* kFemaleSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm6 7H6l2 8h3v5h2v-5h3l2-8z" fill="#646469"/>
+  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
+  <g transform="translate(3,3) scale(0.75)">
+    <circle cx="12" cy="5.5" r="2.5" fill="#646469"/>
+    <path d="M7 9 Q7 8.5 7.5 8.5 H16.5 Q17 8.5 17 9 L19 18 H5 L7 9 Z" fill="#646469"/>
+    <rect x="9" y="18" width="2.4" height="4.2" rx="0.6" fill="#646469"/>
+    <rect x="12.6" y="18" width="2.4" height="4.2" rx="0.6" fill="#646469"/>
+  </g>
 </svg>)svg";
 
-// Arrow left — Back button (#646469)
+// Disc + arrow-left — Back / Reset glyph: light gray disc, dark gray glyph.
+// Same proportions as Male/Female: glyph translate(3,3) scale(0.75) — fills
+// the disc generously (Material Symbols arrow_back).
 static const char* kArrowBackSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="#646469"/>
+  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
+  <g transform="translate(3,3) scale(0.75)">
+    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="#646469"/>
+  </g>
 </svg>)svg";
 
-// Skip-next — Skip button (#646469)
+// Disc + Skip glyph — Figma "Vector 3980" (curved-arrow loop + chevron).
+// Stroked path, no rotation (the 180° in Figma is already baked into how
+// we read the path here so the chevron points down-right as in the design).
 static const char* kSkipNextSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="#646469"/>
+  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
+  <g transform="translate(3.04,3.36) scale(0.32)"
+     fill="none" stroke="#646469" stroke-width="5"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4.72 49.28 C4.72 22.05 2.70 4.66 22.51 4.66 C42.32 4.66 37.13 31.89 37.13 49.28 M22.51 33.84 L37.13 49.28 L53.34 29.95"/>
+  </g>
 </svg>)svg";
 
-// Arrow right (white) — Continue button on green bg
+// Disc + arrow-right — Continue glyph on green bg: white translucent disc,
+// white glyph (Material Symbols arrow_forward)
 static const char* kArrowFwdSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="#FFFFFF"/>
+  <circle cx="12" cy="12" r="12" fill="#FFFFFF" fill-opacity="0.30"/>
+  <g transform="translate(3,3) scale(0.75)">
+    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="#FFFFFF"/>
+  </g>
 </svg>)svg";
 
-// Refresh/reset — Reset button (#646469)
+// Disc + refresh/reset — Reset glyph (Material Symbols refresh)
 static const char* kRefreshSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="#646469"/>
+  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
+  <g transform="translate(3,3) scale(0.75)">
+    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="#646469"/>
+  </g>
 </svg>)svg";
 
 // Figma Group 231: Patient Information — 3 sub-screens (Gender, Age, ZIP)
@@ -118,45 +155,48 @@ static shared_ptr<Button> create_green_button(
 }
 
 // ── Icon button helpers ───────────────────────────────────────────────────────
-// Outlined button with a leading icon (gray border, kTextPrimary text)
+// Outlined button: off-white bg, 1 px gray border for separation from page bg
 static shared_ptr<ImageButton> make_icon_outlined_btn(
     const char* icon_name, const char* icon_svg,
     const string& text, const Rect& rect, function<void()> on_click)
 {
-    auto ico = load_svg_icon(icon_name, icon_svg, 22);
+    auto ico = load_svg_icon(icon_name, icon_svg, 44);
     auto btn = make_shared<ImageButton>(ico, text, rect, AlignFlag::center);
     btn->image_align(AlignFlag::left | AlignFlag::center_vertical);
     btn->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
-    btn->color(Palette::ColorId::button_bg, dt::kWhite);
+    btn->color(Palette::ColorId::button_bg, Color(0xFA, 0xFA, 0xFA));
     btn->color(Palette::ColorId::button_text, dt::kTextPrimary);
     btn->color(Palette::ColorId::border, dt::kGrayLight);
-    btn->border(2);
-    btn->border_radius(dt::RADIUS_MD);
+    btn->border(1);
+    btn->border_radius(dt::RADIUS_XS);
     if (on_click) btn->on_click([on_click](Event&) { on_click(); });
     return btn;
 }
 
-// Green filled button with a leading icon (white icon/text on kGreen bg)
-static shared_ptr<ImageButton> make_icon_green_btn(
+// Filled button with a leading disc+glyph icon (white icon/text on `bg` color)
+static shared_ptr<ImageButton> make_icon_filled_btn(
     const char* icon_name, const char* icon_svg,
-    const string& text, const Rect& rect, function<void()> on_click)
+    const string& text, const Rect& rect, function<void()> on_click,
+    const Color& bg = dt::kGreen)
 {
-    auto ico = load_svg_icon(icon_name, icon_svg, 22);
+    auto ico = load_svg_icon(icon_name, icon_svg, 44);
     auto btn = make_shared<ImageButton>(ico, text, rect, AlignFlag::center);
     btn->image_align(AlignFlag::left | AlignFlag::center_vertical);
     btn->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
-    btn->color(Palette::ColorId::button_bg, dt::kGreen);
+    btn->color(Palette::ColorId::button_bg, bg);
     btn->color(Palette::ColorId::button_text, dt::kWhite);
     btn->border(0);
-    btn->border_radius(dt::RADIUS_SM);
+    btn->border_radius(dt::RADIUS_XS);
     if (on_click) btn->on_click([on_click](Event&) { on_click(); });
     return btn;
 }
 
 // ── Common header + tab bar (Figma layout) ──────────────────────────────────
 // step: 0=Gender, 1=Age, 2=ZIP
+// nav_to_step: optional callback to navigate when a tab is clicked
 static shared_ptr<Frame> make_patient_step(
-    int step, bool demo_mode, function<void()> on_leave_demo)
+    int step, bool demo_mode, function<void()> on_leave_demo,
+    function<void(int)> nav_to_step = nullptr)
 {
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -166,21 +206,13 @@ static shared_ptr<Frame> make_patient_step(
     auto logo = ui::create_logo(4, 7, dt::LOGO_W, dt::LOGO_H);
     container->add(logo);
 
-    // Title "Please Enter Patient Information" @(244,17)
-    auto title = make_shared<Label>("Please Enter Patient Information",
+    // Title "Please Enter Client Information" @(244,17) — Figma node 115:960
+    auto title = make_shared<Label>("Please Enter Client Information",
         Rect(244, 17, 350, 46),
         AlignFlag::center_vertical | AlignFlag::left);
     title->font(Font(22, Font::Weight::normal));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
-
-    // User icon placeholder (gray circle) @(598,26, 28×28)
-    auto user_icon = make_shared<Frame>(Rect(598, 26, 28, 28));
-    user_icon->fill_flags({Theme::FillFlag::blend});
-    user_icon->color(Palette::ColorId::bg, Color(0xD9, 0xD9, 0xD9));
-    user_icon->border(0);
-    user_icon->border_radius(14);
-    container->add(user_icon);
 
     // Tab labels (progressively shown: step 0 → Gender only, step 1 → +Age, step 2 → +ZIP)
     const char* tab_names[] = {"Gender", "Age", "ZIP Code"};
@@ -195,6 +227,16 @@ static shared_ptr<Frame> make_patient_step(
         tab->font(Font(18, (i == step) ? Font::Weight::bold : Font::Weight::normal));
         tab->color(Palette::ColorId::label_text, dt::kTextPrimary);
         container->add(tab);
+
+        // Make previous tabs clickable for navigation
+        if (i < step && nav_to_step) {
+            int target = i;
+            tab->on_event([nav_to_step, target](Event& event) {
+                if (event.id() == EventId::pointer_click) {
+                    nav_to_step(target);
+                }
+            });
+        }
     }
 
     // Divider line @(0,111, 800×2)
@@ -211,10 +253,10 @@ static shared_ptr<Frame> make_patient_step(
     indicator->border(0);
     container->add(indicator);
 
-    // Demo badge
+    // Demo badge (vertical: DEMO MODE label + Exit below)
     if (demo_mode && on_leave_demo) {
         auto badge = ui::create_demo_mode_badge(
-            dt::SCREEN_W - 220, 65, on_leave_demo);
+            dt::SCREEN_W - 150, 22, on_leave_demo);
         container->add(badge.frame);
     }
 
@@ -234,8 +276,8 @@ shared_ptr<Widget> create_patient_info_screen(
                               on_show_screen, on_leave_demo);
 }
 
-// ── Step 1: Gender (toggle switch) ──────────────────────────────────────────
-// Figma: Male label + toggle track (pill) + Female label, centered at y≈235
+// ── Step 1: Gender (two cards) ──────────────────────────────────────────────
+// Figma node 168:808 — two side-by-side cards, selected = green fill + white
 static shared_ptr<Widget> create_gender_step(
     bool demo_mode,
     shared_ptr<PatientInfo> info,
@@ -249,63 +291,6 @@ static shared_ptr<Widget> create_gender_step(
     bool is_female = (info->gender == "Female");
     if (info->gender.empty()) { info->gender = "Male"; is_female = false; }
 
-    // "Male" label @(198, 235) — tappable
-    auto male_lbl = make_shared<Label>("Male",
-        Rect(160, 235, 130, 37),
-        AlignFlag::center_vertical | AlignFlag::right);
-    male_lbl->font(Font(22, Font::Weight::bold));
-    male_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(male_lbl);
-
-    // Male person icon (just left of "Male" text)
-    {
-        auto ico = load_svg_icon("male-pi", kMaleSvg, 28);
-        if (!ico.empty()) {
-            auto lbl = make_shared<ImageLabel>(ico, "", Rect(188, 237, 28, 28));
-            container->add(lbl);
-        }
-    }
-
-    // Toggle track (pill) @(350, 233, 102×37) r=18
-    auto track = make_shared<Frame>(Rect(350, 233, 102, 37));
-    track->fill_flags({Theme::FillFlag::blend});
-    track->color(Palette::ColorId::bg, dt::kBgWhite);
-    track->border(2);
-    track->color(Palette::ColorId::border, dt::kGreen);
-    track->border_radius(18);
-    container->add(track);
-
-    // Toggle handle (circle 34×34) — left for Male, right for Female
-    const int handle_sz = 34;
-    const int handle_y = 1;
-    const int handle_left_x = 2;
-    const int handle_right_x = 66;
-    auto handle = make_shared<Frame>(
-        Rect(is_female ? handle_right_x : handle_left_x, handle_y, handle_sz, handle_sz));
-    handle->fill_flags({Theme::FillFlag::blend});
-    handle->color(Palette::ColorId::bg, dt::kGreen);
-    handle->border(0);
-    handle->border_radius(handle_sz / 2);
-    track->add(handle);
-
-    // "Female" label @(490, 235) — tappable
-    auto female_lbl = make_shared<Label>("Female",
-        Rect(490, 235, 150, 37),
-        AlignFlag::center_vertical | AlignFlag::left);
-    female_lbl->font(Font(22, Font::Weight::bold));
-    female_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(female_lbl);
-
-    // Female person icon (just right of "Female" text)
-    {
-        auto ico = load_svg_icon("female-pi", kFemaleSvg, 28);
-        if (!ico.empty()) {
-            auto lbl = make_shared<ImageLabel>(ico, "", Rect(568, 237, 28, 28));
-            container->add(lbl);
-        }
-    }
-
-    // Click on Male label → select Male, rebuild
     auto select_and_rebuild = [=](bool female) {
         info->gender = female ? "Female" : "Male";
         if (on_show_screen)
@@ -313,25 +298,62 @@ static shared_ptr<Widget> create_gender_step(
                 on_back, on_show_screen, on_leave_demo));
     };
 
-    male_lbl->on_event([=](Event& event) {
-        if (event.id() == EventId::pointer_click) { select_and_rebuild(false); return; }
-    });
-    female_lbl->on_event([=](Event& event) {
-        if (event.id() == EventId::pointer_click) { select_and_rebuild(true); return; }
-    });
-    track->on_event([=](Event& event) {
-        if (event.id() == EventId::pointer_click) { select_and_rebuild(!is_female); return; }
-    });
+    const int card_w = 176, card_h = 150, gap = 30;
+    const int start_x = (800 - 2 * card_w - gap) / 2;
+    const int card_y = 175;
+    const int icon_sz = 66, icon_y = 18;
 
-    // Bottom buttons: Back @(26,400), Skip @(293,400), Continue @(556,400)
+    auto build_card = [&](bool female_card) {
+        const bool selected = (female_card == is_female);
+        const int x = start_x + (female_card ? (card_w + gap) : 0);
+
+        auto card = make_shared<Frame>(Rect(x, card_y, card_w, card_h));
+        card->fill_flags({Theme::FillFlag::blend});
+        card->color(Palette::ColorId::bg,
+            selected ? dt::kGreen : Color(0xFA, 0xFA, 0xFA));
+        if (selected) {
+            card->border(0);
+        } else {
+            card->color(Palette::ColorId::border, dt::kGrayLight);
+            card->border(1);
+        }
+        card->border_radius(dt::RADIUS_XS);
+        container->add(card);
+
+        const char* svg_data = female_card ? kFemaleSvg : kMaleSvg;
+        const char* svg_id   = female_card ? "female-pi" : "male-pi";
+        auto ico = load_svg_icon(svg_id, svg_data, icon_sz);
+        if (!ico.empty()) {
+            const int icon_x = (card_w - icon_sz) / 2;
+            auto img = make_shared<ImageLabel>(ico, "",
+                Rect(icon_x, icon_y, icon_sz, icon_sz));
+            card->add(img);
+        }
+
+        auto lbl = make_shared<Label>(female_card ? "Female" : "Male",
+            Rect(0, icon_y + icon_sz + 8, card_w, 32), AlignFlag::center);
+        lbl->font(Font(22, Font::Weight::bold));
+        lbl->color(Palette::ColorId::label_text,
+            selected ? dt::kWhite : dt::kTextPrimary);
+        card->add(lbl);
+
+        card->on_event([=](Event& event) {
+            if (event.id() == EventId::pointer_click) select_and_rebuild(female_card);
+        });
+    };
+
+    build_card(false); // Male
+    build_card(true);  // Female
+
+    // Bottom buttons: Back @(42,400) Skip @(292,400) Continue @(541,400)
     auto btn_back = make_icon_outlined_btn(
-        "arrow-back-pi", kArrowBackSvg, "Back",
-        Rect(26, 400, 172, 61), on_back);
+        "arrow-back-pi", kArrowBackSvg, "  Back",
+        Rect(42, 380, 156, 61), on_back);
     container->add(btn_back);
 
     auto btn_skip = make_icon_outlined_btn(
-        "skip-next-pi", kSkipNextSvg, "Skip",
-        Rect(293, 400, 156, 61),
+        "skip-next-pi", kSkipNextSvg, "  Skip",
+        Rect(292, 380, 156, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_age_step(demo_mode, info, on_complete,
@@ -339,14 +361,15 @@ static shared_ptr<Widget> create_gender_step(
         });
     container->add(btn_skip);
 
-    auto btn_continue = make_icon_green_btn(
-        "arrow-fwd-pi", kArrowFwdSvg, "Continue",
-        Rect(556, 400, 217, 61),
+    auto btn_continue = make_icon_filled_btn(
+        "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
+        Rect(541, 380, 217, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_age_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
-        });
+        },
+        dt::kAccentCyan);
     container->add(btn_continue);
 
     return container;
@@ -362,84 +385,143 @@ static shared_ptr<Widget> create_age_step(
     function<void(shared_ptr<Widget>)> on_show_screen,
     function<void()> on_leave_demo)
 {
-    auto container = make_patient_step(1, demo_mode, on_leave_demo);
+    // Navigation callback for tab clicks
+    auto nav_to_step = [=](int target) {
+        if (target == 0 && on_show_screen)
+            on_show_screen(create_gender_step(demo_mode, info, on_complete,
+                on_back, on_show_screen, on_leave_demo));
+    };
+    auto container = make_patient_step(1, demo_mode, on_leave_demo, nav_to_step);
 
-    // Age ranges from Figma
+    // Age ranges (Figma Group 204 — vertical wheel picker labels)
     struct AgeRange { const char* label; int low; };
     const AgeRange ranges[] = {
-        {"1\n|\n5", 1}, {"6\n|\n12", 6}, {"13\n|\n18", 13},
-        {"19\n|\n29", 19}, {"30\n|\n49", 30}, {"50\n|\n69", 50},
+        {"under 5", 1}, {"6 - 12", 6}, {"13 - 18", 13},
+        {"19 - 29", 19}, {"30 - 49", 30}, {"50+", 50},
     };
     const int num_ranges = 6;
 
-    // Find pre-selected index
-    int sel = -1;
+    // Default selection: 13-18 (index 2) when no age is set yet
+    int sel = 2;
     for (int i = 0; i < num_ranges; i++) {
         if (info->age == ranges[i].low) { sel = i; break; }
     }
+    info->age = ranges[sel].low;  // commit the visible selection
 
-    // Picker container box @(102, 159, 613×191)
-    const int box_x = 102, box_y = 159, box_w = 613, box_h = 191;
+    // Picker placed BELOW the tab divider+indicator (y=115) so the green
+    // active-tab bar stays visible.
+    const int slot_h    = 38;
+    const int n_slots   = 5;             // odd \u2192 middle slot is the selected one
+    const int chevron_h = 18;
+    const int padding   = 6;
+    const int box_w     = 240;
+    const int box_h     = n_slots * slot_h + 2 * (chevron_h + padding);
+    const int box_x     = (dt::SCREEN_W - box_w) / 2;
+    const int box_y     = 130;
     auto picker_box = make_shared<Frame>(Rect(box_x, box_y, box_w, box_h));
     picker_box->fill_flags({Theme::FillFlag::blend});
     picker_box->color(Palette::ColorId::bg, dt::kBgWhite);
-    picker_box->border(1);
-    picker_box->color(Palette::ColorId::border, dt::kGrayLight);
-    picker_box->border_radius(4);
+    picker_box->border(0);
     container->add(picker_box);
 
-    // Range items inside picker
-    const int item_w = 80, item_h = 140;
-    const int item_gap = 10;
-    const int total_w = num_ranges * item_w + (num_ranges - 1) * item_gap;
-    const int items_x = (box_w - total_w) / 2;
-    const int items_y = (box_h - item_h) / 2;
+    auto up_arrow = make_shared<Label>("\u25B2",
+        Rect(0, 4, box_w, chevron_h), AlignFlag::center);
+    up_arrow->font(Font(14));
+    up_arrow->color(Palette::ColorId::label_text, palette::kGray400);
+    picker_box->add(up_arrow);
 
-    for (int i = 0; i < num_ranges; i++) {
-        int x = items_x + i * (item_w + item_gap);
-        bool is_sel = (i == sel);
+    auto down_arrow = make_shared<Label>("\u25BC",
+        Rect(0, box_h - chevron_h - 4, box_w, chevron_h), AlignFlag::center);
+    down_arrow->font(Font(14));
+    down_arrow->color(Palette::ColorId::label_text, palette::kGray400);
+    picker_box->add(down_arrow);
 
-        auto rf = make_shared<Frame>(Rect(x, items_y, item_w, item_h));
+    // FIXED slot frames render the wheel. They never move; a transparent
+    // vertical Slider on top drives `sel` with live_update — same pattern
+    // we used for brightness, which is the only way EGT emits continuous
+    // value-change events during a drag.
+    const int slots_top       = chevron_h + padding;
+    const int center_slot_idx = n_slots / 2;
+
+    auto slot_labels = make_shared<vector<shared_ptr<Label>>>();
+
+    for (int k = 0; k < n_slots; k++) {
+        const int slot_y = slots_top + k * slot_h;
+        auto rf = make_shared<Frame>(Rect(0, slot_y, box_w, slot_h));
         rf->fill_flags({Theme::FillFlag::blend});
-        rf->color(Palette::ColorId::bg, is_sel ? dt::kGreen : Color(0, 0, 0, 0));
+        rf->color(Palette::ColorId::bg, dt::kTransparent);
         rf->border(0);
-        rf->border_radius(4);
 
-        auto lbl = make_shared<Label>(ranges[i].label,
-            Rect(0, 0, item_w, item_h), AlignFlag::center);
-        lbl->font(Font(20, Font::Weight::bold));
-        lbl->color(Palette::ColorId::label_text, is_sel ? dt::kWhite : dt::kTextPrimary);
+        auto lbl = make_shared<Label>("",
+            Rect(0, 0, box_w, slot_h), AlignFlag::center);
         rf->add(lbl);
-
-        int low = ranges[i].low;
-        rf->on_event([=](Event& event) {
-            if (event.id() == EventId::pointer_click) {
-                info->age = low;
-                if (on_show_screen)
-                    on_show_screen(create_age_step(demo_mode, info, on_complete,
-                        on_back, on_show_screen, on_leave_demo));
-            }
-        });
         picker_box->add(rf);
+
+        slot_labels->push_back(lbl);
     }
 
-    // Left/right arrow decoration
-    auto left_arr = make_shared<Label>("\u25C0",
-        Rect(55, box_y + box_h / 2 - 30, 40, 60), AlignFlag::center);
-    left_arr->font(Font(28));
-    left_arr->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(left_arr);
+    // Slot k displays ranges[sel + (k - center_slot_idx)] when in range.
+    auto redraw = [=](int state) {
+        for (int k = 0; k < n_slots; k++) {
+            const int idx = state + (k - center_slot_idx);
+            if (idx < 0 || idx >= num_ranges) {
+                (*slot_labels)[k]->text("");
+                continue;
+            }
+            const bool is_sel = (k == center_slot_idx);
+            const int  dist   = std::abs(k - center_slot_idx);
+            (*slot_labels)[k]->text(ranges[idx].label);
+            (*slot_labels)[k]->font(Font(
+                is_sel ? 28 : 22,
+                is_sel ? Font::Weight::bold : Font::Weight::normal));
+            const Color c =
+                is_sel        ? dt::kTextPrimary
+              : (dist == 1)   ? palette::kGray500
+                              : palette::kGray400;
+            (*slot_labels)[k]->color(Palette::ColorId::label_text, c);
+        }
+        picker_box->damage();
+    };
 
-    auto right_arr = make_shared<Label>("\u25B6",
-        Rect(722, box_y + box_h / 2 - 30, 40, 60), AlignFlag::center);
-    right_arr->font(Font(28));
-    right_arr->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(right_arr);
+    redraw(sel);
+
+    // Vertical Slider overlay — invisible, drives the wheel in real time.
+    // Slider value = sel directly. Default vertical slider: drag DOWN
+    // decreases value (handle moves toward bottom = min) → sel decreases,
+    // matching the iOS-picker convention.
+    auto picker_slider = make_shared<Slider>(
+        Rect(box_x, box_y + slots_top, box_w, n_slots * slot_h),
+        0, num_ranges - 1, sel,
+        Orientation::vertical);
+    picker_slider->live_update(true);
+    picker_slider->fill_flags({});           // no background fill
+    picker_slider->border(0);
+    // Force every slider sub-element transparent in every Palette group so
+    // the handle / track stays hidden in normal, pressed (active), disabled,
+    // checked states (handle dragged = active group).
+    for (auto group : {Palette::GroupId::normal,   Palette::GroupId::active,
+                       Palette::GroupId::disabled, Palette::GroupId::checked}) {
+        picker_slider->color(Palette::ColorId::button_bg, dt::kTransparent, group);
+        picker_slider->color(Palette::ColorId::button_fg, dt::kTransparent, group);
+        picker_slider->color(Palette::ColorId::border,    dt::kTransparent, group);
+        picker_slider->color(Palette::ColorId::bg,        dt::kTransparent, group);
+    }
+    container->add(picker_slider);  // added to container → on top of picker_box
+
+    auto live = make_shared<int>(sel);
+    picker_slider->on_value_changed([=]() {
+        const int v = picker_slider->value();
+        if (v != *live) {
+            *live = v;
+            info->age = ranges[v].low;
+            redraw(v);
+        }
+    });
 
     // Bottom buttons
     auto btn_back = make_icon_outlined_btn(
-        "arrow-back-pi", kArrowBackSvg, "Back",
-        Rect(26, 400, 172, 61),
+        "arrow-back-pi", kArrowBackSvg, "  Back",
+        Rect(42, 380, 156, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_gender_step(demo_mode, info, on_complete,
@@ -448,8 +530,8 @@ static shared_ptr<Widget> create_age_step(
     container->add(btn_back);
 
     auto btn_skip = make_icon_outlined_btn(
-        "skip-next-pi", kSkipNextSvg, "Skip",
-        Rect(293, 400, 156, 61),
+        "skip-next-pi", kSkipNextSvg, "  Skip",
+        Rect(292, 380, 156, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_zip_step(demo_mode, info, on_complete,
@@ -457,16 +539,17 @@ static shared_ptr<Widget> create_age_step(
         });
     container->add(btn_skip);
 
-    auto btn_continue = make_icon_green_btn(
-        "arrow-fwd-pi", kArrowFwdSvg, "Continue",
-        Rect(556, 400, 217, 61),
+    auto btn_continue = make_icon_filled_btn(
+        "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
+        Rect(541, 380, 217, 61),
         [=]() {
             if (info->age > 0) {
                 if (on_show_screen)
                     on_show_screen(create_zip_step(demo_mode, info, on_complete,
                         on_back, on_show_screen, on_leave_demo));
             }
-        });
+        },
+        dt::kAccentCyan);
     container->add(btn_continue);
 
     return container;
@@ -482,7 +565,17 @@ static shared_ptr<Widget> create_zip_step(
     function<void(shared_ptr<Widget>)> on_show_screen,
     function<void()> on_leave_demo)
 {
-    auto container = make_patient_step(2, demo_mode, on_leave_demo);
+    // Navigation callback for tab clicks
+    auto nav_to_step = [=](int target) {
+        if (!on_show_screen) return;
+        if (target == 0)
+            on_show_screen(create_gender_step(demo_mode, info, on_complete,
+                on_back, on_show_screen, on_leave_demo));
+        else if (target == 1)
+            on_show_screen(create_age_step(demo_mode, info, on_complete,
+                on_back, on_show_screen, on_leave_demo));
+    };
+    auto container = make_patient_step(2, demo_mode, on_leave_demo, nav_to_step);
 
     // ZIP display above keypad
     string display_str;
@@ -545,29 +638,30 @@ static shared_ptr<Widget> create_zip_step(
         }
     }
 
-    // Bottom buttons: Reset @(26,400), Skip @(293,400), Continue @(556,400)
-    auto btn_reset = make_icon_outlined_btn(
-        "refresh-pi", kRefreshSvg, "Reset",
-        Rect(26, 400, 172, 61),
+    // Bottom buttons (Figma Group 233 ZIP step — no Back, blue Continue):
+    // Reset @(42,380) text-only, Skip @(292,380) icon, Continue @(541,380) blue
+    auto btn_reset = ui::create_outlined_button("Reset",
+        Rect(42, 380, 156, 61),
         [=]() {
             info->zip_code.clear();
             if (on_show_screen)
                 on_show_screen(create_zip_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
         });
+    btn_reset->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
     container->add(btn_reset);
 
     auto btn_skip = make_icon_outlined_btn(
-        "skip-next-pi", kSkipNextSvg, "Skip",
-        Rect(293, 400, 156, 61),
+        "skip-next-pi", kSkipNextSvg, "  Skip",
+        Rect(292, 380, 156, 61),
         [=]() {
             if (on_complete) on_complete(*info);
         });
     container->add(btn_skip);
 
-    auto btn_continue = make_icon_green_btn(
-        "arrow-fwd-pi", kArrowFwdSvg, "Continue",
-        Rect(556, 400, 217, 61),
+    auto btn_continue = make_icon_filled_btn(
+        "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
+        Rect(541, 380, 217, 61),
         [=]() {
             if (info->zip_code.length() >= 3 && on_show_screen)
                 on_show_screen(create_summary_step(demo_mode, info, on_complete,
@@ -577,7 +671,8 @@ static shared_ptr<Widget> create_zip_step(
                                 on_back, on_show_screen, on_leave_demo));
                     },
                     on_show_screen, on_leave_demo));
-        });
+        },
+        dt::kAccentCyan);
     container->add(btn_continue);
 
     return container;
@@ -641,18 +736,18 @@ static shared_ptr<Widget> create_summary_step(
 
     // Back button
     auto btn_back = make_icon_outlined_btn(
-        "arrow-back-sum", kArrowBackSvg, "Back",
-        Rect(26, 400, 172, 61),
+        "arrow-back-sum", kArrowBackSvg, "  Back",
+        Rect(42, 380, 156, 61),
         [=]() { if (on_back_to_zip) on_back_to_zip(); });
     container->add(btn_back);
 
     // GO button (green, bold, no icon)
-    auto btn_go = make_shared<Button>("GO", Rect(556, 400, 217, 61));
+    auto btn_go = make_shared<Button>("GO", Rect(541, 380, 217, 61));
     btn_go->color(Palette::ColorId::button_bg, dt::kGreen);
     btn_go->color(Palette::ColorId::button_text, dt::kWhite);
     btn_go->color(Palette::ColorId::border, dt::kGreen);
     btn_go->border(0);
-    btn_go->border_radius(dt::RADIUS_SM);
+    btn_go->border_radius(dt::RADIUS_XS);
     btn_go->font(Font(dt::FONT_BUTTON + 4, Font::Weight::bold));
     btn_go->on_click([=](Event&) {
         if (on_complete) on_complete(*info);

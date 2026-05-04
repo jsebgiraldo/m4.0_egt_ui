@@ -26,6 +26,9 @@ dist/
 # JetBrains IDE
 .idea/
 
+# Claude Code project-scope MCP config (contains FIGMA_API_KEY)
+.mcp.json
+
 # Unit test reports
 TEST*.xml
 
