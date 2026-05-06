@@ -54,18 +54,19 @@ public:
             painter.fill();
         }
 
-        // ── Layer 2: Radial glow overlay (additive-style) ────────────
-        // Semi-transparent bright spot at screen center for depth.
+        // ── Layer 2: Soft radial glow overlay (subtle depth) ──────────
+        // Gentle translucent highlight at screen center — more diffuse,
+        // less circle-like than before.
         float cx = static_cast<float>(x0 + w / 2);
         float cy = static_cast<float>(y0 + h / 2);
-        float max_r = static_cast<float>(std::min(w, h)) * 0.6f;
-        constexpr int rings = 40;
+        float max_r = static_cast<float>(std::min(w, h)) * 0.85f;
+        constexpr int rings = 60;
 
         for (int i = rings - 1; i >= 0; i--) {
             float rt = static_cast<float>(i) / (rings - 1); // 0=center, 1=edge
             float radius = max_r * rt;
-            // Bright translucent green that fades out
-            auto alpha = static_cast<uint8_t>((1.0f - rt) * 45.0f);
+            // Much more subtle alpha — barely visible glow instead of obvious circle
+            auto alpha = static_cast<uint8_t>((1.0f - rt * rt) * 20.0f);
 
             painter.set(Color(140, 255, 60, alpha));
             painter.draw(Circle(Point(static_cast<int>(cx), static_cast<int>(cy)),
@@ -112,6 +113,7 @@ struct TreatmentState {
 
 // ── Forward declarations ────────────────────────────────────────────────────
 static void show_warming(shared_ptr<TreatmentState> state);
+static void show_ready(shared_ptr<TreatmentState> state);
 static void show_position_tip(shared_ptr<TreatmentState> state);
 static void show_treatment_active(shared_ptr<TreatmentState> state);
 static void show_treatment_paused(shared_ptr<TreatmentState> state);
@@ -168,10 +170,10 @@ static TreatmentScreen make_treatment_container(
     auto logo = ui::create_logo(10, 5, dt::LOGO_W, dt::LOGO_H);
     container->add(logo);
 
-    // Demo mode badge (top-right)
+    // Demo mode badge (top-right, vertical: DEMO MODE label + Exit below)
     if (state->config.demo_mode) {
         auto badge = ui::create_demo_mode_badge(
-            dt::SCREEN_W - 220, 5, state->callbacks.on_leave_to_home);
+            dt::SCREEN_W - 150, 5, state->callbacks.on_leave_to_home);
         container->add(badge.frame);
     }
 
@@ -319,10 +321,63 @@ static void show_warming(shared_ptr<TreatmentState> state)
 
         if (*elapsed_ms >= total_ms) {
             timer->cancel();
-            show_position_tip(state);
+            show_ready(state);
         }
     });
     timer->start();
+}
+
+// ── READY SCREEN ────────────────────────────────────────────────────────────
+// Figma REG_READY (168:810): "Ready for Treatment" + 100% + "Begin Treatment" button.
+// User must press Begin to proceed — no auto-advance.
+static void show_ready(shared_ptr<TreatmentState> state)
+{
+    const int W_NUM_Y      = 120;
+    const int W_NUM_H      = 155;
+    const int W_PCT_Y      = 125;
+    const int W_STATUS1_Y  = 285;
+    const int W_STATUS2_Y  = 313;
+
+    auto [container, _cum_lbl] = make_treatment_container(state, false);
+
+    // ── Large "100" right-aligned ──────────────────────────────────────────
+    auto num_label = make_shared<Label>("100",
+        Rect(0, W_NUM_Y, 430, W_NUM_H),
+        AlignFlag::center_vertical | AlignFlag::right);
+    num_label->font(Font(120, Font::Weight::bold));
+    num_label->color(Palette::ColorId::label_text, dt::kGreen);
+    container->add(num_label);
+
+    // ── "%" superscript ──────────────────────────────────────────────────
+    auto pct_sup = make_shared<Label>("%",
+        Rect(440, W_PCT_Y, 90, 80),
+        AlignFlag::top | AlignFlag::left);
+    pct_sup->font(Font(56, Font::Weight::bold));
+    pct_sup->color(Palette::ColorId::label_text, dt::kGreen);
+    container->add(pct_sup);
+
+    // ── "Ready" / "for Treatment" ──────────────────────────────────────────
+    auto status1 = make_shared<Label>("Ready",
+        Rect(0, W_STATUS1_Y, dt::SCREEN_W, 28));
+    status1->font(Font(20, Font::Weight::normal));
+    status1->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status1);
+
+    auto status2 = make_shared<Label>("for Treatment",
+        Rect(0, W_STATUS2_Y, dt::SCREEN_W, 28));
+    status2->font(Font(20, Font::Weight::normal));
+    status2->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(status2);
+
+    // ── "Begin Treatment" button (centered, green filled) ─────────────────
+    auto btn_begin = ui::create_filled_button("Begin\nTreatment",
+        Rect((dt::SCREEN_W - 260) / 2, BTN_Y, 260, BTN_H),
+        [=]() {
+            show_position_tip(state);
+        });
+    container->add(btn_begin);
+
+    state->callbacks.on_show_screen(container);
 }
 
 // ── POSITION TIP SCREEN ────────────────────────────────────────────────────
@@ -613,8 +668,8 @@ static void show_treatment_paused(shared_ptr<TreatmentState> state)
     // Tip message (Figma: y=155, cyan text with decorative brackets)
     auto tip = make_shared<Label>(
         "Tip: Keep pauses short to quickly rewarm and get back to treatment faster!",
-        Rect(60, STATUS_Y + 30, dt::SCREEN_W - 120, 50));
-    tip->font(dt::fontSmall());
+        Rect(60, STATUS_Y + 30, dt::SCREEN_W - 120, 60));
+    tip->font(dt::fontBody());
     tip->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(tip);
 

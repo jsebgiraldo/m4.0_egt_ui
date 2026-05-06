@@ -122,21 +122,13 @@ shared_ptr<Widget> create_home_screen(
     btn_begin->border(0);
     btn_begin->border_radius(dt::RADIUS_MD);
 
-    // "Begin" — large bold
-    auto lbl_begin = make_shared<Label>("Begin",
-        Rect(0, 18, btn_w, 58));
-    lbl_begin->font(Font(38, Font::Weight::bold));
-    lbl_begin->color(Palette::ColorId::label_text, dt::kWhite);
-    lbl_begin->text_align(AlignFlag::center);
-    btn_begin->add(lbl_begin);
-
-    // "Treatment" — smaller, regular weight
-    auto lbl_treatment = make_shared<Label>("Treatment",
-        Rect(0, 74, btn_w, 40));
-    lbl_treatment->font(Font(23, Font::Weight::normal));
-    lbl_treatment->color(Palette::ColorId::label_text, dt::kWhite);
-    lbl_treatment->text_align(AlignFlag::center);
-    btn_begin->add(lbl_treatment);
+    // "Start" — large bold, single word as per Figma HOME
+    auto lbl_start = make_shared<Label>("Start",
+        Rect(0, 0, btn_w, btn_h));
+    lbl_start->font(Font(38, Font::Weight::bold));
+    lbl_start->color(Palette::ColorId::label_text, dt::kWhite);
+    lbl_start->text_align(AlignFlag::center);
+    btn_begin->add(lbl_start);
 
     // Press feedback: slightly darken on down
     auto orig_cyan = dt::kAccentCyan;
@@ -176,7 +168,7 @@ shared_ptr<Widget> create_home_screen(
     auto btn_setting = make_card_button(
         Rect(dt::SCREEN_W - card_w - 30, card_y, card_w, card_h),
         icon_gear,
-        "Setting",
+        "Settings",
         on_settings);
     container->add(btn_setting);
 

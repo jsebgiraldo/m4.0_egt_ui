@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Head -->
+  <circle cx="12" cy="5.5" r="2.5" fill="#646469"/>
+  <!-- Torso + flared skirt as a single trapezoidal silhouette -->
+  <path d="M7 9 Q7 8.5 7.5 8.5 H16.5 Q17 8.5 17 9 L19 18 H5 L7 9 Z" fill="#646469"/>
+  <!-- Legs -->
+  <rect x="9" y="18" width="2.4" height="4.2" rx="0.6" fill="#646469"/>
+  <rect x="12.6" y="18" width="2.4" height="4.2" rx="0.6" fill="#646469"/>
+</svg>

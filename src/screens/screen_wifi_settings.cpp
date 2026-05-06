@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <cmath>
 #include <chrono>
+#include <thread>
+#include <atomic>
 
 using namespace egt;
 using namespace egt_wifi;
@@ -68,6 +70,60 @@ public:
     void set_color(const Color& c) { m_color = c; damage(); }
 };
 
+// ── Skip WiFi button: round icon with skip symbol ─────────────────────────
+class SkipWiFiButton : public Widget {
+public:
+    explicit SkipWiFiButton(const Rect& rect)
+        : Widget(rect)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+
+    void draw(Painter& painter, const Rect& /*rect*/) override
+    {
+        auto b = content_area();
+        float sz  = static_cast<float>(min(b.width(), b.height()));
+        float cx  = b.x() + b.width()  / 2.0f;
+        float cy  = b.y() + b.height() / 2.0f;
+
+        // Semi-transparent dark gray background circle
+        Color bg_col(70, 70, 70, 200);
+        painter.set(bg_col);
+        painter.draw(Arc(PointF(cx, cy), sz * 0.48f, 0.0f, 2.0f * M_PI));
+        painter.fill();
+
+        // White border
+        Color border_col(255, 255, 255, 240);
+        painter.set(border_col);
+        painter.line_width(sz * 0.08f);
+        painter.draw(Arc(PointF(cx, cy), sz * 0.48f, 0.0f, 2.0f * M_PI));
+        painter.stroke();
+
+        // White skip text/symbol (►► style or "SKIP")
+        painter.set(border_col);
+        painter.line_width(sz * 0.06f);
+        // Draw two triangular skip forward symbols
+        float tri_gap = sz * 0.08f;
+        float tri_x1 = cx - tri_gap - sz * 0.12f;
+        float tri_x2 = cx + tri_gap;
+        float tri_y_top = cy - sz * 0.15f;
+        float tri_y_bot = cy + sz * 0.15f;
+        
+        // First triangle (left)
+        painter.draw(Line(PointF(tri_x1, tri_y_top), PointF(tri_x1 + sz * 0.08f, cy)));
+        painter.stroke();
+        painter.draw(Line(PointF(tri_x1 + sz * 0.08f, cy), PointF(tri_x1, tri_y_bot)));
+        painter.stroke();
+        
+        // Second triangle (right)
+        painter.draw(Line(PointF(tri_x2, tri_y_top), PointF(tri_x2 + sz * 0.08f, cy)));
+        painter.stroke();
+        painter.draw(Line(PointF(tri_x2 + sz * 0.08f, cy), PointF(tri_x2, tri_y_bot)));
+        painter.stroke();
+    }
+};
+
 std::shared_ptr<Widget> create_wifi_settings_panel(
     function<void()> on_back,
     function<void()> on_scan_wifi,
@@ -94,11 +150,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
-    container->color(Palette::ColorId::bg, dt::kGrayBg);
+    container->color(Palette::ColorId::bg, dt::kWhite);
 
     // ── Title ───────────────────────────────────────────────────────────────
     auto title = make_shared<Label>("Establish Wi-Fi Connection",
-        Rect(0, 20, dt::SCREEN_W, 30));
+        Rect(80, 20, dt::SCREEN_W - 80, 30));
     title->font(Font(22, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
@@ -112,11 +168,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     const int card_x = 40;
     const int card_y = 55;
     const int card_w = dt::SCREEN_W - 80;  // 720
-    const int card_h = dt::SCREEN_H - 100; // 380
+    const int card_h = dt::SCREEN_H - 140; // 340 (leaves bottom strip for skip icon)
 
     auto card = make_shared<Frame>(Rect(card_x, card_y, card_w, card_h));
     card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, dt::kWhite);
+    card->color(Palette::ColorId::bg, dt::kWhite);  // blend into screen background
     card->border(0);
     card->border_radius(dt::RADIUS_MD);
     container->add(card);
@@ -138,12 +194,14 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     // ── Scrollable network list ─────────────────────────────────────────────
     const int list_top = 52;
     const int list_h = card_h - list_top;
-    const int row_h = 65;
+    const int row_h = 60;
+    const int row_gap = 10;
+    const int row_pitch = row_h + row_gap;
     const int text_pad = 20;
 
     // Total rows: networks + "Other..." entry
     const int total_rows = total + 1;
-    const int content_h = total_rows * row_h;
+    const int content_h = total_rows > 0 ? (total_rows * row_pitch - row_gap) : 0;
 
     auto scroll_view = make_shared<ScrolledView>(
         Rect(0, list_top, card_w, list_h),
@@ -182,7 +240,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     // ── Network list rows ───────────────────────────────────────────────────
     for (int i = 0; i < total; i++) {
         const auto& net = (*nets)[i];
-        int row_y = i * row_h;
+        int row_y = i * row_pitch;
 
         string label = net.ssid;
         (*network_map)[label] = net;
@@ -192,8 +250,9 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         auto row_frame = make_shared<Frame>(
             Rect(0, row_y, card_w, row_h));
         row_frame->fill_flags({Theme::FillFlag::blend});
-        row_frame->color(Palette::ColorId::bg, dt::kTransparent);
+        row_frame->color(Palette::ColorId::bg, dt::kGrayBg);
         row_frame->border(0);
+        row_frame->border_radius(10);  // rounded corners for better aesthetics
         list_content->add(row_frame);
 
         // SSID text (left-aligned) — use Label, not Button, so drag events
@@ -282,22 +341,23 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             if (on_show_screen) on_show_screen(pwd_screen);
         }, {EventId::pointer_click});
 
-        // Separator line (white — subtle, matches Figma)
+        // Separator line - more subtle with rounded items
         auto sep = make_shared<Frame>(
-            Rect(10, row_h - 1, card_w - 20, 1));
+            Rect(15, row_h - 1, card_w - 30, 1));
         sep->fill_flags({Theme::FillFlag::blend});
-        sep->color(Palette::ColorId::bg, dt::kWhite);
+        sep->color(Palette::ColorId::bg, Color(217, 217, 217, 100));  // more transparent
         sep->border(0);
         row_frame->add(sep);
     }
 
     // ── "Other..." entry (at the bottom of the list) ────────────────────────
-    int other_y = total * row_h;
+    int other_y = total * row_pitch;
     auto other_frame = make_shared<Frame>(
         Rect(0, other_y, card_w, row_h));
     other_frame->fill_flags({Theme::FillFlag::blend});
-    other_frame->color(Palette::ColorId::bg, dt::kTransparent);
+    other_frame->color(Palette::ColorId::bg, dt::kGrayBg);
     other_frame->border(0);
+    other_frame->border_radius(10);  // rounded corners for consistency
 
     list_content->add(other_frame);
 
@@ -364,6 +424,82 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     other_chevron->color(Palette::ColorId::label_text, dt::kTextPrimary);
     other_frame->add(other_chevron);
 
+    // ── Skip WiFi button button (bottom-right, OUTSIDE the card) ────────────────
+    // Positioned in the strip below the card
+    {
+        const int icon_sz = 80;  // increased for better visibility
+        const int strip_top = card_y + card_h;
+        const int icon_x = dt::SCREEN_W - icon_sz - 40;
+        const int icon_y = strip_top + 5;  // fully below card, no overlap
+
+        auto skip_btn = make_shared<SkipWiFiButton>(
+            Rect(icon_x, icon_y, icon_sz, icon_sz));
+
+        container->add(skip_btn);
+
+        // ── Override overlay (hidden until skip button is tapped) ──────────────
+        auto overlay = make_shared<Frame>(
+            Rect(0, dt::SCREEN_H * 2 / 5, dt::SCREEN_W, dt::SCREEN_H * 3 / 5));
+        overlay->fill_flags({Theme::FillFlag::blend});
+        overlay->color(Palette::ColorId::bg, Color(80, 80, 80, 220));
+        overlay->border(0);
+        overlay->visible(false);
+        container->add(overlay);
+
+        // X close button (top-right of overlay)
+        auto btn_close = make_shared<Label>("\xE2\x9C\x95",
+            Rect(overlay->width() - 50, 10, 40, 40));
+        btn_close->font(Font(24, Font::Weight::bold));
+        btn_close->color(Palette::ColorId::label_text, dt::kWhite);
+        overlay->add(btn_close);
+        btn_close->on_event([overlay](Event&) {
+            overlay->visible(false);
+            overlay->damage();
+        }, {EventId::pointer_click});
+
+        // "If Wifi Network is Temporarily Unavailable" text
+        auto overlay_title = make_shared<Label>(
+            "If Wifi Network is Temporarily Unavailable",
+            Rect(0, 30, overlay->width(), 40));
+        overlay_title->font(Font(dt::FONT_SUBTITLE, Font::Weight::bold));
+        overlay_title->color(Palette::ColorId::label_text, dt::kWhite);
+        overlay->add(overlay_title);
+
+        // "Temporarily operate device in OVERRIDE MODE" button (cyan)
+        const int ob_w = 500;
+        const int ob_h = 100;
+        auto override_btn = make_shared<Frame>(
+            Rect((overlay->width() - ob_w) / 2, 90, ob_w, ob_h));
+        override_btn->fill_flags({Theme::FillFlag::blend});
+        override_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
+        override_btn->border(0);
+        override_btn->border_radius(dt::RADIUS_MD);
+        overlay->add(override_btn);
+
+        auto ob_line1 = make_shared<Label>("Temporarily operate device in",
+            Rect(0, 10, ob_w, 30));
+        ob_line1->font(Font(18, Font::Weight::normal));
+        ob_line1->color(Palette::ColorId::label_text, dt::kWhite);
+        override_btn->add(ob_line1);
+
+        auto ob_line2 = make_shared<Label>("OVERRIDE MODE",
+            Rect(0, 40, ob_w, 50));
+        ob_line2->font(Font(32, Font::Weight::bold));
+        ob_line2->color(Palette::ColorId::label_text, dt::kWhite);
+        override_btn->add(ob_line2);
+
+        override_btn->on_event([=](Event&) {
+            *alive = false;
+            on_connect("", "");  // triggers override flow in app.cpp
+        }, {EventId::pointer_click});
+
+        // Show overlay when skip button is tapped
+        skip_btn->on_event([overlay](Event&) {
+            overlay->visible(true);
+            overlay->damage();
+        }, {EventId::pointer_click});
+    }
+
     // ── Auto-retry scan when no networks found ──────────────────────────────
     if (nets->empty() && on_show_screen) {
         auto scan_label = make_shared<Label>("Scanning for networks...",
@@ -373,9 +509,30 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         list_content->add(scan_label);
 
         auto retry_count = make_shared<int>(0);
-        auto retry_timer = make_shared<PeriodicTimer>(chrono::milliseconds(3000));
+        auto scan_result = make_shared<shared_ptr<vector<WiFiNetwork>>>(nullptr);
+        auto scan_running = make_shared<atomic<bool>>(false);
+
+        auto retry_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1000));
         retry_timer->on_timeout([=]() {
             if (!*alive) { retry_timer->cancel(); return; }
+
+            // If scan running, skip (keep UI responsive)
+            if (scan_running->load()) return;
+
+            // Check result from previous scan
+            if (*scan_result) {
+                auto fresh = *scan_result;
+                *scan_result = nullptr;
+                if (!fresh->empty()) {
+                    retry_timer->cancel();
+                    *alive = false;
+                    on_show_screen(create_wifi_settings_panel(
+                        on_back, on_scan_wifi, on_connect,
+                        on_item_selected, on_show_screen, fresh));
+                    return;
+                }
+            }
+
             (*retry_count)++;
             printf("[WIFI_SETTINGS] auto-retry scan %d/10\n", *retry_count);
             fflush(stdout);
@@ -384,48 +541,64 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 scan_label->text("No networks found");
                 return;
             }
-            WiFiManager wifi;
-            auto fresh = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
-            if (!fresh->empty()) {
-                retry_timer->cancel();
-                *alive = false;
-                on_show_screen(create_wifi_settings_panel(
-                    on_back, on_scan_wifi, on_connect,
-                    on_item_selected, on_show_screen, fresh));
-            }
+
+            // Start background scan
+            scan_running->store(true);
+            std::thread([scan_result, scan_running]() {
+                WiFiManager wifi;
+                auto fresh = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
+                *scan_result = fresh;
+                scan_running->store(false);
+            }).detach();
         });
         retry_timer->start();
     }
 
     // ── Periodic refresh of the network list (every 15 s) ───────────────────
     if (!nets->empty() && on_show_screen) {
-        auto refresh_timer = make_shared<PeriodicTimer>(chrono::seconds(15));
+        auto refresh_result = make_shared<shared_ptr<vector<WiFiNetwork>>>(nullptr);
+        auto refresh_running = make_shared<atomic<bool>>(false);
+
+        auto refresh_timer = make_shared<PeriodicTimer>(chrono::seconds(5));
         refresh_timer->on_timeout([=]() {
             if (!*alive) { refresh_timer->cancel(); return; }
-            WiFiManager wifi;
-            auto fresh = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
 
-            // Build simple fingerprint: sorted "ssid:connected," for each network
-            auto fingerprint = [](const vector<WiFiNetwork>& v) {
-                vector<string> parts;
-                parts.reserve(v.size());
-                for (const auto& n : v)
-                    parts.push_back(n.ssid + ":" + (n.connected ? "1" : "0"));
-                sort(parts.begin(), parts.end());
-                string fp;
-                for (const auto& p : parts) fp += p + ",";
-                return fp;
-            };
+            if (refresh_running->load()) return;
 
-            if (fingerprint(*fresh) != fingerprint(*nets)) {
-                printf("[WIFI_SETTINGS] network list changed — refreshing\n");
-                fflush(stdout);
-                refresh_timer->cancel();
-                *alive = false;
-                on_show_screen(create_wifi_settings_panel(
-                    on_back, on_scan_wifi, on_connect,
-                    on_item_selected, on_show_screen, fresh));
+            if (*refresh_result) {
+                auto fresh = *refresh_result;
+                *refresh_result = nullptr;
+
+                auto fingerprint = [](const vector<WiFiNetwork>& v) {
+                    vector<string> parts;
+                    parts.reserve(v.size());
+                    for (const auto& n : v)
+                        parts.push_back(n.ssid + ":" + (n.connected ? "1" : "0"));
+                    sort(parts.begin(), parts.end());
+                    string fp;
+                    for (const auto& p : parts) fp += p + ",";
+                    return fp;
+                };
+
+                if (fingerprint(*fresh) != fingerprint(*nets)) {
+                    printf("[WIFI_SETTINGS] network list changed — refreshing\n");
+                    fflush(stdout);
+                    refresh_timer->cancel();
+                    *alive = false;
+                    on_show_screen(create_wifi_settings_panel(
+                        on_back, on_scan_wifi, on_connect,
+                        on_item_selected, on_show_screen, fresh));
+                    return;
+                }
             }
+
+            refresh_running->store(true);
+            std::thread([refresh_result, refresh_running]() {
+                WiFiManager wifi;
+                auto fresh = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
+                *refresh_result = fresh;
+                refresh_running->store(false);
+            }).detach();
         });
         refresh_timer->start();
     }

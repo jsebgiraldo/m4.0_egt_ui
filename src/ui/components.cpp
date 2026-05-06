@@ -282,31 +282,36 @@ CumulativeTimeFooter create_cumulative_time_footer(int x, int y, int width)
 }
 
 // ── Demo Mode Badge ────────────────────────────────────────────────────────
+// Vertical layout: "DEMO MODE" label on top, "Exit" button centered below.
 DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave)
 {
-    auto frame = make_shared<Frame>(Rect(x, y, 200, 50));
+    const int badge_w = 140;
+    const int badge_h = 80;
+    auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
     frame->color(Palette::ColorId::bg, dt::kTransparent);
     frame->border(0);
 
-    // Leave button (house icon — using text for now)
-    auto leave_btn = make_shared<Button>("⌂",
-        Rect(0, 0, 60, 44));
-    leave_btn->font(Font(20));
+    // DEMO MODE text — top, full width, centered
+    auto badge = make_shared<Label>("DEMO MODE",
+        Rect(0, 0, badge_w, 30), AlignFlag::center);
+    badge->font(Font(18, Font::Weight::bold));
+    badge->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    frame->add(badge);
+
+    // Exit button — bottom, centered
+    const int btn_w = 80, btn_h = 36;
+    const int btn_x = (badge_w - btn_w) / 2;
+    auto leave_btn = make_shared<Button>("Exit",
+        Rect(btn_x, 36, btn_w, btn_h));
+    leave_btn->font(Font(14, Font::Weight::bold));
     leave_btn->color(Palette::ColorId::button_bg, dt::kGrayLight);
     leave_btn->color(Palette::ColorId::button_text, dt::kAccentCyan);
-    leave_btn->border_radius(dt::RADIUS_SM);
+    leave_btn->border_radius(dt::RADIUS_XS);
     leave_btn->border(0);
     if (on_leave) {
         leave_btn->on_click([on_leave](Event&) { on_leave(); });
     }
     frame->add(leave_btn);
-
-    // DEMO MODE text
-    auto badge = make_shared<Label>("DEMO MODE",
-        Rect(70, 0, 130, 44));
-    badge->font(Font(20, Font::Weight::bold));
-    badge->color(Palette::ColorId::label_text, dt::kAccentCyan);
-    frame->add(badge);
 
     return {frame, leave_btn};
 }

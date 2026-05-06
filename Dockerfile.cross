@@ -1,0 +1,83 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Add armhf architecture and configure multiarch apt sources
+RUN dpkg --add-architecture armhf && \
+    # Replace the deb822 sources with traditional format supporting multiarch
+    rm -f /etc/apt/sources.list.d/ubuntu.sources && \
+    cat > /etc/apt/sources.list << 'EOF'
+deb [arch=amd64] http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse
+deb [arch=amd64] http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse
+deb [arch=amd64] http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
+deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse
+deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse
+deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse
+EOF
+
+# Install host build tools + ARM cross-compiler + armhf dev libraries
+RUN apt-get update && apt-get install -y \
+    build-essential cmake ninja-build pkg-config git \
+    g++-arm-linux-gnueabihf gcc-arm-linux-gnueabihf \
+    libdrm-dev:armhf libinput-dev:armhf libcairo-dev:armhf \
+    libjpeg-dev:armhf libmagic-dev:armhf gettext \
+    librsvg2-dev:armhf libcurl4-openssl-dev:armhf \
+    libxkbcommon-dev:armhf xkb-data \
+    libgstreamer1.0-dev:armhf libgstreamer-plugins-base1.0-dev:armhf \
+    libasound2-dev:armhf libsndfile1-dev:armhf \
+    liblua5.3-dev:armhf \
+    libdbus-1-dev:armhf \
+    xxd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Clone and cross-compile EGT for ARM
+WORKDIR /opt
+RUN git clone --depth=1 --branch 1.10 https://github.com/linux4sam/egt.git && \
+    cd egt && git submodule update --init --recursive
+WORKDIR /opt/egt
+RUN mkdir build && cd build && \
+    export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig && \
+    export PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig && \
+    cmake .. \
+        -DCMAKE_INSTALL_PREFIX=/usr/local/arm-sysroot/usr \
+        -DCMAKE_SYSTEM_NAME=Linux \
+        -DCMAKE_SYSTEM_PROCESSOR=arm \
+        -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
+        -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
+        -DCMAKE_FIND_ROOT_PATH=/usr/arm-linux-gnueabihf \
+        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH \
+        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
+        -DEXAMPLES=OFF \
+        -DWITH_X11=OFF \
+        -DWITH_XKBCOMMON=OFF \
+        -DWITH_LUA=OFF \
+        -DWITH_SNDFILE=OFF \
+        -DWITH_LIBJPEG=OFF \
+        -DWITH_SDL2=OFF \
+    && make -j$(nproc) && \
+    make install
+
+# Set up pkg-config for cross-compilation
+ENV PKG_CONFIG_PATH=/usr/local/arm-sysroot/usr/lib/pkgconfig:/usr/lib/arm-linux-gnueabihf/pkgconfig
+ENV PKG_CONFIG_LIBDIR=/usr/local/arm-sysroot/usr/lib/pkgconfig:/usr/lib/arm-linux-gnueabihf/pkgconfig
+
+# Build the app
+WORKDIR /app
+COPY CMakeLists.txt .
+COPY src/ src/
+COPY assets/ assets/
+
+RUN mkdir build && cd build && \
+    export PKG_CONFIG_PATH=/usr/local/arm-sysroot/usr/lib/pkgconfig:/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig && \
+    export PKG_CONFIG_LIBDIR=/usr/local/arm-sysroot/usr/lib/pkgconfig:/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig && \
+    cmake .. \
+        -DCMAKE_SYSTEM_NAME=Linux \
+        -DCMAKE_SYSTEM_PROCESSOR=arm \
+        -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
+        -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
+        -DCMAKE_FIND_ROOT_PATH="/usr/local/arm-sysroot;/usr/arm-linux-gnueabihf" \
+        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH \
+        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
+    && make -j$(nproc)
+
+CMD ["bash"]

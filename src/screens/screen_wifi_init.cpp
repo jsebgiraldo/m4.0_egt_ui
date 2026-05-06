@@ -5,6 +5,9 @@
 #include <cmath>
 #include <chrono>
 #include <cstdlib>
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 using namespace egt;
 using namespace std;
@@ -58,9 +61,17 @@ private:
     float m_angle{0.0f};
 };
 
+// ── Async WiFi check result (populated by background thread) ────────────────
+struct WifiCheckResult {
+    bool available = false;
+    std::string ssid;
+    bool has_saved = false;
+};
+
 shared_ptr<Widget> create_wifi_init_screen(
     function<void()> on_connected,
-    function<void(shared_ptr<vector<egt_wifi::WiFiNetwork>>)> on_failed)
+    function<void(shared_ptr<vector<egt_wifi::WiFiNetwork>>)> on_failed,
+    function<void()> on_skip)
 {
     // One-shot guard: once either callback fires, suppress all subsequent timer
     // callbacks. This prevents background timers from navigating away from whatever
@@ -68,6 +79,7 @@ shared_ptr<Widget> create_wifi_init_screen(
     auto active = make_shared<bool>(true);
     auto orig_connected = std::move(on_connected);
     auto orig_failed    = std::move(on_failed);
+    auto orig_skip      = std::move(on_skip);
     on_connected = [active, orig_connected]() {
         if (!*active) return;
         *active = false;
@@ -78,6 +90,11 @@ shared_ptr<Widget> create_wifi_init_screen(
         *active = false;
         if (orig_failed) orig_failed(nets);
     };
+    on_skip = [active, orig_skip]() {
+        if (!*active) return;
+        *active = false;
+        if (orig_skip) orig_skip();
+    };
 
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -86,7 +103,7 @@ shared_ptr<Widget> create_wifi_init_screen(
     // Figma: Spinner COMPONENT 214×214 → ~396px scaled, centered vertically
     const int spin_sz = 396;
     const int spin_x = (dt::SCREEN_W - spin_sz) / 2;
-    const int spin_y = (dt::SCREEN_H - spin_sz) / 2;
+    const int spin_y = (dt::SCREEN_H - spin_sz) / 2 - 20;
 
     auto spinner = make_shared<SpinnerRing>(Rect(spin_x, spin_y, spin_sz, spin_sz));
     container->add(spinner);
@@ -121,7 +138,7 @@ shared_ptr<Widget> create_wifi_init_screen(
 
     const bool mock_mode = (std::getenv("EGT_MOCK_WIFI") != nullptr);
 
-    // Helper: start the network scan and call on_failed with results
+    // ── Async WiFi scanning (runs in background thread) ─────────────────────
     auto start_scan = [=]() {
         printf("[WIFI_INIT] no saved networks, scanning...\n");
         fflush(stdout);
@@ -130,110 +147,145 @@ shared_ptr<Widget> create_wifi_init_screen(
         auto scan_count = make_shared<int>(0);
         auto prev_count = make_shared<int>(-1);
         const int MAX_SCAN = mock_mode ? 2 : 5;
-        auto scan_timer = make_shared<PeriodicTimer>(chrono::milliseconds(2000));
+
+        // Async scan: background thread + result polling
+        auto scan_result = make_shared<shared_ptr<vector<egt_wifi::WiFiNetwork>>>(nullptr);
+        auto scan_running = make_shared<atomic<bool>>(false);
+
+        auto scan_timer = make_shared<PeriodicTimer>(chrono::milliseconds(500));
         scan_timer->on_timeout([=]() {
-            (*scan_count)++;
-            printf("[WIFI_INIT] scan poll %d/%d\n", *scan_count, MAX_SCAN);
-            fflush(stdout);
+            // If a scan is still running, skip this tick (keep UI responsive)
+            if (scan_running->load()) return;
 
-            egt_wifi::WiFiManager wm;
-            auto nets = make_shared<vector<egt_wifi::WiFiNetwork>>(wm.scan_networks());
-            int cur = static_cast<int>(nets->size());
-            printf("[WIFI_INIT] scan poll %d: %d networks\n", *scan_count, cur);
-            fflush(stdout);
-
-            const int MIN_SCAN = mock_mode ? 1 : 3;
-            bool stable = (*scan_count >= MIN_SCAN && cur > 0 && cur == *prev_count);
-            *prev_count = cur;
-
-            if (stable || *scan_count >= MAX_SCAN) {
-                printf("[WIFI_INIT] scan done, %d networks (stable=%d)\n", cur, stable);
+            // Check if previous scan delivered results
+            if (*scan_result) {
+                (*scan_count)++;
+                auto nets = *scan_result;
+                *scan_result = nullptr;
+                int cur = static_cast<int>(nets->size());
+                printf("[WIFI_INIT] scan poll %d/%d: %d networks\n", *scan_count, MAX_SCAN, cur);
                 fflush(stdout);
-                scan_timer->cancel();
-                anim_timer->cancel();
-                if (on_failed) on_failed(nets);
+
+                const int MIN_SCAN = mock_mode ? 1 : 3;
+                bool stable = (*scan_count >= MIN_SCAN && cur > 0 && cur == *prev_count);
+                *prev_count = cur;
+
+                if (stable || *scan_count >= MAX_SCAN) {
+                    printf("[WIFI_INIT] scan done, %d networks (stable=%d)\n", cur, stable);
+                    fflush(stdout);
+                    scan_timer->cancel();
+                    anim_timer->cancel();
+                    if (on_failed) on_failed(nets);
+                    return;
+                }
             }
+
+            // Start a new background scan
+            scan_running->store(true);
+            std::thread([scan_result, scan_running]() {
+                egt_wifi::WiFiManager wm;
+                auto nets = make_shared<vector<egt_wifi::WiFiNetwork>>(wm.scan_networks());
+                *scan_result = nets;
+                scan_running->store(false);
+            }).detach();
         });
         scan_timer->start();
     };
 
-    // ----------------------------------------------------------------
-    // Unified polling loop:
-    //   Phase 1 — wait until NetworkManager is running  (up to 15s)
-    //   Phase 2 — once NM is up, check connectivity     (up to 10s)
-    // Both phases share the same 1-second periodic timer so there is
-    // no race between "NM not ready" and "no saved networks".
-    // ----------------------------------------------------------------
-    auto nm_ready     = make_shared<bool>(false);
-    auto nm_wait_secs = make_shared<int>(0);   // seconds waiting for NM
-    auto conn_secs    = make_shared<int>(0);   // seconds waiting for connection
+    // ── Async main polling loop ─────────────────────────────────────────────
+    // Background thread performs blocking WiFi checks; timer polls results.
+    auto check_result = make_shared<shared_ptr<WifiCheckResult>>(nullptr);
+    auto check_running = make_shared<atomic<bool>>(false);
+    auto nm_ready      = make_shared<bool>(false);
+    auto nm_wait_secs  = make_shared<int>(0);
+    auto conn_secs     = make_shared<int>(0);
     const int MAX_NM_WAIT   = 15;
     const int MAX_CONN_WAIT = mock_mode ? 4 : 10;
 
-    auto main_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1000));
+    auto main_timer = make_shared<PeriodicTimer>(chrono::milliseconds(500));
     main_timer->on_timeout([=, start_scan = std::move(start_scan)]() {
+        // If background check is still running, skip (keep UI responsive)
+        if (check_running->load()) return;
 
-        egt_wifi::WiFiManager wifi;
+        // Process result from previous background check
+        if (*check_result) {
+            auto r = *check_result;
+            *check_result = nullptr;
 
-        // ── Phase 1: wait for NetworkManager ─────────────────────────
-        if (!*nm_ready) {
-            if (!wifi.is_available()) {
-                (*nm_wait_secs)++;
-                printf("[WIFI_INIT] waiting for NetworkManager (%ds/%ds)\n",
-                    *nm_wait_secs, MAX_NM_WAIT);
-                fflush(stdout);
-                status_label->text("Initializing...");
-                if (*nm_wait_secs >= MAX_NM_WAIT) {
-                    printf("[WIFI_INIT] NetworkManager never started\n");
+            // Phase 1: wait for NetworkManager
+            if (!*nm_ready) {
+                if (!r->available) {
+                    (*nm_wait_secs)++;
+                    printf("[WIFI_INIT] waiting for NetworkManager (%ds/%ds)\n",
+                        *nm_wait_secs, MAX_NM_WAIT);
                     fflush(stdout);
-                    main_timer->cancel();
-                    anim_timer->cancel();
-                    if (on_failed) on_failed(nullptr);
+                    status_label->text("Initializing...");
+                    if (*nm_wait_secs >= MAX_NM_WAIT) {
+                        printf("[WIFI_INIT] NetworkManager never started\n");
+                        fflush(stdout);
+                        main_timer->cancel();
+                        anim_timer->cancel();
+                        if (on_failed) on_failed(nullptr);
+                        return;
+                    }
+                } else {
+                    *nm_ready = true;
+                    printf("[WIFI_INIT] NetworkManager is ready\n");
+                    fflush(stdout);
                 }
-                return;
             }
-            *nm_ready = true;
-            printf("[WIFI_INIT] NetworkManager is ready\n");
-            fflush(stdout);
-        }
 
-        // ── Phase 2: NM is up — check connectivity ───────────────────
-        std::string ssid = wifi.get_current_ssid();
-        if (!ssid.empty()) {
-            // Already connected → go straight to login
-            printf("[WIFI_INIT] connected to '%s'\n", ssid.c_str());
-            fflush(stdout);
-            status_label->text("Connected to " + ssid);
-            main_timer->cancel();
+            // Phase 2: NM up — check connectivity
+            if (*nm_ready) {
+                if (!r->ssid.empty()) {
+                    printf("[WIFI_INIT] connected to '%s'\n", r->ssid.c_str());
+                    fflush(stdout);
+                    status_label->text("Connected to " + r->ssid);
+                    main_timer->cancel();
 
-            auto done_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1000));
-            done_timer->on_timeout([=]() {
-                done_timer->cancel();
-                anim_timer->cancel();
-                if (on_connected) on_connected();
-            });
-            done_timer->start();
-            return;
-        }
+                    auto done_timer = make_shared<PeriodicTimer>(chrono::milliseconds(1000));
+                    done_timer->on_timeout([=]() {
+                        done_timer->cancel();
+                        anim_timer->cancel();
+                        if (on_connected) on_connected();
+                    });
+                    done_timer->start();
+                    return;
+                }
 
-        (*conn_secs)++;
-        printf("[WIFI_INIT] not connected yet (%ds/%ds)\n", *conn_secs, MAX_CONN_WAIT);
-        fflush(stdout);
-        status_label->text("Connecting to WiFi...");
-
-        if (*conn_secs >= MAX_CONN_WAIT) {
-            main_timer->cancel();
-            if (!wifi.has_saved_networks()) {
-                // No saved networks — scan and show the WiFi list
-                start_scan();
-            } else {
-                // Saved networks but couldn't reconnect in time — let user retry
-                printf("[WIFI_INIT] timeout with saved networks, showing WiFi list\n");
+                (*conn_secs)++;
+                printf("[WIFI_INIT] not connected yet (%ds/%ds)\n", *conn_secs, MAX_CONN_WAIT);
                 fflush(stdout);
-                anim_timer->cancel();
-                if (on_failed) on_failed(nullptr);
+                status_label->text("Connecting to WiFi...");
+
+                if (*conn_secs >= MAX_CONN_WAIT) {
+                    main_timer->cancel();
+                    if (!r->has_saved) {
+                        start_scan();
+                    } else {
+                        printf("[WIFI_INIT] timeout with saved networks, showing WiFi list\n");
+                        fflush(stdout);
+                        anim_timer->cancel();
+                        if (on_failed) on_failed(nullptr);
+                    }
+                    return;
+                }
             }
         }
+
+        // Start a new background check (non-blocking)
+        check_running->store(true);
+        std::thread([check_result, check_running]() {
+            egt_wifi::WiFiManager wifi;
+            auto r = make_shared<WifiCheckResult>();
+            r->available = wifi.is_available();
+            if (r->available) {
+                r->ssid = wifi.get_current_ssid();
+                r->has_saved = wifi.has_saved_networks();
+            }
+            *check_result = r;
+            check_running->store(false);
+        }).detach();
     });
     main_timer->start();
 

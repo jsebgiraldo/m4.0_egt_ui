@@ -1,8 +1,12 @@
 #pragma once
 /// Design tokens extracted from Figma "Jason M4.0" design file.
 /// Figma canvas: 432×261  →  Target display: 800×480  (scale ≈ 1.852)
+///
+/// Colors are sourced from the master palette (palette.h).
+/// Do NOT define raw Color values here — add them to palette.h instead.
 
 #include <egt/ui>
+#include "palette.h"
 
 namespace dt {
 
@@ -13,35 +17,35 @@ inline constexpr int SCREEN_H = 480;
 // ── Scale helper (Figma 432×261 → 800×480) ─────────────────────────────────
 inline constexpr double SCALE = 800.0 / 432.0;  // ≈ 1.852
 
-// ── Colors (from Figma fills) ───────────────────────────────────────────────
-inline const egt::Color kBgWhite       {255, 255, 255};
-inline const egt::Color kTextPrimary   {100, 101, 105};  // rgb(100,101,105)
-inline const egt::Color kAccentCyan    { 48, 163, 196};  // rgb(48,163,196)  – Demo mode, filled buttons
-inline const egt::Color kGreen         { 91, 197,   0};  // rgb(91,197,0)    – Progress, success
-inline const egt::Color kGreenLight    {200, 235, 170};  // light green – scrollbar, hover highlights
-inline const egt::Color kGrayLight     {217, 217, 217};  // rgb(217,217,217) – Inactive segments, borders
-inline const egt::Color kGrayBg        {245, 245, 245};  // background for cards
-inline const egt::Color kWhite         {255, 255, 255};
-inline const egt::Color kBlack         {  0,   0,   0};
-inline const egt::Color kRed           {220,  53,  69};  // errors, critical
-inline const egt::Color kOrange        {255, 165,   0};  // warnings
-inline const egt::Color kTransparent   {  0,   0,   0, 0};
+// ── Color aliases (sourced from palette.h) ──────────────────────────────────
+inline const egt::Color& kBgWhite       = palette::kWhite;
+inline const egt::Color& kTextPrimary   = palette::kGray700;
+inline const egt::Color& kAccentCyan    = palette::kCyan;
+inline const egt::Color& kGreen         = palette::kGreen;
+inline const egt::Color& kGreenLight    = palette::kGreenLight;
+inline const egt::Color& kGrayLight     = palette::kGray200;
+inline const egt::Color& kGrayBg        = palette::kGray50;
+inline const egt::Color& kWhite         = palette::kWhite;
+inline const egt::Color& kBlack         = palette::kBlack;
+inline const egt::Color& kRed           = palette::kError;
+inline const egt::Color& kOrange        = palette::kWarning;
+inline const egt::Color& kTransparent   = palette::kTransparent;
 
 // Error severity colors
-inline const egt::Color kErrorInfoBanner   = kAccentCyan;
-inline const egt::Color kErrorWarnBanner   = kOrange;
-inline const egt::Color kErrorCritBanner   = kRed;
+inline const egt::Color& kErrorInfoBanner   = palette::kInfo;
+inline const egt::Color& kErrorWarnBanner   = palette::kWarning;
+inline const egt::Color& kErrorCritBanner   = palette::kError;
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 // Font size constants
 inline constexpr int FONT_HUGE     = 72;
 inline constexpr int FONT_LARGE    = 42;
 inline constexpr int FONT_TITLE    = 28;
-inline constexpr int FONT_SUBTITLE = 20;
-inline constexpr int FONT_BODY     = 16;
-inline constexpr int FONT_BUTTON   = 18;
-inline constexpr int FONT_SMALL    = 14;
-inline constexpr int FONT_TINY     = 12;
+inline constexpr int FONT_SUBTITLE = 22;
+inline constexpr int FONT_BODY     = 18;
+inline constexpr int FONT_BUTTON   = 20;
+inline constexpr int FONT_SMALL    = 16;
+inline constexpr int FONT_TINY     = 14;
 
 // Headers / large countdown
 inline egt::Font fontHuge()    { return egt::Font(FONT_HUGE, egt::Font::Weight::bold); }
@@ -77,6 +81,7 @@ inline constexpr int SEGMENT_GAP    = 8;
 inline constexpr int SEGMENT_DOT_SZ = 9;
 
 // Border radius
+inline constexpr int RADIUS_XS =  4;
 inline constexpr int RADIUS_SM =  8;
 inline constexpr int RADIUS_MD = 12;
 inline constexpr int RADIUS_LG = 16;

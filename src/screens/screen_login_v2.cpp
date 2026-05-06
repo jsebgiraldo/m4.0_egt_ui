@@ -25,21 +25,9 @@ static shared_ptr<Frame> create_tech_card(
     card->border(0);
     card->border_radius(7);
 
-    // Smiley icon placeholder (circle, left side of card)
-    const int icon_sz = 41;
-    const int icon_x = 12;
-    const int icon_y = (h - icon_sz) / 2;
-    auto icon = make_shared<Frame>(Rect(icon_x, icon_y, icon_sz, icon_sz));
-    icon->fill_flags({Theme::FillFlag::blend});
-    icon->color(Palette::ColorId::bg, Color(0xD9, 0xD9, 0xD9));
-    icon->border(0);
-    icon->border_radius(icon_sz / 2);
-    card->add(icon);
-
-    // Name label (right of icon)
+    // Name label — centered, full card width
     auto label = make_shared<Label>(name,
-        Rect(icon_x + icon_sz + 8, 0, w - icon_x - icon_sz - 20, h),
-        AlignFlag::center_vertical | AlignFlag::left);
+        Rect(0, 0, w, h), AlignFlag::center);
     label->font(Font(dt::FONT_BODY, Font::Weight::bold));
     label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(label);

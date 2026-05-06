@@ -9,10 +9,14 @@
 
 // ── New Figma-aligned screens ──
 #include "screens/screen_wifi_init.h"
+#include "screens/screen_wifi_unavailable.h"
+#include "screens/screen_wifi_override_info.h"
 #include "screens/screen_home.h"
 #include "screens/screen_login_v2.h"
 #include "screens/screen_patient_info.h"
 #include "screens/screen_demo_info.h"
+#include "screens/screen_settings.h"
+#include "screens/screen_error.h"
 
 // ── Treatment flow ──
 #include "treatment/treatment_controller.h"
@@ -23,11 +27,20 @@
 void run_app(int argc, char** argv)
 {
     egt::Application app(argc, argv);
+
+    // Set Lato as the global default font (installed at /usr/share/fonts/truetype/).
+    // Every Font(size) and Font(size, weight) call inherits this face, so we
+    // don't have to thread the family name through every screen.
+    egt::global_font(std::make_unique<egt::Font>(
+        "Lato", egt::Font::DEFAULT_SIZE, egt::Font::DEFAULT_WEIGHT));
+
     egt::TopWindow win;
     ScreenManager screens(win);
 
     // ── Forward declarations for navigation ──────────────────────────
     std::function<void()> show_wifi_init;
+    std::function<void()> show_wifi_unavailable;
+    std::function<void()> show_wifi_override_info;
     std::function<void()> show_home;
     std::function<void(std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>>)> show_wifi_setup;
     std::function<void()> show_override_prompt;
@@ -35,6 +48,7 @@ void run_app(int argc, char** argv)
     std::function<void(bool demo)> show_patient_info;
     std::function<void(bool demo)> show_demo_info;
     std::function<void(bool demo)> launch_treatment;
+    std::function<void()> show_settings;
 
     // ── WIFI INIT (first boot screen) ────────────────────────────────
     show_wifi_init = [&]() {
@@ -43,7 +57,8 @@ void run_app(int argc, char** argv)
             [&]() { show_login(false); },  // on_connected -> Technician Login
             [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> nets) {
                 show_wifi_setup(nets);     // on_failed -> WiFi Settings (with pre-scanned nets)
-            }
+            },
+            [&]() { show_login(false); }   // on_skip -> bypass WiFi, go to Login
         ));
     };
 
@@ -52,8 +67,17 @@ void run_app(int argc, char** argv)
         printf("[NAV] -> HOME\n"); fflush(stdout);
         screens.show(create_home_screen(
             [&]() { show_patient_info(false); }, // Begin Treatment -> Patient Info
-            [&]() { show_demo_info(true); },     // Demo Mode -> Demo Info
-            [&]() { show_wifi_setup(nullptr); }          // Settings -> Wi-Fi
+            [&]() { show_patient_info(true); },   // Demo Mode -> Patient Info (demo)
+            [&]() { show_settings(); }           // Settings -> Settings menu
+        ));
+    };
+
+    // ── SETTINGS (menu with WiFi + Brightness) ──────────────────────
+    show_settings = [&]() {
+        printf("[NAV] -> SETTINGS\n"); fflush(stdout);
+        screens.show(create_settings_screen(
+            [&]() { show_home(); },              // Back -> Home
+            [&]() { show_wifi_setup(nullptr); }  // WiFi -> WiFi Settings
         ));
     };
 
@@ -153,7 +177,7 @@ void run_app(int argc, char** argv)
                         show_wifi_setup(nullptr);
                     }
                 } else {
-                    show_override_prompt();
+                    show_wifi_unavailable();
                 }
             },
             [&](const egt_wifi::WiFiNetwork& net) { (void)net; },
@@ -164,6 +188,7 @@ void run_app(int argc, char** argv)
 
     // ── OVERRIDE PROMPT (existing, kept as-is) ──────────────────────
     show_override_prompt = [&]() {
+        printf("[NAV] -> OVERRIDE_PROMPT\n"); fflush(stdout);
         screens.show(create_password_prompt_screen(
             "Override Mode",
             "Enter override password to continue offline",
@@ -174,7 +199,24 @@ void run_app(int argc, char** argv)
                 else
                     show_override_prompt();
             },
-            [&]() { show_home(); }
+            [&]() { show_wifi_override_info(); }
+        ));
+    };
+
+    // ── WIFI UNAVAILABLE (Figma: WIFI_UNAVAILABLE) ──────────────────
+    show_wifi_unavailable = [&]() {
+        printf("[NAV] -> WIFI_UNAVAILABLE\n"); fflush(stdout);
+        screens.show(create_wifi_unavailable_screen(
+            [&]() { show_wifi_override_info(); }  // Continue -> Override Info
+        ));
+    };
+
+    // ── WIFI OVERRIDE INFO (Figma: WIFI_OVERRIDE_INFO) ──────────────
+    show_wifi_override_info = [&]() {
+        printf("[NAV] -> WIFI_OVERRIDE_INFO\n"); fflush(stdout);
+        screens.show(create_wifi_override_info_screen(
+            [&]() { show_override_prompt(); },    // Continue -> Override Password
+            [&]() { show_wifi_unavailable(); }    // Back -> WiFi Unavailable
         ));
     };
 
