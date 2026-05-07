@@ -28,11 +28,15 @@ void run_app(int argc, char** argv)
 {
     egt::Application app(argc, argv);
 
-    // Set Lato as the global default font (installed at /usr/share/fonts/truetype/).
-    // Every Font(size) and Font(size, weight) call inherits this face, so we
-    // don't have to thread the family name through every screen.
-    egt::global_font(std::make_unique<egt::Font>(
-        "Lato", egt::Font::DEFAULT_SIZE, egt::Font::DEFAULT_WEIGHT));
+    // Try Lato as the global font; fall back to system default if Lato is
+    // not installed / not in fontconfig cache. This avoids a hard crash on
+    // images where Lato hasn't been provisioned yet.
+    try {
+        egt::global_font(std::make_unique<egt::Font>(
+            "Lato", egt::Font::DEFAULT_SIZE, egt::Font::DEFAULT_WEIGHT));
+    } catch (...) {
+        // keep system default
+    }
 
     egt::TopWindow win;
     ScreenManager screens(win);
