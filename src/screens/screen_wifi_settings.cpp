@@ -10,6 +10,9 @@
 
 #include <map>
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <thread>
 #include <cmath>
 #include <chrono>
 #include <thread>
@@ -133,10 +136,24 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> cached_networks)
 {
     // ── Scan or use cached networks ─────────────────────────────────────────
+    // If no cached networks, do a SHORT synchronous scan with a hard cap so
+    // the UI doesn't lock for >3s waiting on nmcli. Caller should ideally
+    // pre-scan and pass cached_networks to avoid this path entirely.
     auto nets = cached_networks;
     if (!nets) {
-        egt_wifi::WiFiManager wifi;
-        nets = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
+        std::atomic<bool> done{false};
+        auto result = std::make_shared<vector<WiFiNetwork>>();
+        std::thread([&done, result]() {
+            egt_wifi::WiFiManager wifi;
+            *result = wifi.scan_networks();
+            done.store(true);
+        }).detach();
+        // Wait up to 3s — past that the user gets an empty list and can
+        // hit the "Refresh" button to retry without blocking the screen.
+        for (int i = 0; i < 30 && !done.load(); ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        nets = result;
     }
     // Sort by signal strength (strongest first)
     sort(nets->begin(), nets->end(),
@@ -237,192 +254,202 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     list_content->border(0);
     scroll_view->add(list_content);
 
-    // ── Network list rows ───────────────────────────────────────────────────
-    for (int i = 0; i < total; i++) {
-        const auto& net = (*nets)[i];
-        int row_y = i * row_pitch;
+    // ── Network list rows (rebuilt on each WiFi scan update) ────────────────
+    // Wrapping the row construction in a lambda lets the periodic refresh timer
+    // swap the row set in-place when nmcli reports new APs, without recreating
+    // the whole screen (which would lose scroll position and cause flicker).
+    auto rebuild_rows = [=]() {
+        list_content->remove_all();
 
-        string label = net.ssid;
-        (*network_map)[label] = net;
+        const int cur_total = static_cast<int>(nets->size());
+        const int cur_rows  = cur_total + 1;  // +1 for "Other..."
+        const int cur_content_h = cur_rows > 0 ? (cur_rows * row_pitch - row_gap) : 0;
+        list_content->resize(Size(card_w, cur_content_h));
 
-        Color text_color = net.connected ? dt::kGreen : dt::kTextPrimary;
+        network_map->clear();
 
-        auto row_frame = make_shared<Frame>(
-            Rect(0, row_y, card_w, row_h));
-        row_frame->fill_flags({Theme::FillFlag::blend});
-        row_frame->color(Palette::ColorId::bg, dt::kGrayBg);
-        row_frame->border(0);
-        row_frame->border_radius(10);  // rounded corners for better aesthetics
-        list_content->add(row_frame);
+        for (int i = 0; i < cur_total; i++) {
+            const auto& net = (*nets)[i];
+            int row_y = i * row_pitch;
 
-        // SSID text (left-aligned) — use Label, not Button, so drag events
-        // pass through to ScrolledView for scroll on the whole row
-        auto ssid_lbl = make_shared<Label>(label,
-            Rect(text_pad, 4, card_w - 140, row_h - 8));
-        ssid_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
-        ssid_lbl->color(Palette::ColorId::label_text, text_color);
-        ssid_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
-        ssid_lbl->border(0);
-        row_frame->add(ssid_lbl);
+            string label = net.ssid;
+            (*network_map)[label] = net;
 
-        // WiFi signal indicator – arc icon (arcs reflect signal strength)
-        auto wifi_icon = make_shared<WifiIcon>(
-            Rect(card_w - 110, (row_h - 30) / 2, 30, 30), text_color, net.signal);
-        row_frame->add(wifi_icon);
+            Color text_color = net.connected ? dt::kGreen : dt::kTextPrimary;
 
-        // Chevron – white circle with shadow + colored ">" stroke
-        auto chev_shadow = make_shared<Frame>(
-            Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
-        chev_shadow->fill_flags({Theme::FillFlag::blend});
-        chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
-        chev_shadow->border(0);
-        chev_shadow->border_radius(13);
-        row_frame->add(chev_shadow);
+            auto row_frame = make_shared<Frame>(
+                Rect(0, row_y, card_w, row_h));
+            row_frame->fill_flags({Theme::FillFlag::blend});
+            row_frame->color(Palette::ColorId::bg, dt::kGrayBg);
+            row_frame->border(0);
+            row_frame->border_radius(10);
+            list_content->add(row_frame);
 
-        auto chev_bg = make_shared<Frame>(
-            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-        chev_bg->fill_flags({Theme::FillFlag::blend});
-        chev_bg->color(Palette::ColorId::bg, dt::kWhite);
-        chev_bg->border(0);
-        chev_bg->border_radius(13);
-        row_frame->add(chev_bg);
-
-        auto chevron = make_shared<Label>(">",
-            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-        chevron->font(Font(14, Font::Weight::bold));
-        chevron->color(Palette::ColorId::label_text, text_color);
-        row_frame->add(chevron);
-
-        // --- Green highlight on touch (text + icon + chevron) ---
-        auto hover_timer = make_shared<Timer>(chrono::milliseconds(1500));
-        hover_timer->on_timeout([=]() {
+            auto ssid_lbl = make_shared<Label>(label,
+                Rect(text_pad, 4, card_w - 140, row_h - 8));
+            ssid_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
             ssid_lbl->color(Palette::ColorId::label_text, text_color);
-            wifi_icon->set_color(text_color);
+            ssid_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+            ssid_lbl->border(0);
+            row_frame->add(ssid_lbl);
+
+            auto wifi_icon = make_shared<WifiIcon>(
+                Rect(card_w - 110, (row_h - 30) / 2, 30, 30), text_color, net.signal);
+            row_frame->add(wifi_icon);
+
+            auto chev_shadow = make_shared<Frame>(
+                Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
+            chev_shadow->fill_flags({Theme::FillFlag::blend});
+            chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
+            chev_shadow->border(0);
+            chev_shadow->border_radius(13);
+            row_frame->add(chev_shadow);
+
+            auto chev_bg = make_shared<Frame>(
+                Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
+            chev_bg->fill_flags({Theme::FillFlag::blend});
+            chev_bg->color(Palette::ColorId::bg, dt::kWhite);
+            chev_bg->border(0);
+            chev_bg->border_radius(13);
+            row_frame->add(chev_bg);
+
+            auto chevron = make_shared<Label>(">",
+                Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
+            chevron->font(Font(14, Font::Weight::bold));
             chevron->color(Palette::ColorId::label_text, text_color);
-            row_frame->damage();
-        });
-        row_frame->on_event([=](Event& event) {
-            if (event.id() == EventId::raw_pointer_down) {
-                hover_timer->stop();
-                ssid_lbl->color(Palette::ColorId::label_text, dt::kGreen);
-                wifi_icon->set_color(dt::kGreen);
-                chevron->color(Palette::ColorId::label_text, dt::kGreen);
-                row_frame->damage();
-            } else if (event.id() == EventId::raw_pointer_up) {
-                hover_timer->start();
-            } else if (event.id() == EventId::pointer_drag_start ||
-                       event.id() == EventId::pointer_drag) {
-                hover_timer->stop();
+            row_frame->add(chevron);
+
+            auto hover_timer = make_shared<Timer>(chrono::milliseconds(1500));
+            hover_timer->on_timeout([=]() {
                 ssid_lbl->color(Palette::ColorId::label_text, text_color);
                 wifi_icon->set_color(text_color);
                 chevron->color(Palette::ColorId::label_text, text_color);
                 row_frame->damage();
-            }
-        });
+            });
+            row_frame->on_event([=](Event& event) {
+                if (event.id() == EventId::raw_pointer_down) {
+                    hover_timer->stop();
+                    ssid_lbl->color(Palette::ColorId::label_text, dt::kGreen);
+                    wifi_icon->set_color(dt::kGreen);
+                    chevron->color(Palette::ColorId::label_text, dt::kGreen);
+                    row_frame->damage();
+                } else if (event.id() == EventId::raw_pointer_up) {
+                    hover_timer->start();
+                } else if (event.id() == EventId::pointer_drag_start ||
+                           event.id() == EventId::pointer_drag) {
+                    hover_timer->stop();
+                    ssid_lbl->color(Palette::ColorId::label_text, text_color);
+                    wifi_icon->set_color(text_color);
+                    chevron->color(Palette::ColorId::label_text, text_color);
+                    row_frame->damage();
+                }
+            });
 
-        // Tap anywhere on the row → open password prompt
-        row_frame->on_event([=](Event&) {
-            *alive = false;
-            auto selected_net = (*network_map)[label];
-            auto pwd_screen = create_password_prompt_screen(
-                "Network: " + selected_net.ssid,
-                "Enter password to join",
-                "Join", "Back",
-                [=](const string& password) {
-                    on_connect(selected_net.ssid, password);
-                },
-                [=]() {
-                    if (on_show_screen) {
-                        on_show_screen(create_wifi_settings_panel(
-                            on_back, on_scan_wifi, on_connect,
-                            on_item_selected, on_show_screen, nets));
-                    }
-                });
-            if (on_show_screen) on_show_screen(pwd_screen);
-        }, {EventId::pointer_click});
-
-        // Separator line - more subtle with rounded items
-        auto sep = make_shared<Frame>(
-            Rect(15, row_h - 1, card_w - 30, 1));
-        sep->fill_flags({Theme::FillFlag::blend});
-        sep->color(Palette::ColorId::bg, Color(217, 217, 217, 100));  // more transparent
-        sep->border(0);
-        row_frame->add(sep);
-    }
-
-    // ── "Other..." entry (at the bottom of the list) ────────────────────────
-    int other_y = total * row_pitch;
-    auto other_frame = make_shared<Frame>(
-        Rect(0, other_y, card_w, row_h));
-    other_frame->fill_flags({Theme::FillFlag::blend});
-    other_frame->color(Palette::ColorId::bg, dt::kGrayBg);
-    other_frame->border(0);
-    other_frame->border_radius(10);  // rounded corners for consistency
-
-    list_content->add(other_frame);
-
-    auto other_lbl = make_shared<Label>("Other...",
-        Rect(text_pad, 4, card_w - 140, row_h - 8));
-    other_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
-    other_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    other_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    other_lbl->border(0);
-    other_frame->add(other_lbl);
-
-    other_frame->on_event([=](Event&) {
-        *alive = false;
-        auto ssid_screen = create_password_prompt_screen(
-            "Other Network",
-            "Enter the network name (SSID)",
-            "Next", "Back",
-            [=](const string& ssid) {
+            row_frame->on_event([=](Event&) {
+                *alive = false;
+                auto selected_net = (*network_map)[label];
                 auto pwd_screen = create_password_prompt_screen(
-                    "Network: " + ssid,
+                    "Network: " + selected_net.ssid,
                     "Enter password to join",
                     "Join", "Back",
                     [=](const string& password) {
-                        on_connect(ssid, password);
+                        on_connect(selected_net.ssid, password);
                     },
                     [=]() {
                         if (on_show_screen) {
                             on_show_screen(create_wifi_settings_panel(
                                 on_back, on_scan_wifi, on_connect,
-                                on_item_selected, on_show_screen));
+                                on_item_selected, on_show_screen, nets));
                         }
                     });
                 if (on_show_screen) on_show_screen(pwd_screen);
-            },
-            [=]() {
-                if (on_show_screen) {
-                    on_show_screen(create_wifi_settings_panel(
-                        on_back, on_scan_wifi, on_connect,
-                        on_item_selected, on_show_screen));
-                }
-            });
-        if (on_show_screen) on_show_screen(ssid_screen);
-    }, {EventId::pointer_click});
+            }, {EventId::pointer_click});
 
-    auto other_chev_shadow = make_shared<Frame>(
-        Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
-    other_chev_shadow->fill_flags({Theme::FillFlag::blend});
-    other_chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
-    other_chev_shadow->border(0);
-    other_chev_shadow->border_radius(13);
-    other_frame->add(other_chev_shadow);
+            auto sep = make_shared<Frame>(
+                Rect(15, row_h - 1, card_w - 30, 1));
+            sep->fill_flags({Theme::FillFlag::blend});
+            sep->color(Palette::ColorId::bg, Color(217, 217, 217, 100));
+            sep->border(0);
+            row_frame->add(sep);
+        }
 
-    auto other_chev_bg = make_shared<Frame>(
-        Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-    other_chev_bg->fill_flags({Theme::FillFlag::blend});
-    other_chev_bg->color(Palette::ColorId::bg, dt::kWhite);
-    other_chev_bg->border(0);
-    other_chev_bg->border_radius(13);
-    other_frame->add(other_chev_bg);
+        // "Other..." entry at the bottom — always present
+        int other_y = cur_total * row_pitch;
+        auto other_frame = make_shared<Frame>(
+            Rect(0, other_y, card_w, row_h));
+        other_frame->fill_flags({Theme::FillFlag::blend});
+        other_frame->color(Palette::ColorId::bg, dt::kGrayBg);
+        other_frame->border(0);
+        other_frame->border_radius(10);
+        list_content->add(other_frame);
 
-    auto other_chevron = make_shared<Label>(">",
-        Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-    other_chevron->font(Font(14, Font::Weight::bold));
-    other_chevron->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    other_frame->add(other_chevron);
+        auto other_lbl = make_shared<Label>("Other...",
+            Rect(text_pad, 4, card_w - 140, row_h - 8));
+        other_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
+        other_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        other_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+        other_lbl->border(0);
+        other_frame->add(other_lbl);
+
+        other_frame->on_event([=](Event&) {
+            *alive = false;
+            auto ssid_screen = create_password_prompt_screen(
+                "Other Network",
+                "Enter the network name (SSID)",
+                "Next", "Back",
+                [=](const string& ssid) {
+                    auto pwd_screen = create_password_prompt_screen(
+                        "Network: " + ssid,
+                        "Enter password to join",
+                        "Join", "Back",
+                        [=](const string& password) {
+                            on_connect(ssid, password);
+                        },
+                        [=]() {
+                            if (on_show_screen) {
+                                on_show_screen(create_wifi_settings_panel(
+                                    on_back, on_scan_wifi, on_connect,
+                                    on_item_selected, on_show_screen));
+                            }
+                        });
+                    if (on_show_screen) on_show_screen(pwd_screen);
+                },
+                [=]() {
+                    if (on_show_screen) {
+                        on_show_screen(create_wifi_settings_panel(
+                            on_back, on_scan_wifi, on_connect,
+                            on_item_selected, on_show_screen));
+                    }
+                });
+            if (on_show_screen) on_show_screen(ssid_screen);
+        }, {EventId::pointer_click});
+
+        auto other_chev_shadow = make_shared<Frame>(
+            Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
+        other_chev_shadow->fill_flags({Theme::FillFlag::blend});
+        other_chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
+        other_chev_shadow->border(0);
+        other_chev_shadow->border_radius(13);
+        other_frame->add(other_chev_shadow);
+
+        auto other_chev_bg = make_shared<Frame>(
+            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
+        other_chev_bg->fill_flags({Theme::FillFlag::blend});
+        other_chev_bg->color(Palette::ColorId::bg, dt::kWhite);
+        other_chev_bg->border(0);
+        other_chev_bg->border_radius(13);
+        other_frame->add(other_chev_bg);
+
+        auto other_chevron = make_shared<Label>(">",
+            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
+        other_chevron->font(Font(14, Font::Weight::bold));
+        other_chevron->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        other_frame->add(other_chevron);
+
+        list_content->damage();
+    };
+
+    rebuild_rows();
 
     // ── Skip WiFi button button (bottom-right, OUTSIDE the card) ────────────────
     // Positioned in the strip below the card
@@ -502,8 +529,13 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
     // ── Auto-retry scan when no networks found ──────────────────────────────
     if (nets->empty() && on_show_screen) {
+        // Place the label just below the "Other..." entry. When nets is empty
+        // the "Other..." entry sits at y=0, so this places "Scanning..." right
+        // below it.
+        const int scan_label_y =
+            static_cast<int>(nets->size()) * row_pitch + row_h + 5;
         auto scan_label = make_shared<Label>("Scanning for networks...",
-            Rect(30, other_y + row_h + 5, 400, 28));
+            Rect(30, scan_label_y, 400, 28));
         scan_label->font(Font(16, Font::Weight::normal));
         scan_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
         list_content->add(scan_label);
@@ -554,12 +586,37 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         retry_timer->start();
     }
 
-    // ── Periodic refresh of the network list (every 15 s) ───────────────────
-    if (!nets->empty() && on_show_screen) {
+    // ── Periodic refresh of the network list (every 2 s, in-place) ──────────
+    // Polls nmcli on a background thread and only swaps the row set when the
+    // AP list actually changed (SSID set, connection state, or signal bucket).
+    // Refreshes by calling rebuild_rows() — no screen recreation, preserves
+    // scroll position and avoids flicker. Robust to transient nmcli failures:
+    // if the scan returns empty while we previously had APs, we keep the last
+    // known good list rather than clearing the UI.
+    {
         auto refresh_result = make_shared<shared_ptr<vector<WiFiNetwork>>>(nullptr);
         auto refresh_running = make_shared<atomic<bool>>(false);
+        auto last_fingerprint = make_shared<string>();
 
-        auto refresh_timer = make_shared<PeriodicTimer>(chrono::seconds(5));
+        auto fingerprint = [](const vector<WiFiNetwork>& v) {
+            vector<string> parts;
+            parts.reserve(v.size());
+            for (const auto& n : v) {
+                // Signal bucketed to 10-point steps so minor RSSI fluctuations
+                // don't trigger a re-render but a real signal drop does.
+                int bucket = n.signal / 10;
+                parts.push_back(n.ssid + ":" +
+                                (n.connected ? "1" : "0") + ":" +
+                                to_string(bucket));
+            }
+            sort(parts.begin(), parts.end());
+            string fp;
+            for (const auto& p : parts) fp += p + ",";
+            return fp;
+        };
+        *last_fingerprint = fingerprint(*nets);
+
+        auto refresh_timer = make_shared<PeriodicTimer>(chrono::seconds(2));
         refresh_timer->on_timeout([=]() {
             if (!*alive) { refresh_timer->cancel(); return; }
 
@@ -569,26 +626,26 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 auto fresh = *refresh_result;
                 *refresh_result = nullptr;
 
-                auto fingerprint = [](const vector<WiFiNetwork>& v) {
-                    vector<string> parts;
-                    parts.reserve(v.size());
-                    for (const auto& n : v)
-                        parts.push_back(n.ssid + ":" + (n.connected ? "1" : "0"));
-                    sort(parts.begin(), parts.end());
-                    string fp;
-                    for (const auto& p : parts) fp += p + ",";
-                    return fp;
-                };
-
-                if (fingerprint(*fresh) != fingerprint(*nets)) {
-                    printf("[WIFI_SETTINGS] network list changed — refreshing\n");
+                // Guard against transient nmcli failures (subprocess error,
+                // I/O error on the rootfs, NM restart, etc). Don't wipe the
+                // list if we previously had APs — keep last known good.
+                if (fresh->empty() && !nets->empty()) {
+                    printf("[WIFI_SETTINGS] empty scan, keeping last list\n");
                     fflush(stdout);
-                    refresh_timer->cancel();
-                    *alive = false;
-                    on_show_screen(create_wifi_settings_panel(
-                        on_back, on_scan_wifi, on_connect,
-                        on_item_selected, on_show_screen, fresh));
-                    return;
+                } else {
+                    auto fp = fingerprint(*fresh);
+                    if (fp != *last_fingerprint) {
+                        printf("[WIFI_SETTINGS] AP set changed — updating in place (%zu APs)\n",
+                               fresh->size());
+                        fflush(stdout);
+                        sort(fresh->begin(), fresh->end(),
+                             [](const WiFiNetwork& a, const WiFiNetwork& b) {
+                                 return a.signal > b.signal;
+                             });
+                        *nets = *fresh;
+                        *last_fingerprint = fp;
+                        rebuild_rows();
+                    }
                 }
             }
 

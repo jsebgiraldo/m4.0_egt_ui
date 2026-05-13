@@ -5,6 +5,8 @@
 #include <memory>
 #include <array>
 #include <algorithm>
+#include <chrono>
+#include <atomic>
 
 namespace egt_wifi {
 
@@ -55,20 +57,74 @@ std::vector<WiFiNetwork> WiFiManager::scan_networks() {
         networks.push_back(net);
     }
 
-    // Mock data when nmcli is unavailable (e.g. simulator without NetworkManager)
-    if (networks.empty() && std::getenv("EGT_MOCK_WIFI")) {
-        printf("[WIFI] Using mock WiFi data (EGT_MOCK_WIFI set)\n");
-        fflush(stdout);
-        networks = {
-            {"SunTek-Office",     92, "WPA2", true},
-            {"BTWifi-Home",       78, "WPA2", false},
-            {"Starbucks-Free",    65, "Open", false},
-            {"ATT-Fiber-5G",      55, "WPA3", false},
-            {"Xfinity-Guest",     42, "WPA2", false},
-            {"TP-Link_8A3C",      35, "WPA2", false},
-            {"NETGEAR-Living",    28, "WPA2", false},
-            {"Hidden_Network_7",  20, "WPA2", false},
+    // Mock data when EGT_MOCK_WIFI=1 is set. The mock is DYNAMIC: each call
+    // returns a slightly different set so the WiFi settings screen's
+    // "refresh in place" code path is exercised:
+    //  - Signal strength fluctuates ±15 around a base value
+    //  - 1 of 12 APs is "transient" (visible only every other scan), so the
+    //    UI sees APs entering/leaving the list naturally.
+    //  - One "connected" AP rotates after a while to simulate roaming.
+    // EGT_MOCK_WIFI=1 forces this path regardless of nmcli availability,
+    // useful for iterating UI on a HW where NetworkManager is unstable.
+    if (std::getenv("EGT_MOCK_WIFI")) {
+        networks.clear();  // discard any real result; mock overrides
+        // Persistent counter — increments on every scan_networks() call.
+        static std::atomic<unsigned> mock_tick{0};
+        unsigned tick = mock_tick.fetch_add(1);
+
+        // Per-call deterministic "random" via tick — same tick always yields
+        // the same list so two consecutive calls within the same poll window
+        // produce identical results.
+        auto wobble = [tick](int base, int slot) {
+            // Pseudo-random ±15 jitter based on tick + slot
+            int h = static_cast<int>((tick * 1103515245u + slot * 12345u) >> 8);
+            int j = (h % 31) - 15;
+            int v = base + j;
+            if (v < 5)   v = 5;
+            if (v > 100) v = 100;
+            return v;
         };
+
+        struct Base { const char* ssid; int signal; const char* security; };
+        static const Base catalog[] = {
+            {"SunTek-Office",     90, "WPA2"},
+            {"BTWifi-Home",       78, "WPA2"},
+            {"Starbucks-Free",    65, "Open"},
+            {"ATT-Fiber-5G",      55, "WPA3"},
+            {"Xfinity-Guest",     42, "WPA2"},
+            {"TP-Link_8A3C",      35, "WPA2"},
+            {"NETGEAR-Living",    28, "WPA2"},
+            {"Hidden_Network_7",  20, "WPA2"},
+            {"MAB-Manizales",     58, "WPA2"},
+            {"OpenWrt-Lab",       72, "WPA3"},
+            {"FAMILIA-Castano",   48, "WPA2"},
+            {"Neighbour_5G",      38, "WPA2"},
+        };
+
+        const int total = sizeof(catalog) / sizeof(catalog[0]);
+        // Pick a "transient" AP — visible only on even ticks
+        int transient_slot = 9 + (tick / 6) % 3;  // rotates between 9..11
+        // Pick the "connected" SSID — switches every 10 ticks
+        int connected_slot = (tick / 10) % 3;     // first 3 SSIDs
+
+        for (int i = 0; i < total; ++i) {
+            // Skip the transient one on odd ticks
+            if (i == transient_slot && (tick % 2) == 1) continue;
+            WiFiNetwork n;
+            n.ssid     = catalog[i].ssid;
+            n.signal   = wobble(catalog[i].signal, i);
+            n.security = catalog[i].security;
+            n.connected = (i == connected_slot);
+            networks.push_back(n);
+        }
+
+        if (tick == 0) {
+            printf("[WIFI] Using DYNAMIC mock data (EGT_MOCK_WIFI=1)\n");
+            fflush(stdout);
+        }
+        printf("[WIFI] mock tick=%u apset=%zu transient=%d connected=%d\n",
+               tick, networks.size(), transient_slot, connected_slot);
+        fflush(stdout);
     }
 
     return networks;

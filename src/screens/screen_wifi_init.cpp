@@ -199,8 +199,11 @@ shared_ptr<Widget> create_wifi_init_screen(
     auto nm_ready      = make_shared<bool>(false);
     auto nm_wait_secs  = make_shared<int>(0);
     auto conn_secs     = make_shared<int>(0);
-    const int MAX_NM_WAIT   = 15;
-    const int MAX_CONN_WAIT = mock_mode ? 4 : 10;
+    // Tighter timeouts so the spinner moves on faster when there's nothing
+    // to connect to: NM is usually up within a few seconds, and if there are
+    // no saved networks we want to reach the scan UI quickly.
+    const int MAX_NM_WAIT   = 6;
+    const int MAX_CONN_WAIT = mock_mode ? 2 : 4;
 
     auto main_timer = make_shared<PeriodicTimer>(chrono::milliseconds(500));
     main_timer->on_timeout([=, start_scan = std::move(start_scan)]() {
