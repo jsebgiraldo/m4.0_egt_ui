@@ -49,7 +49,11 @@ void run_app(int argc, char** argv)
     std::function<void()> show_wifi_unavailable;
     std::function<void()> show_wifi_override_info;
     std::function<void()> show_home;
-    std::function<void(std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>>)> show_wifi_setup;
+    // The WiFi list takes a `back` callback so it can return to whichever
+    // screen opened it (Home, Settings, …). Self-refreshes inside the screen
+    // re-use the same callback.
+    std::function<void(std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>>,
+                       std::function<void()> /*on_back*/)> show_wifi_setup;
     std::function<void()> show_override_prompt;
     std::function<void(bool demo)> show_login;
     std::function<void(bool demo)> show_patient_info;
@@ -63,7 +67,9 @@ void run_app(int argc, char** argv)
         screens.show(create_wifi_init_screen(
             [&]() { show_wifi_connected(); },  // on_connected -> Connected gate (manual Continue)
             [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> nets) {
-                show_wifi_setup(nets);     // on_failed -> WiFi Settings (with pre-scanned nets)
+                // on_failed -> WiFi Settings (with pre-scanned nets).
+                // Coming from the boot flow → Back should go to Home.
+                show_wifi_setup(nets, [&]() { show_home(); });
             },
             [&]() { show_login(false); }   // on_skip -> bypass WiFi, go to Login
         ));
@@ -91,8 +97,8 @@ void run_app(int argc, char** argv)
     show_settings = [&]() {
         printf("[NAV] -> SETTINGS\n"); fflush(stdout);
         screens.show(create_settings_screen(
-            [&]() { show_home(); },              // Back -> Home
-            [&]() { show_wifi_setup(nullptr); }  // WiFi -> WiFi Settings
+            [&]() { show_home(); },                                  // Back -> Home
+            [&]() { show_wifi_setup(nullptr, [&](){ show_settings(); }); }  // WiFi -> WiFi Settings, Back returns here
         ));
     };
 
@@ -173,11 +179,15 @@ void run_app(int argc, char** argv)
     };
 
     // ── WI-FI SETTINGS (existing screen, kept as-is) ────────────────
-    show_wifi_setup = [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> cached = nullptr) {
+    show_wifi_setup = [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> cached,
+                          std::function<void()> on_back) {
+        // Capture the back callback so any self-refresh (auto-scan, connect
+        // bounce-back, etc.) keeps returning to the same parent screen.
+        auto back = on_back;
         screens.show(create_wifi_settings_panel(
-            [&]() { show_home(); },            // on_back
-            [&]() { show_wifi_setup(nullptr); },      // on_scan_wifi (refresh)
-            [&](const std::string& ssid, const std::string& password) {
+            back,                                                          // on_back
+            [&, back]() { show_wifi_setup(nullptr, back); },               // on_scan_wifi (refresh)
+            [&, back](const std::string& ssid, const std::string& password) {
                 if (!ssid.empty() && !password.empty()) {
                     // Async connect on a dedicated "Connecting..." screen so the
                     // UI never freezes during the (blocking) associate + DHCP.
@@ -189,9 +199,9 @@ void run_app(int argc, char** argv)
                             printf("[WIFI] Connected!\n"); fflush(stdout);
                             show_wifi_connected();
                         },
-                        [&]() {                       // on_failure
+                        [&, back]() {                 // on_failure → bounce back to list with same Back target
                             printf("[WIFI] Connection failed\n"); fflush(stdout);
-                            show_wifi_setup(nullptr);
+                            show_wifi_setup(nullptr, back);
                         }
                     ));
                 } else {
@@ -244,7 +254,7 @@ void run_app(int argc, char** argv)
     const char* start = std::getenv("EGT_START_SCREEN");
     if      (start && std::string(start) == "settings")      show_settings();
     else if (start && std::string(start) == "home")          show_home();
-    else if (start && std::string(start) == "wifi-settings") show_wifi_setup(nullptr);
+    else if (start && std::string(start) == "wifi-settings") show_wifi_setup(nullptr, [&]() { show_home(); });
     else if (start && std::string(start) == "login")         show_login(false);
     else                                                     show_wifi_init();
 
