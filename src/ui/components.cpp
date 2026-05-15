@@ -1,5 +1,6 @@
 #include "components.h"
 #include "design_tokens.h"
+#include "palette.h"
 #include "../generated/embedded_assets.h"
 #include <cmath>
 #include <fstream>
@@ -404,6 +405,74 @@ shared_ptr<Frame> create_error_overlay(
     }
 
     return overlay;
+}
+
+// ── Chevron-left glyph ─────────────────────────────────────────────────────
+ChevronLeft::ChevronLeft(const Rect& rect) : Widget(rect)
+{
+    fill_flags({Theme::FillFlag::blend});
+    border(0);
+}
+
+void ChevronLeft::draw(Painter& painter, const Rect&)
+{
+    auto b = content_area();
+    float cx = b.x() + b.width()  / 2.0f;
+    float cy = b.y() + b.height() / 2.0f;
+    float dim = static_cast<float>(min(b.width(), b.height()));
+    const float half_w = dim * 0.18f;
+    const float half_h = dim * 0.26f;
+    painter.set(dt::kTextPrimary);
+    painter.line_width(max(3.5f, dim * 0.07f));
+    painter.draw(Line(Point(cx + half_w, cy - half_h),
+                      Point(cx - half_w, cy)));
+    painter.stroke();
+    painter.draw(Line(Point(cx - half_w, cy),
+                      Point(cx + half_w, cy + half_h)));
+    painter.stroke();
+}
+
+// ── Back button (standard bottom-left, identical across screens) ──────────
+void add_back_button(Frame& container, function<void()> on_click)
+{
+    // Coordinates from Figma 2073:1996 (Settings screen reference).
+    constexpr int circle_d = 46;
+    constexpr int back_x   = 27;
+    constexpr int back_y   = 414;
+    constexpr int chev_w   = 30;
+    constexpr int chev_h   = 44;
+    constexpr int gap      = 10;
+
+    auto circle = make_shared<Frame>(Rect(back_x, back_y, circle_d, circle_d));
+    circle->fill_flags({Theme::FillFlag::blend});
+    circle->color(Palette::ColorId::bg, palette::kGray200);
+    circle->border(0);
+    circle->border_radius(circle_d / 2);
+    container.add(circle);
+
+    auto chev = make_shared<ChevronLeft>(
+        Rect(back_x + (circle_d - chev_w) / 2,
+             back_y + (circle_d - chev_h) / 2,
+             chev_w, chev_h));
+    container.add(chev);
+
+    auto lbl = make_shared<Label>("Back",
+        Rect(back_x + circle_d + gap, back_y, 120, circle_d));
+    lbl->font(Font(15, Font::Weight::bold));
+    lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+    container.add(lbl);
+
+    // Single hit zone over circle + label so a tap on either fires on_click.
+    auto hit = make_shared<Frame>(
+        Rect(back_x - 6, back_y - 4, circle_d + gap + 120 + 12, circle_d + 8));
+    hit->fill_flags({Theme::FillFlag::blend});
+    hit->color(Palette::ColorId::bg, dt::kTransparent);
+    hit->border(0);
+    container.add(hit);
+    hit->on_event([on_click](Event&) {
+        if (on_click) on_click();
+    }, {EventId::pointer_click});
 }
 
 } // namespace ui

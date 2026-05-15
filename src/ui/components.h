@@ -88,4 +88,22 @@ std::shared_ptr<egt::Frame> create_error_overlay(
 // ── Logo ────────────────────────────────────────────────────────────────────
 std::shared_ptr<egt::Widget> create_logo(int x, int y, int w, int h);
 
+// ── Back button (chevron-in-circle + "Back" label) ─────────────────────────
+/// Adds a Back affordance at the standard bottom-left position used across
+/// screens (Figma 2073:1996). The position is hard-coded so every screen
+/// renders the button at the same coordinates — no per-screen drift.
+///
+/// Layout: 46-px gray circle at (27, 414) + chevron glyph centred inside +
+/// "Back" label to the right + a transparent hit-zone covering both. Tapping
+/// either the circle or the label invokes on_click.
+void add_back_button(egt::Frame& container, std::function<void()> on_click);
+
+// Chevron-left glyph (filled with the primary text colour). Exposed so
+// other screens can re-use it without duplicating the Painter primitives.
+class ChevronLeft : public egt::Widget {
+public:
+    explicit ChevronLeft(const egt::Rect& rect);
+    void draw(egt::Painter& painter, const egt::Rect& rect) override;
+};
+
 } // namespace ui

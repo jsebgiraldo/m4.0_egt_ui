@@ -212,38 +212,6 @@ public:
     }
 };
 
-// ── Chevron-left glyph ─────────────────────────────────────────────────────
-// Figma "Subtract" inside the Back-button circle — 16×24 pt (≈ 30×44 px when
-// the circle is 46×46). Bolder, tighter, and visually anchored to the circle
-// centre.
-class ChevronLeft : public Widget {
-public:
-    explicit ChevronLeft(const Rect& rect) : Widget(rect)
-    {
-        fill_flags({Theme::FillFlag::blend});
-        border(0);
-    }
-    void draw(Painter& painter, const Rect&) override
-    {
-        auto b = content_area();
-        float cx = b.x() + b.width()  / 2.0f;
-        float cy = b.y() + b.height() / 2.0f;
-        float dim = static_cast<float>(min(b.width(), b.height()));
-        // ≈ 16×24 chevron in a 46 circle = 35 % wide × 52 % tall
-        const float half_w = dim * 0.18f;
-        const float half_h = dim * 0.26f;
-
-        painter.set(dt::kTextPrimary);
-        painter.line_width(std::max(3.5f, dim * 0.07f));
-        painter.draw(Line(Point(cx + half_w, cy - half_h),
-                          Point(cx - half_w, cy)));
-        painter.stroke();
-        painter.draw(Line(Point(cx - half_w, cy),
-                          Point(cx + half_w, cy + half_h)));
-        painter.stroke();
-    }
-};
-
 // ── Card helper — gray rounded background, ~Figma "Rectangle 68/96/97" ─────
 shared_ptr<Frame> make_section_card(int x, int y, int w, int h)
 {
@@ -490,44 +458,11 @@ shared_ptr<Widget> create_settings_screen(
     about_body->text_align(AlignFlag::left | AlignFlag::center_vertical);
     container->add(about_body);
 
-    // ── Back button ─────────────────────────────────────────────────────────
-    // Group at Figma (27, 414) 152×46. Inside: 46×46 circle on the left with
-    // a chevron, and the label "Back" (Gothic A1 Bold 14pt) to its right.
-    const int back_y = 414;
-    const int circle_d = 46;
-
-    auto back_circle = make_shared<Frame>(Rect(27, back_y, circle_d, circle_d));
-    back_circle->fill_flags({Theme::FillFlag::blend});
-    back_circle->color(Palette::ColorId::bg, palette::kGray200);
-    back_circle->border(0);
-    back_circle->border_radius(circle_d / 2);
-    container->add(back_circle);
-
-    // Chevron sized per Figma "Subtract" — 16×24 pt → 30×44 px centred in
-    // the 46×46 circle (offset to put the apex at the circle's centre).
-    const int chev_w = 30;
-    const int chev_h = 44;
-    auto back_chev = make_shared<ChevronLeft>(
-        Rect(27 + (circle_d - chev_w) / 2, back_y + (circle_d - chev_h) / 2,
-             chev_w, chev_h));
-    container->add(back_chev);
-
-    auto back_lbl = make_shared<Label>("Back",
-        Rect(49 + circle_d, back_y, 120, circle_d));
-    back_lbl->font(Font(15, Font::Weight::bold));
-    back_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    back_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    container->add(back_lbl);
-
-    // Single hit zone covering circle + label
-    auto back_hit = make_shared<Frame>(Rect(20, back_y - 4, 200, circle_d + 8));
-    back_hit->fill_flags({Theme::FillFlag::blend});
-    back_hit->color(Palette::ColorId::bg, dt::kTransparent);
-    back_hit->border(0);
-    container->add(back_hit);
-    back_hit->on_event([on_back](Event&) {
-        if (on_back) on_back();
-    }, {EventId::pointer_click});
+    // ── Back button — shared layout via ui::add_back_button ────────────────
+    // Same chevron-in-circle + label at the canonical bottom-left position
+    // (Figma 2073:1996, 27,414). Any screen that needs Back uses the same
+    // helper so the button never drifts between screens.
+    ui::add_back_button(*container, on_back);
 
     return container;
 }
