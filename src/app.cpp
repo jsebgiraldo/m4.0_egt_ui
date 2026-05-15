@@ -9,6 +9,8 @@
 
 // ── New Figma-aligned screens ──
 #include "screens/screen_wifi_init.h"
+#include "screens/screen_wifi_connected.h"
+#include "screens/screen_wifi_connecting.h"
 #include "screens/screen_wifi_unavailable.h"
 #include "screens/screen_wifi_override_info.h"
 #include "screens/screen_home.h"
@@ -43,6 +45,7 @@ void run_app(int argc, char** argv)
 
     // ── Forward declarations for navigation ──────────────────────────
     std::function<void()> show_wifi_init;
+    std::function<void()> show_wifi_connected;
     std::function<void()> show_wifi_unavailable;
     std::function<void()> show_wifi_override_info;
     std::function<void()> show_home;
@@ -58,11 +61,19 @@ void run_app(int argc, char** argv)
     show_wifi_init = [&]() {
         printf("[NAV] -> WIFI_INIT\n"); fflush(stdout);
         screens.show(create_wifi_init_screen(
-            [&]() { show_login(false); },  // on_connected -> Technician Login
+            [&]() { show_wifi_connected(); },  // on_connected -> Connected gate (manual Continue)
             [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> nets) {
                 show_wifi_setup(nets);     // on_failed -> WiFi Settings (with pre-scanned nets)
             },
             [&]() { show_login(false); }   // on_skip -> bypass WiFi, go to Login
+        ));
+    };
+
+    // ── WIFI CONNECTED (success gate before Login) ──────────────────
+    show_wifi_connected = [&]() {
+        printf("[NAV] -> WIFI_CONNECTED\n"); fflush(stdout);
+        screens.show(create_wifi_connected_screen(
+            [&]() { show_login(false); }   // Continue -> Technician Login
         ));
     };
 
@@ -168,18 +179,21 @@ void run_app(int argc, char** argv)
             [&]() { show_wifi_setup(nullptr); },      // on_scan_wifi (refresh)
             [&](const std::string& ssid, const std::string& password) {
                 if (!ssid.empty() && !password.empty()) {
-                    // Actually try to connect via nmcli
-                    egt_wifi::WiFiManager wifi;
+                    // Async connect on a dedicated "Connecting..." screen so the
+                    // UI never freezes during the (blocking) associate + DHCP.
                     printf("[WIFI] Connecting to '%s'...\n", ssid.c_str());
                     fflush(stdout);
-                    if (wifi.connect(ssid, password)) {
-                        printf("[WIFI] Connected!\n"); fflush(stdout);
-                        show_home();
-                    } else {
-                        printf("[WIFI] Connection failed\n"); fflush(stdout);
-                        // Stay on wifi settings so user can retry
-                        show_wifi_setup(nullptr);
-                    }
+                    screens.show(create_wifi_connecting_screen(
+                        ssid, password,
+                        [&]() {                       // on_success
+                            printf("[WIFI] Connected!\n"); fflush(stdout);
+                            show_wifi_connected();
+                        },
+                        [&]() {                       // on_failure
+                            printf("[WIFI] Connection failed\n"); fflush(stdout);
+                            show_wifi_setup(nullptr);
+                        }
+                    ));
                 } else {
                     show_wifi_unavailable();
                 }
