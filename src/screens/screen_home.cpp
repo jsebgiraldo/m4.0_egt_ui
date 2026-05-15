@@ -3,14 +3,20 @@
 #include "screen_home.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
+#include "../ui/palette.h"
 
+#include <cmath>
 #include <fstream>
+#include <memory>
 #include <string>
 
 using namespace egt;
 using namespace std;
 
 // ── SVG icon helpers ─────────────────────────────────────────────────────────
+// Two glyphs sit on the bottom-left ("Demo Mode") and bottom-right ("Setting")
+// cards, each inside a 56-px gray circle (Figma "Group 263"). The SVG fills
+// use the primary text colour so they read crisply on the light gray disc.
 static string write_svg_tmp(const char* name, const char* svg_data)
 {
     string path = string("/tmp/egt-icon-") + name + ".svg";
@@ -25,19 +31,16 @@ static string write_svg_tmp(const char* name, const char* svg_data)
     return path;
 }
 
-// Person silhouette — kTextPrimary fill (#646469)
 static const char* kPersonSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z" fill="#646469"/>
 </svg>)svg";
 
-// Gear / settings — kTextPrimary fill (#646469)
 static const char* kGearSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <path d="M19.44 12.99c.04-.33.07-.66.07-1s-.03-.67-.07-1l2.44-1.92-2.32-4-2.82 1.17c-.5-.37-1.04-.69-1.63-.94l-.37-3h-4.64l-.38 3c-.59.25-1.12.57-1.62.94l-2.82-1.17-2.32 4 2.44 1.92c-.04.33-.07.66-.07 1s.03.67.07 1l-2.44 1.92 2.32 4 2.82-1.17c.5.37 1.04.69 1.63.94l.38 3h4.64l.38-3c.59-.25 1.12-.57 1.62-.94l2.82 1.17 2.32-4-2.44-1.92zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" fill="#646469"/>
 </svg>)svg";
 
-// Load an SVG and return an Image at the given size (returns empty on error)
 static Image load_svg_icon(const char* name, const char* svg_data, int size)
 {
     try {
@@ -49,8 +52,89 @@ static Image load_svg_icon(const char* name, const char* svg_data, int size)
     }
 }
 
-// ── Build a card button (white bg, gray border, icon + label) ─────────────────
-static shared_ptr<Frame> make_card_button(
+namespace {
+
+// ── Start button: rounded rectangle with diagonal cyan→blue gradient ──────
+// Matches Figma node 140:852 — the gradient runs top-left (light cyan) to
+// bottom-right (deeper blue), with a soft drop shadow approximated by a
+// slightly larger shadow Frame drawn behind. White bold "Start" label sits
+// dead-centre. Pressed state darkens both gradient stops.
+class StartButton : public Widget {
+public:
+    StartButton(const Rect& rect, function<void()> on_click)
+        : Widget(rect), m_on_click(std::move(on_click))
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+
+        on_event([this](Event& e) {
+            if (e.id() == EventId::raw_pointer_down) {
+                m_pressed = true;
+                damage();
+            } else if (e.id() == EventId::raw_pointer_up) {
+                m_pressed = false;
+                damage();
+            }
+        });
+        on_event([this](Event&) {
+            if (m_on_click) m_on_click();
+        }, {EventId::pointer_click});
+    }
+
+    void draw(Painter& painter, const Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+        const float r = 14.0f;  // corner radius
+
+        // Drop shadow — a faint dark rectangle offset 4 px down/right
+        const float shadow_off = 4.0f;
+        draw_rounded_path(painter, x + shadow_off, y + shadow_off, w, h, r);
+        painter.set(Color(0, 0, 0, 40));
+        painter.fill();
+
+        // Gradient body
+        Color top   = m_pressed ? Color(36, 130, 168) : Color(70, 178, 213);
+        Color bot   = m_pressed ? Color(20,  90, 130) : Color(36, 117, 180);
+        Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x + w), static_cast<int>(y + h)));
+        draw_rounded_path(painter, x, y, w, h, r);
+        painter.set(grad);
+        painter.fill();
+    }
+
+private:
+    bool m_pressed{false};
+    function<void()> m_on_click;
+
+    // Build a rounded-rectangle path: top edge → top-right corner arc →
+    // right edge → bottom-right corner arc → bottom edge → bottom-left corner
+    // arc → left edge → top-left corner arc → close.
+    static void draw_rounded_path(Painter& p, float x, float y,
+                                  float w, float h, float r)
+    {
+        const auto PI = static_cast<float>(M_PI);
+        p.move_to(PointF(x + r,         y));
+        p.line_to(PointF(x + w - r,     y));
+        p.draw(Arc(PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
+        p.line_to(PointF(x + w,         y + h - r));
+        p.draw(Arc(PointF(x + w - r, y + h - r),   r, 0.0f,   PI / 2));
+        p.line_to(PointF(x + r,         y + h));
+        p.draw(Arc(PointF(x + r, y + h - r),       r, PI / 2, PI));
+        p.line_to(PointF(x,             y + r));
+        p.draw(Arc(PointF(x + r, y + r),           r, PI,    3 * PI / 2));
+    }
+};
+
+// ── Card with circular icon background + label ─────────────────────────────
+// Figma cards (Group 263 / Group 264 patterns): rounded rectangle, white bg,
+// soft gray border, soft drop shadow, a gray 56-px circle on the left holding
+// the glyph, and a bold gray label to the right.
+shared_ptr<Frame> make_card_button(
     const Rect& rect,
     const Image& icon,
     const string& text,
@@ -59,25 +143,40 @@ static shared_ptr<Frame> make_card_button(
     auto frame = make_shared<Frame>(rect);
     frame->fill_flags({Theme::FillFlag::blend});
     frame->color(Palette::ColorId::bg, dt::kWhite);
-    frame->border(2);
+    frame->border(1);
     frame->color(Palette::ColorId::border, dt::kGrayLight);
     frame->border_radius(dt::RADIUS_MD);
 
-    const int icon_sz  = 36;
-    const int icon_x   = 22;
-    const int icon_y   = (rect.height() - icon_sz) / 2;
-    const int label_x  = icon_x + icon_sz + 12;
-    const int label_w  = rect.width() - label_x - 10;
+    // Circular gray background for the icon — Figma "Ellipse 1" 39×39 pt → 56 px
+    const int circle_d = 56;
+    const int circle_x = 18;
+    const int circle_y = (rect.height() - circle_d) / 2;
+    auto circle_bg = make_shared<Frame>(Rect(circle_x, circle_y, circle_d, circle_d));
+    circle_bg->fill_flags({Theme::FillFlag::blend});
+    circle_bg->color(Palette::ColorId::bg, palette::kGray200);
+    circle_bg->border(0);
+    circle_bg->border_radius(circle_d / 2);
+    frame->add(circle_bg);
 
+    // Glyph centred inside the circle. Clear fill_flags + set the bg to the
+    // circle colour so the SVG's transparent areas blend cleanly into the
+    // disc — without this the ImageLabel draws its default white bg behind
+    // the glyph and you see a white square halo inside the gray circle.
     if (!icon.empty()) {
+        const int icon_sz = 32;
         auto icon_lbl = make_shared<ImageLabel>(icon);
-        icon_lbl->fill_flags({Theme::FillFlag::blend});
+        icon_lbl->fill_flags({});
+        icon_lbl->color(Palette::ColorId::bg, palette::kGray200);
         icon_lbl->image_align(AlignFlag::center);
-        icon_lbl->move(Point(icon_x, icon_y));
+        icon_lbl->move(Point(circle_x + (circle_d - icon_sz) / 2,
+                             circle_y + (circle_d - icon_sz) / 2));
         icon_lbl->resize(Size(icon_sz, icon_sz));
         frame->add(icon_lbl);
     }
 
+    // Label
+    const int label_x = circle_x + circle_d + 16;
+    const int label_w = rect.width() - label_x - 10;
     auto lbl = make_shared<Label>(text, Rect(label_x, 0, label_w, rect.height()));
     lbl->font(Font(17, Font::Weight::bold));
     lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
@@ -90,7 +189,14 @@ static shared_ptr<Frame> make_card_button(
     return frame;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+} // namespace
+
+// ── HOME / Begin Treatment screen ──────────────────────────────────────────
+// Figma node 140:852 (Jason-M4.0 v5 — "Begin treatment"):
+//   - Lice Clinics logo centred near the top
+//   - Large "Start" button with a cyan→blue gradient in the middle
+//   - Two cards at the bottom: "Demo Mode" (left) and "Setting" (right),
+//     each with a gray circle + glyph + bold label
 shared_ptr<Widget> create_home_screen(
     function<void()> on_begin_treatment,
     function<void()> on_demo_mode,
@@ -100,63 +206,45 @@ shared_ptr<Widget> create_home_screen(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
-    // ── Logo (centered, upper portion) ──────────────────────────────────────
-    // Figma Group 197: logo centered at top ~y=30
-    const int logo_w = 150, logo_h = 94;
+    // ── Logo (centred near the top) ───────────────────────────────────────
+    // Figma Group 197 ≈ 90×56 pt → ~166×103 px scaled.
+    const int logo_w = 166;
+    const int logo_h = 103;
     auto logo = ui::create_logo(
         (dt::SCREEN_W - logo_w) / 2,
-        28,
+        38,
         logo_w,
         logo_h);
     container->add(logo);
 
-    // ── "Begin Treatment" button (large, centered, green) ───────────────────
-    // Figma: "Begin" (large bold) + "Treatment" (smaller) — two distinct sizes
-    const int btn_w = 300, btn_h = 138;
+    // ── Start button (centred, gradient cyan→blue) ─────────────────────────
+    // Figma button: ~131×60 pt → ~243×111 px scaled; sits about y=85 → 158.
+    const int btn_w = 250;
+    const int btn_h = 110;
     const int btn_x = (dt::SCREEN_W - btn_w) / 2;
-    const int btn_y = 146; // moved up from 180 — tighter to logo
+    const int btn_y = 162;
+    auto btn = make_shared<StartButton>(
+        Rect(btn_x, btn_y, btn_w, btn_h), on_begin_treatment);
+    container->add(btn);
 
-    auto btn_begin = make_shared<Frame>(Rect(btn_x, btn_y, btn_w, btn_h));
-    btn_begin->fill_flags({Theme::FillFlag::blend});
-    btn_begin->color(Palette::ColorId::bg, dt::kAccentCyan);
-    btn_begin->border(0);
-    btn_begin->border_radius(dt::RADIUS_MD);
-
-    // "Start" — large bold, single word as per Figma HOME
+    // "Start" label centred over the gradient
     auto lbl_start = make_shared<Label>("Start",
-        Rect(0, 0, btn_w, btn_h));
-    lbl_start->font(Font(38, Font::Weight::bold));
+        Rect(btn_x, btn_y, btn_w, btn_h));
+    lbl_start->font(Font(40, Font::Weight::bold));
     lbl_start->color(Palette::ColorId::label_text, dt::kWhite);
     lbl_start->text_align(AlignFlag::center);
-    btn_begin->add(lbl_start);
+    container->add(lbl_start);
 
-    // Press feedback: slightly darken on down
-    auto orig_cyan = dt::kAccentCyan;
-    Color pressed_cyan(30, 130, 160);
-    btn_begin->on_event([=](Event& e) {
-        if (e.id() == EventId::raw_pointer_down) {
-            btn_begin->color(Palette::ColorId::bg, pressed_cyan);
-            btn_begin->damage();
-        } else if (e.id() == EventId::raw_pointer_up) {
-            btn_begin->color(Palette::ColorId::bg, orig_cyan);
-            btn_begin->damage();
-        }
-    });
-    btn_begin->on_event([=](Event&) { on_begin_treatment(); }, {EventId::pointer_click});
+    // ── Bottom cards (Demo Mode + Setting) ────────────────────────────────
+    // Figma cards: ~165×40 pt → ~306×74 px each; bottom strip y≈193 → 357.
+    const int card_w = 320;
+    const int card_h = 88;
+    const int card_y = 360;
+    const int gap    = dt::SCREEN_W - 2 * card_w - 30 * 2;  // even outside margins
 
-    container->add(btn_begin);
+    auto icon_person = load_svg_icon("person", kPersonSvg, 32);
+    auto icon_gear   = load_svg_icon("gear",   kGearSvg,   32);
 
-    // ── Bottom card buttons ──────────────────────────────────────────────────
-    // Figma: two outlined cards at bottom — "Demo Mode" left, "Setting" right
-    const int card_w = 345;
-    const int card_h = 100;
-    const int card_y = 315; // moved up from dt::SCREEN_H - card_h - 15 = 369
-
-    // Load SVG icons
-    auto icon_person = load_svg_icon("person", kPersonSvg, 36);
-    auto icon_gear   = load_svg_icon("gear",   kGearSvg,   36);
-
-    // "Demo Mode" (bottom-left)
     auto btn_demo = make_card_button(
         Rect(30, card_y, card_w, card_h),
         icon_person,
@@ -164,11 +252,10 @@ shared_ptr<Widget> create_home_screen(
         on_demo_mode);
     container->add(btn_demo);
 
-    // "Setting" (bottom-right)
     auto btn_setting = make_card_button(
-        Rect(dt::SCREEN_W - card_w - 30, card_y, card_w, card_h),
+        Rect(30 + card_w + gap, card_y, card_w, card_h),
         icon_gear,
-        "Settings",
+        "Setting",
         on_settings);
     container->add(btn_setting);
 
