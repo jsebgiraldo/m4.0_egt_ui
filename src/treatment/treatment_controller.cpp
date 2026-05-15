@@ -90,6 +90,11 @@ struct TreatmentState {
     // Timer references (kept alive via shared_ptr)
     shared_ptr<PeriodicTimer> active_timer;
 
+    // One-shot guard: once the user exits (Exit / End Treatment / Complete)
+    // every in-flight timer must early-out so it doesn't yank the user back
+    // into the treatment flow seconds after they navigated away.
+    shared_ptr<bool> alive = make_shared<bool>(true);
+
     // Helper: format seconds as mm:ss
     static string format_time(int seconds) {
         int m = seconds / 60;
@@ -239,6 +244,24 @@ void start_treatment_flow(
     state->config = config;
     state->callbacks = callbacks;
 
+    // Wrap every exit callback so it (1) trips the one-shot guard, (2) cancels
+    // the current phase timer, (3) only then calls the host's handler. Without
+    // this, the user could tap Exit / Complete / End Treatment and a pending
+    // timer tick fired ~1 s later would re-call show_treatment_active and yank
+    // them back into the treatment flow on top of whatever screen they're on.
+    auto wrap_exit = [state](function<void()> cb) -> function<void()> {
+        if (!cb) return cb;
+        return [state, cb]() {
+            if (!*state->alive) return;       // already exited — ignore re-entry
+            *state->alive = false;
+            if (state->active_timer) state->active_timer->cancel();
+            cb();
+        };
+    };
+    state->callbacks.on_leave_to_home        = wrap_exit(state->callbacks.on_leave_to_home);
+    state->callbacks.on_treatment_completed  = wrap_exit(state->callbacks.on_treatment_completed);
+    state->callbacks.on_treatment_ended_early= wrap_exit(state->callbacks.on_treatment_ended_early);
+
     show_warming(state);
 }
 
@@ -311,6 +334,7 @@ static void show_warming(shared_ptr<TreatmentState> state)
     weak_ptr<Frame> w_bar = progress_bar;
 
     timer->on_timeout([=]() {
+        if (!*state->alive) { timer->cancel(); return; }
         *elapsed_ms += 50;
         *progress_val = min(100.0f, (*elapsed_ms * 100.0f) / total_ms);
 
@@ -434,6 +458,7 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
     weak_ptr<Label> w_label = countdown_label;
 
     timer->on_timeout([=]() {
+        if (!*state->alive) { timer->cancel(); return; }
         (*countdown_val)--;
         if (auto lb = w_label.lock())
             lb->text(TreatmentState::format_time(*countdown_val));
@@ -512,6 +537,7 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     weak_ptr<Label> w_cum_time = cum_time_lbl;
 
     timer->on_timeout([=]() {
+        if (!*state->alive) { timer->cancel(); return; }
         (*remaining)--;
         state->cumulative_seconds++;
 
@@ -615,6 +641,7 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
     weak_ptr<Label> w_cum_time  = cum_time_lbl;
 
     timer->on_timeout([=]() {
+        if (!*state->alive) { timer->cancel(); return; }
         (*remaining)--;
         state->cumulative_seconds++;
 
@@ -818,6 +845,7 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     state->active_timer = auto_timer;
     auto_timer->on_timeout([=]() {
         auto_timer->cancel();
+        if (!*state->alive) return;   // user already left — don't pop back
         go_home();
     });
     auto_timer->start();
