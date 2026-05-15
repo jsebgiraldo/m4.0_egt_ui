@@ -19,7 +19,11 @@ src/
 │   ├── screen_login_v2.*     # Technician login (2×3 card grid)
 │   ├── screen_patient_info.* # 4-step patient wizard (gender→age→zip→confirm)
 │   ├── screen_demo_info.*    # Demo mode info notice
-│   ├── screen_wifi_settings.*# WiFi scan & connect
+│   ├── screen_wifi_init.*    # Spinner shown at boot while WiFi connects
+│   ├── screen_wifi_settings.*# WiFi scan & connect (real APs via nmcli or wpa_cli)
+│   ├── screen_wifi_connecting.* # "Connecting to <SSID>" spinner (async)
+│   ├── screen_wifi_connected.*  # Success gate: ✓ + Continue button
+│   ├── screen_wifi_unavailable.*# Override-mode entry point if WiFi fails
 │   ├── screen_password_prompt.* # QWERTY keyboard password entry
 │   └── _legacy/              # Unused legacy screens (not compiled)
 ├── treatment/
@@ -49,17 +53,16 @@ sudo cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && sudo make -j$(nproc) && sudo 
 
 Build and run the app:
 ```bash
-mkdir -p build-native && cd build-native
-cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-make -j$(nproc)
-
-# Run simulator (X11 window at 800×480)
-EGT_BACKEND=x11 EGT_SCREEN_SIZE=800x480 ./egt-app
+./scripts/run-simulator.sh --build
 ```
 
-Or use the helper script:
+That configures `build-x86/`, builds, and opens an 800×480 X11 window with `EGT_MOCK_WIFI=1` (dynamic mock APs). Subsequent runs without `--build` just relaunch. See [docs/SIMULATOR.md](docs/SIMULATOR.md) for the full walkthrough — flags, WSL2 setup, troubleshooting, and what to look for in each screen.
+
+Manual equivalent:
 ```bash
-./scripts/run-simulator.sh --build
+mkdir -p build-x86 && cd build-x86
+cmake .. && make -j$(nproc)
+EGT_BACKEND=x11 EGT_SCREEN_SIZE=800x480 EGT_MOCK_WIFI=1 ./egt-app
 ```
 
 ### 2. Docker Build
@@ -79,11 +82,21 @@ docker run --rm -v "$PWD:/app" -w /app egt-app-dev \
 ## Application Flow
 
 ```
-Home → Login (card grid) → Patient Info (4 steps) → Treatment
-                ↑                                      │
-                └──────────── End / Complete ───────────┘
-Home → Demo Info → Patient Info → Treatment (short timings)
-Home → Settings (WiFi)
+Boot
+ │
+ ▼
+WIFI_INIT (spinner)
+ ├── connected ──► WIFI_CONNECTED (✓ + Continue) ──► LOGIN
+ └── no nets   ──► WIFI_SETTINGS (list)
+                    │
+                    └── tap AP → password → WIFI_CONNECTING (spinner)
+                                              │
+                                              ├── OK   → WIFI_CONNECTED → LOGIN
+                                              └── fail → WIFI_SETTINGS (retry)
+
+LOGIN → Patient Info (4 steps) → Treatment ── End / Complete ──► HOME
+HOME → Demo Info → Patient Info → Treatment (short timings)
+HOME → Settings (WiFi)
 ```
 
 ## Environment Variables
@@ -92,3 +105,9 @@ Home → Settings (WiFi)
 |----------|---------|-------------|
 | `EGT_BACKEND` | auto (x11 > kms) | Display backend: `x11`, `kms`, `memory` |
 | `EGT_SCREEN_SIZE` | `800x480` | Window size for X11/SDL backends |
+| `EGT_MOCK_WIFI` | _(unset on target, `1` in simulator)_ | `1` = dynamic mock APs; `connected` = jump straight to WIFI_CONNECTED; unset = real WiFi via `nmcli` → `wpa_cli` fallback |
+
+## Documentation
+
+- **[docs/SIMULATOR.md](docs/SIMULATOR.md)** — set up & run the x86 simulator (WSL/Linux), flags, troubleshooting, per-screen walkthrough.
+- **[docs/useful-commands.md](docs/useful-commands.md)** — common Docker / cross-compile / deploy commands.
