@@ -112,6 +112,33 @@ private:
     float m_angle{0.0f};
 };
 
+// ── Chevron-left glyph for the Back button (same shape as in screen_settings).
+class ChevronLeft : public Widget {
+public:
+    explicit ChevronLeft(const Rect& rect) : Widget(rect)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& painter, const Rect&) override
+    {
+        auto b = content_area();
+        float cx = b.x() + b.width() / 2.0f;
+        float cy = b.y() + b.height() / 2.0f;
+        float dim = static_cast<float>(min(b.width(), b.height()));
+        const float half_w = dim * 0.18f;
+        const float half_h = dim * 0.26f;
+        painter.set(dt::kTextPrimary);
+        painter.line_width(std::max(3.5f, dim * 0.07f));
+        painter.draw(Line(Point(cx + half_w, cy - half_h),
+                          Point(cx - half_w, cy)));
+        painter.stroke();
+        painter.draw(Line(Point(cx - half_w, cy),
+                          Point(cx + half_w, cy + half_h)));
+        painter.stroke();
+    }
+};
+
 // ── Skip WiFi button: round icon with skip symbol ─────────────────────────
 class SkipWiFiButton : public Widget {
 public:
@@ -651,6 +678,50 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         skip_btn->on_event([overlay](Event&) {
             overlay->visible(true);
             overlay->damage();
+        }, {EventId::pointer_click});
+    }
+
+    // ── Back button (bottom-left strip, OUTSIDE the card) ──────────────────
+    // Same chevron-in-circle pattern as screen_settings — Figma feel of a
+    // soft icon-tap, not a full filled rectangle button.
+    {
+        const int circle_d = 46;
+        const int back_y   = card_y + card_h + 22;  // sits in the bottom strip
+        const int back_x   = 40;
+
+        auto back_circle = make_shared<Frame>(
+            Rect(back_x, back_y, circle_d, circle_d));
+        back_circle->fill_flags({Theme::FillFlag::blend});
+        back_circle->color(Palette::ColorId::bg, palette::kGray200);
+        back_circle->border(0);
+        back_circle->border_radius(circle_d / 2);
+        container->add(back_circle);
+
+        const int chev_w = 30;
+        const int chev_h = 44;
+        auto back_chev = make_shared<ChevronLeft>(
+            Rect(back_x + (circle_d - chev_w) / 2,
+                 back_y + (circle_d - chev_h) / 2,
+                 chev_w, chev_h));
+        container->add(back_chev);
+
+        auto back_lbl = make_shared<Label>("Back",
+            Rect(back_x + circle_d + 10, back_y, 120, circle_d));
+        back_lbl->font(Font(15, Font::Weight::bold));
+        back_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        back_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+        container->add(back_lbl);
+
+        // Single hit zone over both the circle and the label
+        auto back_hit = make_shared<Frame>(
+            Rect(back_x - 6, back_y - 4, circle_d + 140, circle_d + 8));
+        back_hit->fill_flags({Theme::FillFlag::blend});
+        back_hit->color(Palette::ColorId::bg, dt::kTransparent);
+        back_hit->border(0);
+        container->add(back_hit);
+        back_hit->on_event([alive, on_back](Event&) {
+            *alive = false;
+            if (on_back) on_back();
         }, {EventId::pointer_click});
     }
 
