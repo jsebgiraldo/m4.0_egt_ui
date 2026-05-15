@@ -53,13 +53,16 @@ string get_firmware_version() {
     return v.empty() ? string("1.0.0") : v;
 }
 
-// ── Stylised sun icon ──────────────────────────────────────────────────────
-// Figma "Group 264/268" — both 28×28 at the brightness card. The small sun
-// has shorter rays to read as a "lower brightness" affordance.
+// ── Sun icon ───────────────────────────────────────────────────────────────
+// Figma "Group 264" / "Group 268" — both 15×15 pt (28×28 px scaled). The
+// geometry is identical for both; the design encodes "low / high brightness"
+// via colour and stroke weight, not size. Default ctor renders dark/bold for
+// "max"; pass `light` to get the thin / pale "min" variant on the other end
+// of the slider.
 class SunIcon : public Widget {
 public:
-    SunIcon(const Rect& rect, float ray_factor = 1.0f)
-        : Widget(rect), m_ray_factor(ray_factor)
+    SunIcon(const Rect& rect, bool light = false)
+        : Widget(rect), m_light(light)
     {
         fill_flags({Theme::FillFlag::blend});
         border(0);
@@ -70,19 +73,22 @@ public:
         auto b = content_area();
         float dim = static_cast<float>(min(b.width(), b.height()));
         auto center = b.center();
-        const float disc_r  = dim * 0.18f;
-        const float ray_in  = dim * (0.27f * m_ray_factor + 0.06f);
-        const float ray_out = dim * (0.45f * m_ray_factor + 0.05f);
+        const float disc_r  = dim * 0.21f;
+        const float ray_in  = dim * 0.32f;
+        const float ray_out = dim * 0.48f;
 
-        painter.set(dt::kTextPrimary);
+        const Color& col   = m_light ? palette::kGray500 : dt::kTextPrimary;
+        const float stroke = m_light ? 1.2f : 2.4f;
+
+        painter.set(col);
         painter.draw(Arc(center, disc_r, 0.0f, 2.0f * static_cast<float>(M_PI)));
         painter.fill();
 
-        painter.line_width(1.5f);
+        painter.line_width(stroke);
+        const float cx = static_cast<float>(center.x());
+        const float cy = static_cast<float>(center.y());
         for (int i = 0; i < 8; ++i) {
             float a = static_cast<float>(i) * (2.0f * static_cast<float>(M_PI) / 8.0f);
-            float cx = static_cast<float>(center.x());
-            float cy = static_cast<float>(center.y());
             painter.draw(Line(
                 Point(cx + ray_in  * std::cos(a), cy + ray_in  * std::sin(a)),
                 Point(cx + ray_out * std::cos(a), cy + ray_out * std::sin(a))));
@@ -91,10 +97,14 @@ public:
     }
 
 private:
-    float m_ray_factor;
+    bool m_light;
 };
 
-// ── Wi-Fi glyph (concentric arcs) sized to fit inside a 72×72 circle ──────
+// ── Wi-Fi glyph ────────────────────────────────────────────────────────────
+// Figma "Group 127" — 24.4×18 pt (45×33 px). Sits inside the 72×72 gray
+// circle background, centred horizontally and a bit above the visual centre
+// so the base dot lands ~60 % down. Three concentric arcs opening upward +
+// a small filled dot at the bottom.
 class WifiGlyph : public Widget {
 public:
     explicit WifiGlyph(const Rect& rect) : Widget(rect)
@@ -105,25 +115,41 @@ public:
     void draw(Painter& painter, const Rect&) override
     {
         auto b = content_area();
-        float dim = static_cast<float>(min(b.width(), b.height()));
-        auto center_pt = Point(b.x() + b.width() / 2,
-                               b.y() + b.height() * 0.74f);
-        constexpr float start = -static_cast<float>(M_PI) * 0.75f;
-        constexpr float end   = -static_cast<float>(M_PI) * 0.25f;
-        float radii[] = {dim * 0.16f, dim * 0.30f, dim * 0.44f};
+        float w = static_cast<float>(b.width());
+        float h = static_cast<float>(b.height());
+        // Anchor: the bottom of the wifi glyph (the dot) sits at ~85 % of h
+        // so the upward-opening arcs fit nicely.
+        auto pivot = Point(b.x() + b.width() / 2,
+                           b.y() + static_cast<int>(b.height() * 0.85f));
+        constexpr float start = -static_cast<float>(M_PI) * 0.75f;   // −135°
+        constexpr float end   = -static_cast<float>(M_PI) * 0.25f;   //  −45°
+
+        // Three concentric arcs: the outermost roughly matches the glyph
+        // width; inner arcs scale down proportionally.
+        const float outer = w * 0.48f;
+        const float mid   = w * 0.32f;
+        const float inner = w * 0.16f;
 
         painter.set(dt::kTextPrimary);
-        painter.line_width(2.5f);
-        for (float r : radii) {
-            painter.draw(Arc(center_pt, r, start, end));
+        painter.line_width(std::max(3.0f, h * 0.10f));
+        for (float r : {outer, mid, inner}) {
+            painter.draw(Arc(pivot, r, start, end));
             painter.stroke();
         }
-        painter.draw(Arc(center_pt, dim * 0.045f, 0.0f, 2.0f * static_cast<float>(M_PI)));
+        // Base dot
+        painter.draw(Arc(pivot, std::max(2.0f, h * 0.07f),
+                         0.0f, 2.0f * static_cast<float>(M_PI)));
         painter.fill();
     }
 };
 
-// ── Ethernet plug glyph (body + 3 pins + cable stub) ───────────────────────
+// ── Ethernet plug (RJ45) glyph ─────────────────────────────────────────────
+// Figma "Group 269" — 25.5×24.7 pt (47×46 px) inside the 72×72 circle.
+// Drawn as a flat RJ45 jack silhouette: an outlined rectangle for the
+// connector body, a small notched tab in the middle, three pin strokes
+// inside, and a cable stub coming out the bottom. Stroke widths are scaled
+// from the icon size so the lines read cleanly at 800×480 and at the SAMA
+// panel native scale.
 class EthernetGlyph : public Widget {
 public:
     explicit EthernetGlyph(const Rect& rect) : Widget(rect)
@@ -134,44 +160,62 @@ public:
     void draw(Painter& painter, const Rect&) override
     {
         auto b = content_area();
-        float dim = static_cast<float>(min(b.width(), b.height()));
-        float cx = b.x() + b.width()  / 2.0f;
-        float cy = b.y() + b.height() / 2.0f + dim * 0.06f;
+        float w = static_cast<float>(b.width());
+        float h = static_cast<float>(b.height());
+        float cx = b.x() + w / 2.0f;
+        float cy = b.y() + h * 0.48f;
 
-        const float body_w = dim * 0.50f;
-        const float body_h = dim * 0.40f;
+        // Connector body proportions — wider than tall, like an RJ45 jack.
+        const float body_w = w * 0.55f;
+        const float body_h = h * 0.36f;
         const float bx = cx - body_w / 2.0f;
         const float by = cy - body_h / 2.0f;
+        const float stroke = std::max(2.5f, std::min(w, h) * 0.07f);
 
         painter.set(dt::kTextPrimary);
-        painter.line_width(2.2f);
+        painter.line_width(stroke);
 
-        // Body rectangle (4 sides)
-        painter.draw(Line(Point(bx,          by),          Point(bx + body_w, by)));
-        painter.stroke();
+        // Body rectangle (top side has a notch — see below)
         painter.draw(Line(Point(bx + body_w, by),          Point(bx + body_w, by + body_h)));
         painter.stroke();
         painter.draw(Line(Point(bx + body_w, by + body_h), Point(bx,          by + body_h)));
         painter.stroke();
         painter.draw(Line(Point(bx,          by + body_h), Point(bx,          by)));
         painter.stroke();
+        // Top with central notch (locking tab)
+        const float notch_w = body_w * 0.30f;
+        const float notch_h = body_h * 0.28f;
+        painter.draw(Line(Point(bx,                          by),          Point(cx - notch_w / 2, by)));
+        painter.stroke();
+        painter.draw(Line(Point(cx - notch_w / 2,            by),          Point(cx - notch_w / 2, by - notch_h)));
+        painter.stroke();
+        painter.draw(Line(Point(cx - notch_w / 2,            by - notch_h),Point(cx + notch_w / 2, by - notch_h)));
+        painter.stroke();
+        painter.draw(Line(Point(cx + notch_w / 2,            by - notch_h),Point(cx + notch_w / 2, by)));
+        painter.stroke();
+        painter.draw(Line(Point(cx + notch_w / 2,            by),          Point(bx + body_w,      by)));
+        painter.stroke();
 
-        // 3 contact pins above
-        const float pin_h = body_h * 0.55f;
+        // 3 pin strokes inside the connector
+        const float pin_top    = by + body_h * 0.30f;
+        const float pin_bottom = by + body_h * 0.85f;
         for (int i = 0; i < 3; ++i) {
-            float px = bx + body_w * (0.25f + 0.25f * static_cast<float>(i));
-            painter.draw(Line(Point(px, by), Point(px, by - pin_h)));
+            float px = bx + body_w * (0.30f + 0.20f * static_cast<float>(i));
+            painter.draw(Line(Point(px, pin_top), Point(px, pin_bottom)));
             painter.stroke();
         }
 
-        // Cable stub
+        // Cable stub coming out the bottom
         painter.draw(Line(Point(cx, by + body_h),
-                          Point(cx, by + body_h + dim * 0.12f)));
+                          Point(cx, by + body_h + h * 0.16f)));
         painter.stroke();
     }
 };
 
-// ── Chevron glyph (`<`) — used inside the Back-button circle ───────────────
+// ── Chevron-left glyph ─────────────────────────────────────────────────────
+// Figma "Subtract" inside the Back-button circle — 16×24 pt (≈ 30×44 px when
+// the circle is 46×46). Bolder, tighter, and visually anchored to the circle
+// centre.
 class ChevronLeft : public Widget {
 public:
     explicit ChevronLeft(const Rect& rect) : Widget(rect)
@@ -184,15 +228,18 @@ public:
         auto b = content_area();
         float cx = b.x() + b.width()  / 2.0f;
         float cy = b.y() + b.height() / 2.0f;
-        float sz = static_cast<float>(min(b.width(), b.height())) * 0.26f;
+        float dim = static_cast<float>(min(b.width(), b.height()));
+        // ≈ 16×24 chevron in a 46 circle = 35 % wide × 52 % tall
+        const float half_w = dim * 0.18f;
+        const float half_h = dim * 0.26f;
 
         painter.set(dt::kTextPrimary);
-        painter.line_width(2.5f);
-        painter.draw(Line(Point(cx + sz * 0.6f, cy - sz),
-                          Point(cx - sz * 0.6f, cy)));
+        painter.line_width(std::max(3.5f, dim * 0.07f));
+        painter.draw(Line(Point(cx + half_w, cy - half_h),
+                          Point(cx - half_w, cy)));
         painter.stroke();
-        painter.draw(Line(Point(cx - sz * 0.6f, cy),
-                          Point(cx + sz * 0.6f, cy + sz)));
+        painter.draw(Line(Point(cx - half_w, cy),
+                          Point(cx + half_w, cy + half_h)));
         painter.stroke();
     }
 };
@@ -209,26 +256,25 @@ shared_ptr<Frame> make_section_card(int x, int y, int w, int h)
 }
 
 // ── Brightness bar — composite slider matching Figma exactly ───────────────
-// Figma: track 409×20 rounded full-pill, green fill from start of track, 28×28
-// green handle on top of the fill's right edge. The default egt::Slider has
-// a thin track and a disproportionately large handle, so we composite three
-// Frames + a drag handler instead.
+// Figma: 409×20 fat-pill track, green fill from the start, 28 px green handle
+// at the fill's right edge. The default egt::Slider draws a thin track and a
+// big handle — wrong visual language — so we composite the visual ourselves
+// and handle drag events directly. The trick to make drag work from any
+// nested parent is converting the event's display point back to widget-local
+// coordinates with `to_display(Point(0,0))`.
 struct BrightnessBar {
-    shared_ptr<Frame> root;        // the 409×28 hit area (track height + handle overhang)
-    function<void(int)> set_value; // call to programmatically move the bar
+    shared_ptr<Frame> root;
 };
 
 BrightnessBar make_brightness_bar(int x, int y, int width, int initial_value)
 {
     BrightnessBar bb;
-    const int track_h = 20;
+    const int track_h  = 20;
     const int handle_d = 28;
-    const int total_h = handle_d;                  // handle slightly overlaps track ends
+    const int total_h  = handle_d;
     const int handle_r = handle_d / 2;
-    const int track_y_in = (total_h - track_h) / 2;
-    // The handle's centre can travel from x=handle_r to x=width-handle_r so it
-    // never clips off the bar bounds.
-    const int travel = width - handle_d;
+    const int track_y  = (total_h - track_h) / 2;
+    const int travel   = width - handle_d;
 
     auto root = make_shared<Frame>(Rect(x, y, width, total_h));
     root->fill_flags({Theme::FillFlag::blend});
@@ -236,23 +282,23 @@ BrightnessBar make_brightness_bar(int x, int y, int width, int initial_value)
     root->border(0);
     bb.root = root;
 
-    // Track background — pill, full width
-    auto track_bg = make_shared<Frame>(Rect(0, track_y_in, width, track_h));
+    // Gray pill — the inactive track
+    auto track_bg = make_shared<Frame>(Rect(0, track_y, width, track_h));
     track_bg->fill_flags({Theme::FillFlag::blend});
     track_bg->color(Palette::ColorId::bg, palette::kGray200);
     track_bg->border(0);
     track_bg->border_radius(track_h / 2);
     root->add(track_bg);
 
-    // Green fill (width tracks value 0..100)
-    auto fill = make_shared<Frame>(Rect(0, track_y_in, 0, track_h));
+    // Green fill — width tracks value 0..100
+    auto fill = make_shared<Frame>(Rect(0, track_y, 0, track_h));
     fill->fill_flags({Theme::FillFlag::blend});
     fill->color(Palette::ColorId::bg, dt::kGreen);
     fill->border(0);
     fill->border_radius(track_h / 2);
     root->add(fill);
 
-    // Handle circle (positioned to sit at the green fill's right edge)
+    // Handle circle — sits at the green fill's right edge
     auto handle = make_shared<Frame>(Rect(0, 0, handle_d, handle_d));
     handle->fill_flags({Theme::FillFlag::blend});
     handle->color(Palette::ColorId::bg, dt::kGreen);
@@ -261,51 +307,56 @@ BrightnessBar make_brightness_bar(int x, int y, int width, int initial_value)
     handle->border_radius(handle_r);
     root->add(handle);
 
-    auto current = make_shared<int>(initial_value);
-
     auto layout = [=](int value) {
         value = std::max(0, std::min(100, value));
-        *current = value;
-        // Fill width: 0..(width - handle_d) so the rounded fill end always
-        // sits under the handle. Plus handle_r so the fill caps under the
-        // handle's vertical centre.
-        int fill_w = (travel * value) / 100 + handle_r;
-        fill->resize(Size(fill_w, track_h));
+        int fill_w   = (travel * value) / 100 + handle_r;
         int handle_x = (travel * value) / 100;
+        fill->resize(Size(fill_w, track_h));
         handle->move(Point(handle_x, 0));
     };
-
     layout(initial_value);
-    bb.set_value = layout;
 
-    // Drag-anywhere-on-the-bar interaction
-    auto drag_to_x = [=](int screen_x) {
-        int local_x = screen_x - root->box().x() - handle_r;
-        local_x = std::max(0, std::min(travel, local_x));
-        int v = (local_x * 100) / std::max(1, travel);
+    // Invisible egt::Slider — owns the drag math + value semantics so we
+    // don't try to reinvent pointer event tracking on a plain Frame. Same
+    // pattern as the Age picker in screen_patient_info.cpp. To fully hide
+    // its visual we have to override colours across ALL relevant GroupIds
+    // (normal/active/disabled/checked) — otherwise the press-state colour
+    // bleeds through during drag (the "red handle" we saw in v6).
+    auto driver = make_shared<Slider>(
+        Rect(0, 0, width, total_h),
+        0, 100, initial_value, Orientation::horizontal);
+    driver->slider_flags().set(Slider::SliderFlag::round_handle);
+    driver->live_update(true);
+    driver->border(0);
+
+    for (auto group : {Palette::GroupId::normal, Palette::GroupId::active,
+                       Palette::GroupId::disabled, Palette::GroupId::checked}) {
+        driver->color(Palette::ColorId::bg,           dt::kTransparent, group);
+        driver->color(Palette::ColorId::button_bg,    dt::kTransparent, group);
+        driver->color(Palette::ColorId::button_fg,    dt::kTransparent, group);
+        driver->color(Palette::ColorId::button_text,  dt::kTransparent, group);
+        driver->color(Palette::ColorId::border,       dt::kTransparent, group);
+        driver->color(Palette::ColorId::label_text,   dt::kTransparent, group);
+        driver->color(Palette::ColorId::label_bg,     dt::kTransparent, group);
+        driver->color(Palette::ColorId::text,         dt::kTransparent, group);
+    }
+    root->add(driver);
+
+    driver->on_value_changed([=]() {
+        int v = driver->value();
         layout(v);
         ui::set_brightness(v);
-    };
+    });
 
-    root->on_event([=](Event& e) {
-        drag_to_x(e.pointer().point.x());
+    driver->on_event([=](Event&) {
         handle->color(Palette::ColorId::bg, palette::kSliderHandlePressed);
         handle->damage();
     }, {EventId::pointer_drag_start});
 
-    root->on_event([=](Event& e) {
-        drag_to_x(e.pointer().point.x());
-    }, {EventId::pointer_drag});
-
-    root->on_event([=](Event&) {
+    driver->on_event([=](Event&) {
         handle->color(Palette::ColorId::bg, dt::kGreen);
         handle->damage();
     }, {EventId::pointer_drag_stop});
-
-    // Single tap anywhere on the bar jumps the handle there
-    root->on_event([=](Event& e) {
-        drag_to_x(e.pointer().point.x());
-    }, {EventId::pointer_click});
 
     return bb;
 }
@@ -341,12 +392,12 @@ shared_ptr<Widget> create_settings_screen(
     auto brt_card = make_section_card(brt_card_x, brt_card_y, brt_card_w, brt_card_h);
     container->add(brt_card);
 
-    // Sun small at card-relative (53, 28) 28×28
-    auto sun_small = make_shared<SunIcon>(Rect(53, 28, 28, 28), 0.55f);
-    brt_card->add(sun_small);
-    // Sun big at card-relative (535, 28) 28×28
-    auto sun_big = make_shared<SunIcon>(Rect(535, 28, 28, 28), 1.0f);
-    brt_card->add(sun_big);
+    // Sun icons — same geometry, different ink: pale-thin on the "low" side
+    // and dark-bold on the "high" side to read as a brightness ramp.
+    auto sun_left  = make_shared<SunIcon>(Rect( 53, 28, 28, 28), /*light=*/true);
+    auto sun_right = make_shared<SunIcon>(Rect(535, 28, 28, 28), /*light=*/false);
+    brt_card->add(sun_left);
+    brt_card->add(sun_right);
 
     // Brightness bar — Figma slider track at card-relative (105, 32) 409×20.
     // The bar widget reserves room for a 28 px handle, so the bar height is
@@ -378,19 +429,25 @@ shared_ptr<Widget> create_settings_screen(
 
         // Gray ellipse background — Figma "Ellipse 8" 72×72 at card-relative (56, 20)
         const int circle_d = 72;
-        auto circle_bg = make_shared<Frame>(Rect(56, 20, circle_d, circle_d));
+        const int circle_x = 56;
+        const int circle_y = 20;
+        auto circle_bg = make_shared<Frame>(Rect(circle_x, circle_y, circle_d, circle_d));
         circle_bg->fill_flags({Theme::FillFlag::blend});
         circle_bg->color(Palette::ColorId::bg, palette::kGray200);
         circle_bg->border(0);
         circle_bg->border_radius(circle_d / 2);
         card->add(circle_bg);
 
-        // Glyph centred inside the circle
+        // Glyph sized per Figma, centred inside the gray circle.
+        // Wi-Fi:  45×33 (Figma "Group 127") → offset (13, 18) inside the circle.
+        // Eth:    47×46 (Figma "Group 269") → offset (13, 9) inside the circle.
         if (is_wifi) {
-            auto g = make_shared<WifiGlyph>(Rect(56, 20, circle_d, circle_d));
+            auto g = make_shared<WifiGlyph>(
+                Rect(circle_x + 13, circle_y + 18, 45, 33));
             card->add(g);
         } else {
-            auto g = make_shared<EthernetGlyph>(Rect(56, 20, circle_d, circle_d));
+            auto g = make_shared<EthernetGlyph>(
+                Rect(circle_x + 13, circle_y + 9, 47, 46));
             card->add(g);
         }
 
@@ -446,7 +503,13 @@ shared_ptr<Widget> create_settings_screen(
     back_circle->border_radius(circle_d / 2);
     container->add(back_circle);
 
-    auto back_chev = make_shared<ChevronLeft>(Rect(27, back_y, circle_d, circle_d));
+    // Chevron sized per Figma "Subtract" — 16×24 pt → 30×44 px centred in
+    // the 46×46 circle (offset to put the apex at the circle's centre).
+    const int chev_w = 30;
+    const int chev_h = 44;
+    auto back_chev = make_shared<ChevronLeft>(
+        Rect(27 + (circle_d - chev_w) / 2, back_y + (circle_d - chev_h) / 2,
+             chev_w, chev_h));
     container->add(back_chev);
 
     auto back_lbl = make_shared<Label>("Back",
