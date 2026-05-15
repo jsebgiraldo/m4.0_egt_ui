@@ -71,6 +71,45 @@ private:
 
 public:
     void set_color(const Color& c) { m_color = c; damage(); }
+    void set_signal(int s) { if (s != m_signal) { m_signal = s; damage(); } }
+    int signal() const { return m_signal; }
+};
+
+// ── Mini scan spinner: small rotating arc shown while a scan is running ────
+class MiniSpinner : public Widget {
+public:
+    explicit MiniSpinner(const Rect& rect) : Widget(rect)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        hide();  // hidden until a scan starts
+    }
+
+    void angle(float a) { m_angle = a; if (visible()) damage(); }
+
+    void draw(Painter& painter, const Rect& /*rect*/) override
+    {
+        auto b = content_area();
+        auto dim = static_cast<float>(min(b.width(), b.height()));
+        float radius = dim / 2.0f - 3.0f;
+        auto center = b.center();
+        constexpr float twopi = 2.0f * static_cast<float>(M_PI);
+
+        // Faint track
+        painter.line_width(3.0f);
+        painter.set(Color(dt::kGrayLight, 90));
+        painter.draw(Arc(center, radius, 0.0f, twopi));
+        painter.stroke();
+
+        // Bright ~90° arc that rotates
+        painter.set(dt::kGreen);
+        painter.line_width(3.0f);
+        painter.draw(Arc(center, radius, m_angle, m_angle + 1.6f));
+        painter.stroke();
+    }
+
+private:
+    float m_angle{0.0f};
 };
 
 // ── Skip WiFi button: round icon with skip symbol ─────────────────────────
@@ -155,15 +194,30 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         }
         nets = result;
     }
-    // Sort by signal strength (strongest first)
-    sort(nets->begin(), nets->end(),
-         [](const WiFiNetwork& a, const WiFiNetwork& b) {
-             return a.signal > b.signal;
-         });
+    // Sort: connected network always first, then by signal strength desc.
+    // Keeping the connected AP pinned to the top means it doesn't "sink" in
+    // the list when a stronger neighbour appears on a later scan.
+    auto net_sort = [](const WiFiNetwork& a, const WiFiNetwork& b) {
+        if (a.connected != b.connected) return a.connected;
+        return a.signal > b.signal;
+    };
+    sort(nets->begin(), nets->end(), net_sort);
     const int total = static_cast<int>(nets->size());
 
     auto network_map = make_shared<map<string, egt_wifi::WiFiNetwork>>();
     auto alive = make_shared<bool>(true);
+
+    // Per-row widget handles, keyed by SSID. Populated by rebuild_rows(),
+    // consulted by update_rows_in_place() so a signal/state change refreshes
+    // just the affected widgets instead of recreating every row (no flicker,
+    // no scroll churn).
+    struct RowHandles {
+        std::shared_ptr<Label>    ssid_lbl;
+        std::shared_ptr<WifiIcon> wifi_icon;
+        std::shared_ptr<Label>    chevron;
+        std::shared_ptr<Frame>    row_frame;
+    };
+    auto row_handles = make_shared<map<string, RowHandles>>();
 
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -200,6 +254,20 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     choose_label->font(Font(22, Font::Weight::normal));
     choose_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(choose_label);
+
+    // Scan spinner — sits just right of the header label, shown only while a
+    // background scan is in flight so the user knows the list is live.
+    auto scan_spinner = make_shared<MiniSpinner>(Rect(285, 19, 22, 22));
+    card->add(scan_spinner);
+
+    auto spinner_anim = make_shared<PeriodicTimer>(chrono::milliseconds(40));
+    auto spinner_angle = make_shared<float>(0.0f);
+    spinner_anim->on_timeout([scan_spinner, spinner_angle]() {
+        *spinner_angle += 0.22f;
+        if (*spinner_angle > 2.0f * static_cast<float>(M_PI))
+            *spinner_angle -= 2.0f * static_cast<float>(M_PI);
+        scan_spinner->angle(*spinner_angle);
+    });
 
     // Header separator line
     auto hdr_line = make_shared<Frame>(Rect(10, 48, card_w - 20, 1));
@@ -259,6 +327,10 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     // swap the row set in-place when nmcli reports new APs, without recreating
     // the whole screen (which would lose scroll position and cause flicker).
     auto rebuild_rows = [=]() {
+        // Save scroll position before wiping rows so the user's view doesn't
+        // jump back to index 0 on every refresh.
+        const int saved_voffset = scroll_view->voffset();
+
         list_content->remove_all();
 
         const int cur_total = static_cast<int>(nets->size());
@@ -267,6 +339,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         list_content->resize(Size(card_w, cur_content_h));
 
         network_map->clear();
+        row_handles->clear();
 
         for (int i = 0; i < cur_total; i++) {
             const auto& net = (*nets)[i];
@@ -371,6 +444,10 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             sep->color(Palette::ColorId::bg, Color(217, 217, 217, 100));
             sep->border(0);
             row_frame->add(sep);
+
+            // Stash widget handles so update_rows_in_place() can refresh this
+            // row's signal/state without a full rebuild.
+            (*row_handles)[label] = RowHandles{ssid_lbl, wifi_icon, chevron, row_frame};
         }
 
         // "Other..." entry at the bottom — always present
@@ -446,6 +523,56 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         other_chevron->color(Palette::ColorId::label_text, dt::kTextPrimary);
         other_frame->add(other_chevron);
 
+        list_content->damage();
+
+        // Restore scroll position, clamped to the new content range.
+        // ScrolledView uses negative voffset as the user scrolls down (the
+        // content moves up). New content may be shorter → clamp so we never
+        // expose empty space below the last row.
+        const int view_h = scroll_view->size().height();
+        int restored = saved_voffset;
+        if (cur_content_h <= view_h) {
+            restored = 0;  // content fits → no scroll
+        } else {
+            const int max_neg = -(cur_content_h - view_h);
+            if (restored > 0)        restored = 0;
+            else if (restored < max_neg) restored = max_neg;
+        }
+        if (restored != saved_voffset || saved_voffset != 0)
+            scroll_view->voffset(restored);
+    };
+
+    // Cheap refresh path: SSID set unchanged, only signal/connected differs.
+    // Updates the existing widgets (icon strength, text colour) and slides
+    // rows to their new sorted position via move() — no remove/re-add, so
+    // there is zero flicker and the scroll position is untouched.
+    auto update_rows_in_place = [=]() {
+        for (int i = 0; i < static_cast<int>(nets->size()); ++i) {
+            const auto& net = (*nets)[i];
+            auto it = row_handles->find(net.ssid);
+            if (it == row_handles->end()) continue;  // shouldn't happen
+            auto& h = it->second;
+
+            // Refresh tap-target data so a tap uses current signal/state.
+            (*network_map)[net.ssid] = net;
+
+            // Signal strength arcs.
+            if (h.wifi_icon) h.wifi_icon->set_signal(net.signal);
+
+            // Connected → green; otherwise default text colour.
+            Color text_color = net.connected ? dt::kGreen : dt::kTextPrimary;
+            if (h.ssid_lbl)  h.ssid_lbl->color(Palette::ColorId::label_text, text_color);
+            if (h.wifi_icon) h.wifi_icon->set_color(text_color);
+            if (h.chevron)   h.chevron->color(Palette::ColorId::label_text, text_color);
+
+            // Slide the row to its new sorted slot (connected-first ordering
+            // means a freshly-connected AP rises to the top).
+            const int target_y = i * row_pitch;
+            if (h.row_frame && h.row_frame->y() != target_y) {
+                h.row_frame->move(Point(h.row_frame->x(), target_y));
+            }
+            if (h.row_frame) h.row_frame->damage();
+        }
         list_content->damage();
     };
 
@@ -602,9 +729,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             vector<string> parts;
             parts.reserve(v.size());
             for (const auto& n : v) {
-                // Signal bucketed to 10-point steps so minor RSSI fluctuations
-                // don't trigger a re-render but a real signal drop does.
-                int bucket = n.signal / 10;
+                // Signal bucketed to 25-point steps. Real WiFi RSSI fluctuates
+                // ±5 dBm easily; tighter buckets caused a rebuild every refresh
+                // tick and reset the user's scroll position. 25 still catches a
+                // genuine signal drop (e.g. 80→50) without churning on noise.
+                int bucket = n.signal / 25;
                 parts.push_back(n.ssid + ":" +
                                 (n.connected ? "1" : "0") + ":" +
                                 to_string(bucket));
@@ -618,9 +747,20 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
         auto refresh_timer = make_shared<PeriodicTimer>(chrono::seconds(2));
         refresh_timer->on_timeout([=]() {
-            if (!*alive) { refresh_timer->cancel(); return; }
+            if (!*alive) {
+                refresh_timer->cancel();
+                spinner_anim->cancel();
+                return;
+            }
 
+            // Scan still in flight — keep the spinner spinning, come back later.
             if (refresh_running->load()) return;
+
+            // Past the guard → previous scan finished. Stop the spinner.
+            if (scan_spinner->visible()) {
+                scan_spinner->hide();
+                spinner_anim->cancel();
+            }
 
             if (*refresh_result) {
                 auto fresh = *refresh_result;
@@ -635,21 +775,41 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 } else {
                     auto fp = fingerprint(*fresh);
                     if (fp != *last_fingerprint) {
-                        printf("[WIFI_SETTINGS] AP set changed — updating in place (%zu APs)\n",
-                               fresh->size());
-                        fflush(stdout);
-                        sort(fresh->begin(), fresh->end(),
-                             [](const WiFiNetwork& a, const WiFiNetwork& b) {
-                                 return a.signal > b.signal;
-                             });
+                        sort(fresh->begin(), fresh->end(), net_sort);
+                        // Build the SSID-set signature (ignoring signal) to
+                        // decide between a cheap in-place refresh and a full
+                        // row rebuild. Full rebuild only when APs appear or
+                        // disappear — signal/state changes update in place.
+                        auto ssid_set = [](const vector<WiFiNetwork>& v) {
+                            vector<string> s;
+                            s.reserve(v.size());
+                            for (auto& n : v) s.push_back(n.ssid);
+                            sort(s.begin(), s.end());
+                            string out;
+                            for (auto& x : s) out += x + "\n";
+                            return out;
+                        };
+                        bool set_changed = ssid_set(*nets) != ssid_set(*fresh);
                         *nets = *fresh;
                         *last_fingerprint = fp;
-                        rebuild_rows();
+                        if (set_changed) {
+                            printf("[WIFI_SETTINGS] AP set changed — full rebuild (%zu APs)\n",
+                                   nets->size());
+                            fflush(stdout);
+                            rebuild_rows();
+                        } else {
+                            printf("[WIFI_SETTINGS] signal/state update in place (%zu APs)\n",
+                                   nets->size());
+                            fflush(stdout);
+                            update_rows_in_place();
+                        }
                     }
                 }
             }
 
             refresh_running->store(true);
+            scan_spinner->show();
+            spinner_anim->start();
             std::thread([refresh_result, refresh_running]() {
                 WiFiManager wifi;
                 auto fresh = make_shared<vector<WiFiNetwork>>(wifi.scan_networks());
