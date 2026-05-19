@@ -350,8 +350,9 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     frame->add(mode);
 
     // Exit button — solid cyan fill with white arrow so it reads
-    // unmistakably as an action target. A thin border alone was
-    // disappearing against the white page bg.
+    // unmistakably as an action target. Drop shadow removed: at this
+    // tiny size EGT renders the shadow as a chunky notch that looks
+    // like a clipping artifact rather than depth.
     const int btn_w = 56, btn_h = 32;
     const int btn_x = (badge_w - btn_w) / 2;
     auto leave_btn = make_shared<Button>("↩",
@@ -360,9 +361,8 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     leave_btn->color(Palette::ColorId::button_bg, dt::kAccentCyan);
     leave_btn->color(Palette::ColorId::button_text, dt::kWhite);
     leave_btn->color(Palette::ColorId::border, dt::kAccentCyan);
-    leave_btn->border_radius(dt::RADIUS_XS);
+    leave_btn->border_radius(dt::RADIUS_SM);
     leave_btn->border(0);
-    leave_btn->border_flags({Theme::BorderFlag::drop_shadow});
     if (on_leave) leave_btn->on_click([on_leave](Event&) { on_leave(); });
     frame->add(leave_btn);
 
