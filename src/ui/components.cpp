@@ -283,41 +283,50 @@ CumulativeTimeFooter create_cumulative_time_footer(int x, int y, int width)
 }
 
 // ── Demo Mode Badge ────────────────────────────────────────────────────────
-// Compact 2-line "DEMO / MODE" label on top + small arrow-icon exit button
-// below. Matches Figma 67:578 — the prior version was a big gray "Exit"
-// pill that drew too much attention away from the treatment content.
+// Floating card with "DEMO / MODE" stacked on top + a leave-arrow button
+// underneath. White fill, rounded border, drop shadow — lifts the badge
+// off the page so it reads as an actionable affordance, not background
+// chrome. Matches the Figma intent (corner card) while restoring legible
+// type sizes.
 DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave)
 {
-    const int badge_w = 100;
-    const int badge_h = 90;
-    auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
-    frame->color(Palette::ColorId::bg, dt::kTransparent);
-    frame->border(0);
+    const int badge_w = 130;
+    const int badge_h = 116;
 
-    // "DEMO" on top
+    // White card with a clear border + drop shadow — lifts the badge
+    // visibly above the page so it reads as a chip in the corner.
+    auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
+    frame->fill_flags({Theme::FillFlag::blend});
+    frame->color(Palette::ColorId::bg, dt::kWhite);
+    frame->color(Palette::ColorId::border, palette::kGray400);
+    frame->border(1);
+    frame->border_radius(dt::RADIUS_SM);
+    frame->border_flags({Theme::BorderFlag::drop_shadow});
+
+    // "DEMO" / "MODE" stacked — 20 pt bold so the label dominates the
+    // chip, matching the visual weight in the Figma corner.
     auto demo = make_shared<Label>("DEMO",
-        Rect(0, 0, badge_w, 24), AlignFlag::center);
-    demo->font(Font(16, Font::Weight::bold));
+        Rect(0, 8, badge_w, 26), AlignFlag::center);
+    demo->font(Font(20, Font::Weight::bold));
     demo->color(Palette::ColorId::label_text, dt::kAccentCyan);
     frame->add(demo);
 
-    // "MODE" below
     auto mode = make_shared<Label>("MODE",
-        Rect(0, 22, badge_w, 24), AlignFlag::center);
-    mode->font(Font(16, Font::Weight::bold));
+        Rect(0, 32, badge_w, 26), AlignFlag::center);
+    mode->font(Font(20, Font::Weight::bold));
     mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
     frame->add(mode);
 
-    // Small exit-icon button — rounded white square with a leave arrow.
-    // The arrow is a unicode character so we don't need a separate SVG.
-    const int btn_w = 44, btn_h = 32;
+    // Exit-icon button — bigger and clearly framed so it reads as an
+    // affordance, not decoration.
+    const int btn_w = 72, btn_h = 38;
     const int btn_x = (badge_w - btn_w) / 2;
-    auto leave_btn = make_shared<Button>("↪",   // ↪ "leftwards arrow with hook"
-        Rect(btn_x, 52, btn_w, btn_h));
-    leave_btn->font(Font(18, Font::Weight::bold));
+    auto leave_btn = make_shared<Button>("↩",
+        Rect(btn_x, 68, btn_w, btn_h));
+    leave_btn->font(Font(22, Font::Weight::bold));
     leave_btn->color(Palette::ColorId::button_bg, dt::kWhite);
     leave_btn->color(Palette::ColorId::button_text, dt::kAccentCyan);
-    leave_btn->color(Palette::ColorId::border, dt::kGrayLight);
+    leave_btn->color(Palette::ColorId::border, palette::kGray400);
     leave_btn->border_radius(dt::RADIUS_XS);
     leave_btn->border(1);
     if (on_leave) {

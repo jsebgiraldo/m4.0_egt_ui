@@ -256,7 +256,7 @@ static shared_ptr<Frame> make_patient_step(
     // Demo badge (vertical: DEMO MODE label + Exit below)
     if (demo_mode && on_leave_demo) {
         auto badge = ui::create_demo_mode_badge(
-            dt::SCREEN_W - 150, 22, on_leave_demo);
+            dt::SCREEN_W - 146, 8, on_leave_demo);
         container->add(badge.frame);
     }
 
