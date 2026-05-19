@@ -332,7 +332,7 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
 
     // ── Compact variant ────────────────────────────────────────────────
     const int badge_w = 90;
-    const int badge_h = 72;
+    const int badge_h = 80;
     auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
     frame->color(Palette::ColorId::bg, dt::kTransparent);
     frame->border(0);
@@ -349,16 +349,20 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
     frame->add(mode);
 
-    const int btn_w = 44, btn_h = 26;
+    // Exit button — solid cyan fill with white arrow so it reads
+    // unmistakably as an action target. A thin border alone was
+    // disappearing against the white page bg.
+    const int btn_w = 56, btn_h = 32;
     const int btn_x = (badge_w - btn_w) / 2;
     auto leave_btn = make_shared<Button>("↩",
-        Rect(btn_x, 42, btn_w, btn_h));
-    leave_btn->font(Font(16, Font::Weight::bold));
-    leave_btn->color(Palette::ColorId::button_bg, dt::kWhite);
-    leave_btn->color(Palette::ColorId::button_text, dt::kAccentCyan);
-    leave_btn->color(Palette::ColorId::border, dt::kGrayLight);
+        Rect(btn_x, 44, btn_w, btn_h));
+    leave_btn->font(Font(18, Font::Weight::bold));
+    leave_btn->color(Palette::ColorId::button_bg, dt::kAccentCyan);
+    leave_btn->color(Palette::ColorId::button_text, dt::kWhite);
+    leave_btn->color(Palette::ColorId::border, dt::kAccentCyan);
     leave_btn->border_radius(dt::RADIUS_XS);
-    leave_btn->border(1);
+    leave_btn->border(0);
+    leave_btn->border_flags({Theme::BorderFlag::drop_shadow});
     if (on_leave) leave_btn->on_click([on_leave](Event&) { on_leave(); });
     frame->add(leave_btn);
 
