@@ -265,6 +265,44 @@ void start_treatment_flow(
     show_warming(state);
 }
 
+// ── Percentage layout helper ────────────────────────────────────────────────
+// Lays out a big "NN%" composite (large bold number + smaller superscript %)
+// centred horizontally on the screen, regardless of digit count. Until we
+// did this, the number's rect was fixed and right-aligned at x=430 — fine
+// at 1 digit but the whole "10%" / "100%" group drifted left as more digits
+// appeared, throwing the visual centre off.
+//
+// Digit widths at 120 pt bold Lato — calibrated from rendered output:
+// "1" comes out ~70 px wide, all other digits ~110 px. The "%" at 56 pt
+// bold renders ~65 px. The estimates don't have to be perfectly tight —
+// they just need to track the digit-count transitions so the composite
+// re-centres cleanly as the warming counter rolls over 9→10 and 99→100.
+static int pct_digit_width_120(char d) { return (d == '1') ? 70 : 110; }
+static int pct_number_width_120(int v) {
+    string s = to_string(v);
+    int w = 0;
+    for (char c : s) w += pct_digit_width_120(c);
+    return w;
+}
+
+static void center_pct_group(int value,
+                             shared_ptr<Label> num_label,
+                             shared_ptr<Label> pct_label,
+                             int num_y, int num_h, int pct_y)
+{
+    constexpr int PCT_GLYPH_W = 65;   // "%" at 56 pt bold
+    constexpr int NUM_PCT_GAP = 10;
+    const int n_w     = pct_number_width_120(value);
+    const int total_w = n_w + NUM_PCT_GAP + PCT_GLYPH_W;
+    const int start_x = (dt::SCREEN_W - total_w) / 2;
+
+    num_label->move(Point(start_x, num_y));
+    num_label->resize(Size(n_w, num_h));
+    num_label->text_align(AlignFlag::center);
+
+    pct_label->move(Point(start_x + n_w + NUM_PCT_GAP, pct_y));
+}
+
 // ── WARMING SCREEN ──────────────────────────────────────────────────────────
 // Figma Group 179: large % number + superscript %, two-line status, progress bar.
 // No cumulative time, no segmented dots, no buttons.
@@ -281,23 +319,22 @@ static void show_warming(shared_ptr<TreatmentState> state)
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // ── Large number, right-aligned toward center ─────────────────────────
-    // Right-aligning in [0..430] keeps the digit(s) flush against x=430
-    // so the "%" superscript at x=438 always sits right next to the number.
-    auto num_label = make_shared<Label>("0",
-        Rect(0, W_NUM_Y, 430, W_NUM_H),
-        AlignFlag::center_vertical | AlignFlag::right);
+    // ── Large number + "%" superscript, centred as a group ────────────────
+    // Position is re-computed every tick via center_pct_group so the
+    // composite stays centred when digit count changes.
+    auto num_label = make_shared<Label>("0");
     num_label->font(Font(120, Font::Weight::bold));
     num_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(num_label);
 
-    // ── "%" superscript (smaller, left-aligned right of center) ──────────
     auto pct_sup = make_shared<Label>("%",
-        Rect(440, W_PCT_Y, 90, 80),
+        Rect(0, W_PCT_Y, 90, 80),
         AlignFlag::top | AlignFlag::left);
     pct_sup->font(Font(56, Font::Weight::bold));
     pct_sup->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(pct_sup);
+
+    center_pct_group(0, num_label, pct_sup, W_NUM_Y, W_NUM_H, W_PCT_Y);
 
     // ── Two-line status text ──────────────────────────────────────────────
     auto status1 = make_shared<Label>("Warming up",
@@ -331,15 +368,27 @@ static void show_warming(shared_ptr<TreatmentState> state)
     state->active_timer = timer;
 
     weak_ptr<Label> w_num = num_label;
+    weak_ptr<Label> w_pct = pct_sup;
     weak_ptr<Frame> w_bar = progress_bar;
+    auto last_digits = make_shared<int>(1);  // re-centre only when digit count changes
 
     timer->on_timeout([=]() {
         if (!*state->alive) { timer->cancel(); return; }
         *elapsed_ms += 50;
         *progress_val = min(100.0f, (*elapsed_ms * 100.0f) / total_ms);
 
+        const int iv = static_cast<int>(*progress_val);
         if (auto lb = w_num.lock())
-            lb->text(to_string((int)*progress_val));
+            lb->text(to_string(iv));
+
+        const int digits = (iv >= 100) ? 3 : (iv >= 10) ? 2 : 1;
+        if (digits != *last_digits) {
+            *last_digits = digits;
+            auto lb = w_num.lock(); auto pc = w_pct.lock();
+            if (lb && pc)
+                center_pct_group(iv, lb, pc, W_NUM_Y, W_NUM_H, W_PCT_Y);
+        }
+
         if (auto bar = w_bar.lock())
             ui::update_linear_progress(bar, *progress_val);
 
@@ -364,21 +413,20 @@ static void show_ready(shared_ptr<TreatmentState> state)
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // ── Large "100" right-aligned ──────────────────────────────────────────
-    auto num_label = make_shared<Label>("100",
-        Rect(0, W_NUM_Y, 430, W_NUM_H),
-        AlignFlag::center_vertical | AlignFlag::right);
+    // ── Large "100" + "%" superscript, centred as a group ─────────────────
+    auto num_label = make_shared<Label>("100");
     num_label->font(Font(120, Font::Weight::bold));
     num_label->color(Palette::ColorId::label_text, dt::kGreen);
     container->add(num_label);
 
-    // ── "%" superscript ──────────────────────────────────────────────────
     auto pct_sup = make_shared<Label>("%",
-        Rect(440, W_PCT_Y, 90, 80),
+        Rect(0, W_PCT_Y, 90, 80),
         AlignFlag::top | AlignFlag::left);
     pct_sup->font(Font(56, Font::Weight::bold));
     pct_sup->color(Palette::ColorId::label_text, dt::kGreen);
     container->add(pct_sup);
+
+    center_pct_group(100, num_label, pct_sup, W_NUM_Y, W_NUM_H, W_PCT_Y);
 
     // ── "Ready" / "for Treatment" ──────────────────────────────────────────
     auto status1 = make_shared<Label>("Ready",
