@@ -349,24 +349,36 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
     frame->add(mode);
 
-    // Exit button — solid cyan fill with white arrow so it reads
-    // unmistakably as an action target. Drop shadow removed: at this
-    // tiny size EGT renders the shadow as a chunky notch that looks
-    // like a clipping artifact rather than depth.
+    // Exit button — built from a Frame (full radius/fill control) with
+    // a Label glyph on top, instead of egt::Button. The Button widget
+    // draws extra theme passes (focus ring + active overlay) that don't
+    // respect border_radius at small sizes, producing a "bite" in the
+    // bottom-right corner.
     const int btn_w = 56, btn_h = 32;
     const int btn_x = (badge_w - btn_w) / 2;
-    auto leave_btn = make_shared<Button>("↩",
-        Rect(btn_x, 44, btn_w, btn_h));
-    leave_btn->font(Font(18, Font::Weight::bold));
-    leave_btn->color(Palette::ColorId::button_bg, dt::kAccentCyan);
-    leave_btn->color(Palette::ColorId::button_text, dt::kWhite);
+    auto leave_btn = make_shared<Frame>(Rect(btn_x, 44, btn_w, btn_h));
+    leave_btn->fill_flags({Theme::FillFlag::blend});
+    leave_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
     leave_btn->color(Palette::ColorId::border, dt::kAccentCyan);
     leave_btn->border_radius(dt::RADIUS_SM);
     leave_btn->border(0);
-    if (on_leave) leave_btn->on_click([on_leave](Event&) { on_leave(); });
+
+    auto arrow = make_shared<Label>("↩",
+        Rect(0, 0, btn_w, btn_h), AlignFlag::center);
+    arrow->font(Font(18, Font::Weight::bold));
+    arrow->color(Palette::ColorId::label_text, dt::kWhite);
+    leave_btn->add(arrow);
+
+    if (on_leave) {
+        leave_btn->on_event([on_leave](Event& e) {
+            if (e.id() == EventId::pointer_click) on_leave();
+        }, {EventId::pointer_click});
+    }
     frame->add(leave_btn);
 
-    return {frame, leave_btn};
+    // Compact returns the Frame in the leave_btn slot — caller treats it
+    // as an opaque handle, doesn't care it's not a Button anymore.
+    return {frame, nullptr};
 }
 
 // ── Error Overlay ──────────────────────────────────────────────────────────
