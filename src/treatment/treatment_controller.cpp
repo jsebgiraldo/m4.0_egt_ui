@@ -9,13 +9,14 @@
 using namespace egt;
 using namespace std;
 
-// ── Gradient background for "nearly done" green screen ─────────────────────
-// Vertical gradient with bright center band fading to dark green at top/bottom,
-// plus a soft radial glow overlay for depth — creates an "aurora" effect.
-class GreenGradientBg : public Widget {
+// ── Green frame border for "nearly done" screen ────────────────────────────
+// Matches Figma node 67:578: a chunky green band around the perimeter with
+// a white interior, instead of a full-screen green wash. Signals "treatment
+// nearly finished" without taking over the whole UI.
+class GreenFrameBorder : public Widget {
 public:
-    explicit GreenGradientBg(const Rect& rect)
-        : Widget(rect)
+    explicit GreenFrameBorder(const Rect& rect, int border_w = 14)
+        : Widget(rect), m_border_w(border_w)
     {
         fill_flags({Theme::FillFlag::blend});
         border(0);
@@ -24,56 +25,62 @@ public:
     void draw(Painter& painter, const Rect& /*rect*/) override
     {
         auto b = content_area();
-        int w = b.width();
-        int h = b.height();
-        int x0 = b.x();
-        int y0 = b.y();
+        // Outer green rectangle (the visible band).
+        painter.set(dt::kGreen);
+        painter.draw(b);
+        painter.fill();
+        // Inner white rectangle — everything inside this stays white so
+        // text and dots render exactly like a normal treatment screen.
+        const int bw = m_border_w;
+        Rect inner(b.x() + bw, b.y() + bw,
+                   b.width() - 2 * bw, b.height() - 2 * bw);
+        painter.set(dt::kWhite);
+        painter.draw(inner);
+        painter.fill();
+    }
 
-        // ── Layer 1: Vertical gradient (dark edges → bright center) ──
-        // Top/bottom: deep green (15, 80, 0)
-        // Center band: vibrant green (100, 210, 20)
-        constexpr float dr0 = 15.f,  dg0 = 80.f,  db0 = 0.f;   // dark
-        constexpr float dr1 = 100.f, dg1 = 210.f, db1 = 20.f;  // bright
+private:
+    int m_border_w;
+};
 
-        constexpr int bands = 80;
-        int band_h = (h + bands - 1) / bands;
+// Dashed progress bar used on the nearly-finished screen. Renders as a
+// row of N small green dashes with the trailing M dashes greyed out to
+// indicate remaining time. Matches the Figma styling (5 groups of small
+// rectangles, last group fading).
+class DashedProgressBar : public Widget {
+public:
+    DashedProgressBar(const Rect& rect, int total_dashes, int filled_dashes)
+        : Widget(rect), m_total(total_dashes), m_filled(filled_dashes)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
 
-        for (int i = 0; i < bands; i++) {
-            // t=0 at edges, t=1 at center; use pow for sharper falloff
-            float norm = static_cast<float>(i) / (bands - 1);
-            float dist = std::abs(norm - 0.5f) * 2.0f; // 0=center, 1=edge
-            float t = 1.0f - std::pow(dist, 1.4f);     // sharper than linear
+    void set_filled(int n) {
+        n = std::max(0, std::min(m_total, n));
+        if (n != m_filled) { m_filled = n; damage(); }
+    }
 
-            auto r  = static_cast<uint8_t>(dr0 + (dr1 - dr0) * t);
-            auto g  = static_cast<uint8_t>(dg0 + (dg1 - dg0) * t);
-            auto bl = static_cast<uint8_t>(db0 + (db1 - db0) * t);
-
-            int by = y0 + i * band_h;
-            painter.set(Color(r, g, bl));
-            painter.draw(Rect(x0, by, w, band_h + 1));
-            painter.fill();
-        }
-
-        // ── Layer 2: Soft radial glow overlay (subtle depth) ──────────
-        // Gentle translucent highlight at screen center — more diffuse,
-        // less circle-like than before.
-        float cx = static_cast<float>(x0 + w / 2);
-        float cy = static_cast<float>(y0 + h / 2);
-        float max_r = static_cast<float>(std::min(w, h)) * 0.85f;
-        constexpr int rings = 60;
-
-        for (int i = rings - 1; i >= 0; i--) {
-            float rt = static_cast<float>(i) / (rings - 1); // 0=center, 1=edge
-            float radius = max_r * rt;
-            // Much more subtle alpha — barely visible glow instead of obvious circle
-            auto alpha = static_cast<uint8_t>((1.0f - rt * rt) * 20.0f);
-
-            painter.set(Color(140, 255, 60, alpha));
-            painter.draw(Circle(Point(static_cast<int>(cx), static_cast<int>(cy)),
-                                radius));
+    void draw(Painter& painter, const Rect& /*rect*/) override
+    {
+        auto b = content_area();
+        const int dash_w = 10;
+        const int dash_h = 4;
+        const int small_gap = 4;
+        const int total_w = m_total * dash_w + (m_total - 1) * small_gap;
+        const int start_x = b.x() + (b.width() - total_w) / 2;
+        const int dash_y  = b.y() + (b.height() - dash_h) / 2;
+        for (int i = 0; i < m_total; i++) {
+            int x = start_x + i * (dash_w + small_gap);
+            Color c = (i < m_filled) ? dt::kGreen : Color(210, 210, 210);
+            painter.set(c);
+            painter.draw(Rect(x, dash_y, dash_w, dash_h));
             painter.fill();
         }
     }
+
+private:
+    int m_total, m_filled;
 };
 
 // ── Shared state across treatment screens ───────────────────────────────────
@@ -156,19 +163,22 @@ static TreatmentScreen make_treatment_container(
     bool show_cumulative,
     bool green_mode = false)
 {
-    const Color text_color  = green_mode ? dt::kWhite : dt::kTextPrimary;
-    const Color sep_color   = green_mode ? Color(255,255,255,120) : dt::kGrayLight;
-    const Color bg_color    = green_mode ? dt::kGreen : dt::kBgWhite;
+    // green_mode now means "nearly-finished frame" — same dark text and
+    // white bg as normal screens, just with a green band around the edges.
+    // (The old behaviour was a full-screen green wash with white text;
+    // see Figma 67:578 for the updated treatment.)
+    const Color text_color  = dt::kTextPrimary;
+    const Color sep_color   = dt::kGrayLight;
+    const Color bg_color    = dt::kBgWhite;
 
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, bg_color);
 
-    // Radial gradient overlay for green mode (nearly done state)
     if (green_mode) {
-        auto grad = make_shared<GreenGradientBg>(
+        auto frame = make_shared<GreenFrameBorder>(
             Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
-        container->add(grad);
+        container->add(frame);
     }
 
     // Logo (top-left, full Figma size)
@@ -690,38 +700,52 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
 }
 
 // ── TREATMENT NEARLY DONE SCREEN ───────────────────────────────────────────
-// Figma: Full green background, white text, countdown from nearly_finished_threshold→0.
-// Transitions to completed (if treatment done) or position_tip (if next cycle).
+// Figma 67:578: white interior framed by a green border band. Same dark
+// text and layout as the normal cycle screen — the only "urgency" cue is
+// the green frame + dashed bar in place of segmented dots. Transitions to
+// completed (if treatment done) or position_tip (if next cycle).
 static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int remaining_seconds)
 {
     auto [container, cum_time_lbl] = make_treatment_container(state, true, true);
 
     auto remaining = make_shared<int>(remaining_seconds);
 
-    // Large countdown in white
+    // Large countdown — dark text (the frame already carries the green cue)
     auto countdown_label = make_shared<Label>(
         to_string(*remaining),
         Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     countdown_label->font(dt::fontHuge());
-    countdown_label->color(Palette::ColorId::label_text, dt::kWhite);
+    countdown_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(countdown_label);
 
-    // Status text in white
+    // Status text — dark
     auto status = make_shared<Label>("Treatment nearly finished",
         Rect(0, STATUS_Y, dt::SCREEN_W, 30));
     status->font(dt::fontBody());
-    status->color(Palette::ColorId::label_text, dt::kWhite);
+    status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status);
 
-    // Segmented progress dots
-    add_segmented_progress(container, state);
+    // Dashed progress bar replaces the round dots. Green dashes represent
+    // time REMAINING in this final stretch — full at the start, draining
+    // from right to left as the seconds tick down.
+    const int total_dashes = 30;
+    const int threshold    = state->config.nearly_finished_threshold;
+    int filled = (threshold > 0)
+        ? (*remaining * total_dashes) / threshold
+        : 0;
+    if (filled < 0) filled = 0;
+    if (filled > total_dashes) filled = total_dashes;
+    auto dash_bar = make_shared<DashedProgressBar>(
+        Rect(60, DOTS_Y - 4, dt::SCREEN_W - 120, 12),
+        total_dashes, filled);
+    container->add(dash_bar);
 
-    // Buttons: white bg + green text (stand out on green background)
+    // Buttons — standard outlined (dark text on white bg)
     auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
 
     auto btn_pause = make_action_button("Pause", "Treatment",
         Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
-        BTN_WHITE_GREEN_FG,
+        BTN_OUTLINED,
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_treatment_paused(state);
@@ -730,7 +754,7 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
 
     auto btn_end = make_action_button("End", "Treatment",
         Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
-        BTN_WHITE_GREEN_FG,
+        BTN_OUTLINED,
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_end_confirmation(state);
@@ -743,8 +767,9 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
     *timer_ref = timer;
     state->active_timer = timer;
 
-    weak_ptr<Label> w_countdown = countdown_label;
-    weak_ptr<Label> w_cum_time  = cum_time_lbl;
+    weak_ptr<Label>             w_countdown = countdown_label;
+    weak_ptr<Label>             w_cum_time  = cum_time_lbl;
+    weak_ptr<DashedProgressBar> w_dash      = dash_bar;
 
     timer->on_timeout([=]() {
         if (!*state->alive) { timer->cancel(); return; }
@@ -755,6 +780,11 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
             lb->text(to_string(*remaining));
         if (auto ct = w_cum_time.lock())
             ct->text(TreatmentState::format_time(state->cumulative_seconds));
+        if (auto db = w_dash.lock()) {
+            db->set_filled((threshold > 0)
+                ? (*remaining * total_dashes) / threshold
+                : 0);
+        }
 
         // Treatment target reached?
         if (state->is_complete()) {
