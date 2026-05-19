@@ -314,20 +314,31 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
         mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
         frame->add(mode);
 
+        // Frame + centered Label, click handler — same approach as
+        // Compact to avoid egt::Button's notch artifact at small sizes.
         const int btn_w = 72, btn_h = 38;
         const int btn_x = (badge_w - btn_w) / 2;
-        auto leave_btn = make_shared<Button>("↩",
-            Rect(btn_x, 68, btn_w, btn_h));
-        leave_btn->font(Font(22, Font::Weight::bold));
-        leave_btn->color(Palette::ColorId::button_bg, dt::kWhite);
-        leave_btn->color(Palette::ColorId::button_text, dt::kAccentCyan);
-        leave_btn->color(Palette::ColorId::border, palette::kGray400);
-        leave_btn->border_radius(dt::RADIUS_XS);
-        leave_btn->border(1);
-        if (on_leave) leave_btn->on_click([on_leave](Event&) { on_leave(); });
+        auto leave_btn = make_shared<Frame>(Rect(btn_x, 68, btn_w, btn_h));
+        leave_btn->fill_flags({Theme::FillFlag::blend});
+        leave_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
+        leave_btn->color(Palette::ColorId::border, dt::kAccentCyan);
+        leave_btn->border_radius(dt::RADIUS_SM);
+        leave_btn->border(0);
+
+        auto card_arrow = make_shared<Label>("↩",
+            Rect(0, 0, btn_w, btn_h), AlignFlag::center);
+        card_arrow->font(Font(22, Font::Weight::bold));
+        card_arrow->color(Palette::ColorId::label_text, dt::kWhite);
+        leave_btn->add(card_arrow);
+
+        if (on_leave) {
+            leave_btn->on_event([on_leave](Event& e) {
+                if (e.id() == EventId::pointer_click) on_leave();
+            }, {EventId::pointer_click});
+        }
         frame->add(leave_btn);
 
-        return {frame, leave_btn};
+        return {frame, nullptr};
     }
 
     // ── Compact variant ────────────────────────────────────────────────
