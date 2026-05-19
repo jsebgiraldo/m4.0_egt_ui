@@ -166,20 +166,25 @@ shared_ptr<Widget> create_password_prompt_screen(
     // Recalcular y base del teclado según nueva altura ocupada
     int keyboard_top = y_cursor + 70 + 10;
 
-    auto keyboard_frame = make_shared<Frame>(Rect(32, keyboard_top, CARD_W - 64, CARD_H - keyboard_top - 10));
+    auto keyboard_frame = make_shared<Frame>(Rect(24, keyboard_top, CARD_W - 48, CARD_H - keyboard_top - 10));
     keyboard_frame->color(Palette::ColorId::bg, dt::kWhite);
     card->add(keyboard_frame);
 
     auto shift_on = make_shared<bool>(false);
-    int tw = CARD_W - 64;  // total keyboard width
+    int tw = CARD_W - 48;  // total keyboard width (tighter horizontal padding)
 
-    // Key geometry. rw = reference row width (row 1, 11 keys + 10 gaps) is
-    // the canvas the other rows must align to so every row starts/ends at
-    // the same x. sy is computed so the 4-row block sits vertically centred
-    // inside the keyboard_frame — no dead space at the bottom of the card.
-    const int kw = 54, kh = 52, gx = 6, gy = 8;
-    const int rw = 11 * kw + 10 * gx;
-    const int kb_left = (tw - rw) / 2;
+    // iOS-style key geometry — stretch keys (Return, shift, ?123, space) are
+    // visibly wider than letters. Row 1 is the alignment reference for rows
+    // 2 and 4; row 3 ends up a touch wider than row 1 because its 11 slots
+    // include 2 stretched shifts (same asymmetry iOS has). sy is computed so
+    // the 4-row block sits vertically centred — no dead space at the bottom.
+    const int kw = 56, kh = 54, gx = 6, gy = 9;
+    const int rw       = 11 * kw + 10 * gx;       // row 1 outer extent
+    const int sx1      = (tw - rw) / 2;           // row 1 left margin
+    const int return_w = kw + 26;                 // row 2 wide key
+    const int shift_w  = kw + 18;                 // row 3 wide keys
+    const int nkw      = kw + 22;                 // ?123 / ABC wide keys (row 4)
+    const int space_w  = rw - 2 * nkw - 2 * gx;   // space fills row 4 to row 1 edges
     const int content_h = 4 * kh + 3 * gy;
     const int sy = std::max(8, (CARD_H - keyboard_top - 10 - content_h) / 2);
 
@@ -235,13 +240,15 @@ shared_ptr<Widget> create_password_prompt_screen(
     auto switch_num = [kb_alpha, kb_num]() { kb_alpha->hide(); kb_num->show(); };
     auto switch_abc = [kb_alpha, kb_num]() { kb_alpha->show(); kb_num->hide(); };
 
-    // Wide-key sizes — all rows align to row 1's left/right edges (kb_left
-    // and kb_left+rw). The "stretch" keys (Return, shifts, ?123, space)
-    // absorb the difference so the row edges match cleanly.
-    const int return_w = rw - 9 * kw - 9 * gx;   // 9 letters + 9 gaps in row 2
-    const int shift_w  = kw;                     // row 3 has 11 slots — keep uniform
-    const int nkw      = kw + 24;                // ?123 / ABC corner keys
-    const int space_w  = rw - 2 * nkw - 2 * gx;  // space bar absorbs the rest
+    // Row-specific start x (each row centred within tw). Row 2 is narrower
+    // than row 1 → looks inset (iOS look); row 3 is a touch wider thanks to
+    // the stretched shifts (also iOS-like). Row 4 deliberately re-uses sx1
+    // so its outer edges align with row 1 — that was the bug we fixed.
+    const int rw2 = 9 * kw + 9 * gx + return_w;
+    const int sx2 = (tw - rw2) / 2;
+    const int rw3 = 2 * shift_w + 9 * kw + 10 * gx;
+    const int sx3 = (tw - rw3) / 2;
+    const int sx4 = sx1;  // align row 4 to row 1's outer extent
 
     // ── QWERTY layout ──────────────────────────────────────────────
     {
@@ -250,53 +257,53 @@ shared_ptr<Widget> create_password_prompt_screen(
         for (size_t i = 0; i < r1.size(); i++) {
             char c = r1[i];
             mk(kb_alpha, string(1, c),
-               kb_left + (int)i * (kw + gx), sy, kw, kh,
+               sx1 + (int)i * (kw + gx), sy, kw, kh,
                [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
         }
         mk(kb_alpha, "\xe2\x86\x90",
-           kb_left + 10 * (kw + gx), sy, kw, kh, do_bksp, true);
+           sx1 + 10 * (kw + gx), sy, kw, kh, do_bksp, true);
 
-        // Row 2: A S D F G H J K L Return — Return stretched to align right edge
+        // Row 2: A S D F G H J K L Return — Return stretched (iOS)
         int y2 = sy + kh + gy;
         string r2 = "ASDFGHJKL";
         for (size_t i = 0; i < r2.size(); i++) {
             char c = r2[i];
             mk(kb_alpha, string(1, c),
-               kb_left + (int)i * (kw + gx), y2, kw, kh,
+               sx2 + (int)i * (kw + gx), y2, kw, kh,
                [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
         }
         mk(kb_alpha, "Return",
-           kb_left + 9 * (kw + gx), y2, return_w, kh, do_enter, true);
+           sx2 + 9 * (kw + gx), y2, return_w, kh, do_enter, true);
 
-        // Row 3: ⇧ Z X C V B N M , ? ⇧ — 11 slots, all kw wide
+        // Row 3: ⇧ Z X C V B N M , ? ⇧ — shifts wider than letters (iOS)
         int y3 = y2 + kh + gy;
-        mk(kb_alpha, "\xe2\x87\xa7", kb_left, y3, shift_w, kh,
+        mk(kb_alpha, "\xe2\x87\xa7", sx3, y3, shift_w, kh,
            [shift_on]() { *shift_on = !(*shift_on); }, true);
         string r3 = "ZXCVBNM";
         for (size_t i = 0; i < r3.size(); i++) {
             char c = r3[i];
             mk(kb_alpha, string(1, c),
-               kb_left + (1 + (int)i) * (kw + gx), y3, kw, kh,
+               sx3 + shift_w + gx + (int)i * (kw + gx), y3, kw, kh,
                [type_ch, c, shift_on]() { type_ch(*shift_on ? c : (char)tolower(c)); });
         }
         mk(kb_alpha, ",",
-           kb_left + 8 * (kw + gx), y3, kw, kh,
+           sx3 + shift_w + gx + 7 * (kw + gx), y3, kw, kh,
            [type_ch]() { type_ch(','); });
         mk(kb_alpha, "?",
-           kb_left + 9 * (kw + gx), y3, kw, kh,
+           sx3 + shift_w + gx + 8 * (kw + gx), y3, kw, kh,
            [type_ch]() { type_ch('?'); });
         mk(kb_alpha, "\xe2\x87\xa7",
-           kb_left + 10 * (kw + gx), y3, shift_w, kh,
+           sx3 + shift_w + gx + 9 * (kw + gx), y3, shift_w, kh,
            [shift_on]() { *shift_on = !(*shift_on); }, true);
 
-        // Row 4: ?123 [space] ?123 — space absorbs the rest of rw
+        // Row 4: ?123 [space] ?123 — outer edges aligned with row 1
         int y4 = y3 + kh + gy;
-        mk(kb_alpha, "?123", kb_left, y4, nkw, kh, switch_num, true);
+        mk(kb_alpha, "?123", sx4, y4, nkw, kh, switch_num, true);
         mk(kb_alpha, "",
-           kb_left + nkw + gx, y4, space_w, kh,
+           sx4 + nkw + gx, y4, space_w, kh,
            [type_ch]() { type_ch(' '); });
         mk(kb_alpha, "?123",
-           kb_left + nkw + gx + space_w + gx, y4, nkw, kh, switch_num, true);
+           sx4 + nkw + gx + space_w + gx, y4, nkw, kh, switch_num, true);
     }
 
     // ── Numeric / Symbol layout ─────────────────────────────────────
@@ -306,11 +313,11 @@ shared_ptr<Widget> create_password_prompt_screen(
         for (size_t i = 0; i < n1.size(); i++) {
             char c = n1[i];
             mk(kb_num, string(1, c),
-               kb_left + (int)i * (kw + gx), sy, kw, kh,
+               sx1 + (int)i * (kw + gx), sy, kw, kh,
                [type_ch, c]() { type_ch(c); });
         }
         mk(kb_num, "\xe2\x86\x90",
-           kb_left + 10 * (kw + gx), sy, kw, kh, do_bksp, true);
+           sx1 + 10 * (kw + gx), sy, kw, kh, do_bksp, true);
 
         // Row 2: @ # $ _ & - + ( ) Return
         int y2 = sy + kh + gy;
@@ -318,33 +325,33 @@ shared_ptr<Widget> create_password_prompt_screen(
         for (size_t i = 0; i < n2.size(); i++) {
             char c = n2[i];
             mk(kb_num, string(1, c),
-               kb_left + (int)i * (kw + gx), y2, kw, kh,
+               sx2 + (int)i * (kw + gx), y2, kw, kh,
                [type_ch, c]() { type_ch(c); });
         }
         mk(kb_num, "Return",
-           kb_left + 9 * (kw + gx), y2, return_w, kh, do_enter, true);
+           sx2 + 9 * (kw + gx), y2, return_w, kh, do_enter, true);
 
-        // Row 3: = * " ' : ; ! ~ / . (10 slots, centred between row 1 edges)
+        // Row 3: = * " ' : ; ! ~ / . (10 slots, centred under row 1)
         int y3 = y2 + kh + gy;
         const char* n3_labels[] = {"=","*","\"","'",":",";","!","~","/","."};
         const char  n3_chars[]  = {'=','*','"','\'',':',';','!','~','/','.'};
-        const int r3w = 10 * kw + 9 * gx;
-        const int sx3 = kb_left + (rw - r3w) / 2;
+        const int r3w_num = 10 * kw + 9 * gx;
+        const int sx3_num = sx1 + (rw - r3w_num) / 2;
         for (int i = 0; i < 10; i++) {
             char c = n3_chars[i];
             mk(kb_num, n3_labels[i],
-               sx3 + i * (kw + gx), y3, kw, kh,
+               sx3_num + i * (kw + gx), y3, kw, kh,
                [type_ch, c]() { type_ch(c); });
         }
 
         // Row 4: ABC [space] ABC — mirrors alpha layout
         int y4 = y3 + kh + gy;
-        mk(kb_num, "ABC", kb_left, y4, nkw, kh, switch_abc, true);
+        mk(kb_num, "ABC", sx4, y4, nkw, kh, switch_abc, true);
         mk(kb_num, "",
-           kb_left + nkw + gx, y4, space_w, kh,
+           sx4 + nkw + gx, y4, space_w, kh,
            [type_ch]() { type_ch(' '); });
         mk(kb_num, "ABC",
-           kb_left + nkw + gx + space_w + gx, y4, nkw, kh, switch_abc, true);
+           sx4 + nkw + gx + space_w + gx, y4, nkw, kh, switch_abc, true);
     }
 
     return main_frame;
