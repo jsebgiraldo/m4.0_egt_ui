@@ -433,7 +433,7 @@ void ChevronLeft::draw(Painter& painter, const Rect&)
 }
 
 // ── Back button (standard bottom-left, identical across screens) ──────────
-void add_back_button(Frame& container, function<void()> on_click)
+shared_ptr<Frame> add_back_button(Frame& container, function<void()> on_click)
 {
     // Coordinates from Figma 2073:1996 (Settings screen reference).
     constexpr int circle_d = 46;
@@ -443,36 +443,52 @@ void add_back_button(Frame& container, function<void()> on_click)
     constexpr int chev_h   = 44;
     constexpr int gap      = 10;
 
-    auto circle = make_shared<Frame>(Rect(back_x, back_y, circle_d, circle_d));
+    // Wrapper covering all back widgets so the caller can toggle the whole
+    // affordance visible/invisible as a unit (e.g. when an overlay is shown).
+    auto wrap = make_shared<Frame>(
+        Rect(back_x - 6, back_y - 4, circle_d + gap + 120 + 12, circle_d + 8));
+    wrap->fill_flags({});
+    wrap->color(Palette::ColorId::bg, dt::kTransparent);
+    wrap->border(0);
+    container.add(wrap);
+
+    // All children below position relative to the wrap origin.
+    constexpr int wrap_x_offset = 6;
+    constexpr int wrap_y_offset = 4;
+
+    auto circle = make_shared<Frame>(
+        Rect(wrap_x_offset, wrap_y_offset, circle_d, circle_d));
     circle->fill_flags({Theme::FillFlag::blend});
     circle->color(Palette::ColorId::bg, palette::kGray200);
     circle->border(0);
     circle->border_radius(circle_d / 2);
-    container.add(circle);
+    wrap->add(circle);
 
     auto chev = make_shared<ChevronLeft>(
-        Rect(back_x + (circle_d - chev_w) / 2,
-             back_y + (circle_d - chev_h) / 2,
+        Rect(wrap_x_offset + (circle_d - chev_w) / 2,
+             wrap_y_offset + (circle_d - chev_h) / 2,
              chev_w, chev_h));
-    container.add(chev);
+    wrap->add(chev);
 
     auto lbl = make_shared<Label>("Back",
-        Rect(back_x + circle_d + gap, back_y, 120, circle_d));
+        Rect(wrap_x_offset + circle_d + gap, wrap_y_offset, 120, circle_d));
     lbl->font(Font(15, Font::Weight::bold));
     lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    container.add(lbl);
+    wrap->add(lbl);
 
-    // Single hit zone over circle + label so a tap on either fires on_click.
+    // Hit zone — transparent overlay covering the whole wrap.
     auto hit = make_shared<Frame>(
-        Rect(back_x - 6, back_y - 4, circle_d + gap + 120 + 12, circle_d + 8));
+        Rect(0, 0, wrap->width(), wrap->height()));
     hit->fill_flags({Theme::FillFlag::blend});
     hit->color(Palette::ColorId::bg, dt::kTransparent);
     hit->border(0);
-    container.add(hit);
+    wrap->add(hit);
     hit->on_event([on_click](Event&) {
         if (on_click) on_click();
     }, {EventId::pointer_click});
+
+    return wrap;
 }
 
 } // namespace ui

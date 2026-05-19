@@ -96,7 +96,12 @@ std::shared_ptr<egt::Widget> create_logo(int x, int y, int w, int h);
 /// Layout: 46-px gray circle at (27, 414) + chevron glyph centred inside +
 /// "Back" label to the right + a transparent hit-zone covering both. Tapping
 /// either the circle or the label invokes on_click.
-void add_back_button(egt::Frame& container, std::function<void()> on_click);
+///
+/// Returns the wrapper Frame holding all back widgets — call `->visible(false)`
+/// on it to hide the whole thing (and disable the hit zone) when an overlay
+/// or modal is showing.
+std::shared_ptr<egt::Frame> add_back_button(
+    egt::Frame& container, std::function<void()> on_click);
 
 // Chevron-left glyph (filled with the primary text colour). Exposed so
 // other screens can re-use it without duplicating the Painter primitives.

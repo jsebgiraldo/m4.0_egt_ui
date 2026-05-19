@@ -575,8 +575,16 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
     rebuild_rows();
 
-    // ── Skip WiFi button button (bottom-right, OUTSIDE the card) ────────────────
-    // Positioned in the strip below the card
+    // ── Back button — shared layout via ui::add_back_button ────────────────
+    // Created BEFORE the Skip / overlay block so the overlay show/hide
+    // callbacks can capture it and toggle visibility as a unit when the
+    // Override modal opens.
+    auto back_widget = ui::add_back_button(*container, [alive, on_back]() {
+        *alive = false;
+        if (on_back) on_back();
+    });
+
+    // ── Skip WiFi button + Override overlay (bottom-right, OUTSIDE card) ──
     {
         // Mirror the Back button (46×46 @ y=414) on the right edge so the
         // bottom strip reads as a symmetric pair: chevron-Back left, wifi-off
@@ -590,7 +598,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
         container->add(skip_btn);
 
-        // ── Override overlay (hidden until skip button is tapped) ──────────────
+        // ── Override overlay (hidden until skip button is tapped) ──────────
         auto overlay = make_shared<Frame>(
             Rect(0, dt::SCREEN_H * 2 / 5, dt::SCREEN_W, dt::SCREEN_H * 3 / 5));
         overlay->fill_flags({Theme::FillFlag::blend});
@@ -599,15 +607,23 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         overlay->visible(false);
         container->add(overlay);
 
-        // X close button (top-right of overlay)
+        // X close button (top-right of overlay). Bigger than before so the
+        // user has a clear single tap target — the user explicitly asked.
+        const int x_sz = 64;
         auto btn_close = make_shared<Label>("\xE2\x9C\x95",
-            Rect(overlay->width() - 50, 10, 40, 40));
-        btn_close->font(Font(24, Font::Weight::bold));
+            Rect(overlay->width() - x_sz - 12, 8, x_sz, x_sz));
+        btn_close->font(Font(40, Font::Weight::bold));
         btn_close->color(Palette::ColorId::label_text, dt::kWhite);
+        btn_close->text_align(AlignFlag::center);
         overlay->add(btn_close);
-        btn_close->on_event([overlay](Event&) {
+        btn_close->on_event([overlay, back_widget, skip_btn](Event&) {
+            // Closing the modal restores the bottom strip controls.
             overlay->visible(false);
             overlay->damage();
+            back_widget->visible(true);
+            back_widget->damage();
+            skip_btn->visible(true);
+            skip_btn->damage();
         }, {EventId::pointer_click});
 
         // "If Wifi Network is Temporarily Unavailable" text
@@ -646,18 +662,17 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             on_connect("", "");  // triggers override flow in app.cpp
         }, {EventId::pointer_click});
 
-        // Show overlay when skip button is tapped
-        skip_btn->on_event([overlay](Event&) {
+        // Show overlay when skip button is tapped — and hide the bottom-strip
+        // controls so the X is the only way out.
+        skip_btn->on_event([overlay, back_widget, skip_btn](Event&) {
             overlay->visible(true);
             overlay->damage();
+            back_widget->visible(false);
+            back_widget->damage();
+            skip_btn->visible(false);
+            skip_btn->damage();
         }, {EventId::pointer_click});
     }
-
-    // ── Back button — shared layout via ui::add_back_button ────────────────
-    ui::add_back_button(*container, [alive, on_back]() {
-        *alive = false;
-        if (on_back) on_back();
-    });
 
     // ── Auto-retry scan when no networks found ──────────────────────────────
     if (nets->empty() && on_show_screen) {
