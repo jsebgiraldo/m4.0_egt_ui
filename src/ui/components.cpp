@@ -283,32 +283,43 @@ CumulativeTimeFooter create_cumulative_time_footer(int x, int y, int width)
 }
 
 // ── Demo Mode Badge ────────────────────────────────────────────────────────
-// Vertical layout: "DEMO MODE" label on top, "Exit" button centered below.
+// Compact 2-line "DEMO / MODE" label on top + small arrow-icon exit button
+// below. Matches Figma 67:578 — the prior version was a big gray "Exit"
+// pill that drew too much attention away from the treatment content.
 DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave)
 {
-    const int badge_w = 140;
-    const int badge_h = 80;
+    const int badge_w = 100;
+    const int badge_h = 90;
     auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
     frame->color(Palette::ColorId::bg, dt::kTransparent);
     frame->border(0);
 
-    // DEMO MODE text — top, full width, centered
-    auto badge = make_shared<Label>("DEMO MODE",
-        Rect(0, 0, badge_w, 30), AlignFlag::center);
-    badge->font(Font(18, Font::Weight::bold));
-    badge->color(Palette::ColorId::label_text, dt::kAccentCyan);
-    frame->add(badge);
+    // "DEMO" on top
+    auto demo = make_shared<Label>("DEMO",
+        Rect(0, 0, badge_w, 24), AlignFlag::center);
+    demo->font(Font(16, Font::Weight::bold));
+    demo->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    frame->add(demo);
 
-    // Exit button — bottom, centered
-    const int btn_w = 80, btn_h = 36;
+    // "MODE" below
+    auto mode = make_shared<Label>("MODE",
+        Rect(0, 22, badge_w, 24), AlignFlag::center);
+    mode->font(Font(16, Font::Weight::bold));
+    mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    frame->add(mode);
+
+    // Small exit-icon button — rounded white square with a leave arrow.
+    // The arrow is a unicode character so we don't need a separate SVG.
+    const int btn_w = 44, btn_h = 32;
     const int btn_x = (badge_w - btn_w) / 2;
-    auto leave_btn = make_shared<Button>("Exit",
-        Rect(btn_x, 36, btn_w, btn_h));
-    leave_btn->font(Font(14, Font::Weight::bold));
-    leave_btn->color(Palette::ColorId::button_bg, dt::kGrayLight);
+    auto leave_btn = make_shared<Button>("↪",   // ↪ "leftwards arrow with hook"
+        Rect(btn_x, 52, btn_w, btn_h));
+    leave_btn->font(Font(18, Font::Weight::bold));
+    leave_btn->color(Palette::ColorId::button_bg, dt::kWhite);
     leave_btn->color(Palette::ColorId::button_text, dt::kAccentCyan);
+    leave_btn->color(Palette::ColorId::border, dt::kGrayLight);
     leave_btn->border_radius(dt::RADIUS_XS);
-    leave_btn->border(0);
+    leave_btn->border(1);
     if (on_leave) {
         leave_btn->on_click([on_leave](Event&) { on_leave(); });
     }

@@ -9,40 +9,6 @@
 using namespace egt;
 using namespace std;
 
-// ── Green frame border for "nearly done" screen ────────────────────────────
-// Matches Figma node 67:578: a chunky green band around the perimeter with
-// a white interior, instead of a full-screen green wash. Signals "treatment
-// nearly finished" without taking over the whole UI.
-class GreenFrameBorder : public Widget {
-public:
-    explicit GreenFrameBorder(const Rect& rect, int border_w = 14)
-        : Widget(rect), m_border_w(border_w)
-    {
-        fill_flags({Theme::FillFlag::blend});
-        border(0);
-    }
-
-    void draw(Painter& painter, const Rect& /*rect*/) override
-    {
-        auto b = content_area();
-        // Outer green rectangle (the visible band).
-        painter.set(dt::kGreen);
-        painter.draw(b);
-        painter.fill();
-        // Inner white rectangle — everything inside this stays white so
-        // text and dots render exactly like a normal treatment screen.
-        const int bw = m_border_w;
-        Rect inner(b.x() + bw, b.y() + bw,
-                   b.width() - 2 * bw, b.height() - 2 * bw);
-        painter.set(dt::kWhite);
-        painter.draw(inner);
-        painter.fill();
-    }
-
-private:
-    int m_border_w;
-};
-
 // Dashed progress bar used on the nearly-finished screen. Renders as a
 // row of N small green dashes with the trailing M dashes greyed out to
 // indicate remaining time. Matches the Figma styling (5 groups of small
@@ -64,9 +30,9 @@ public:
     void draw(Painter& painter, const Rect& /*rect*/) override
     {
         auto b = content_area();
-        const int dash_w = 10;
-        const int dash_h = 4;
-        const int small_gap = 4;
+        const int dash_w = 12;
+        const int dash_h = 6;
+        const int small_gap = 3;
         const int total_w = m_total * dash_w + (m_total - 1) * small_gap;
         const int start_x = b.x() + (b.width() - total_w) / 2;
         const int dash_y  = b.y() + (b.height() - dash_h) / 2;
@@ -176,9 +142,26 @@ static TreatmentScreen make_treatment_container(
     container->color(Palette::ColorId::bg, bg_color);
 
     if (green_mode) {
-        auto frame = make_shared<GreenFrameBorder>(
+        // Outer green band with rounded corners + inner white rectangle
+        // (also rounded, slightly smaller radius) — gives the chunky
+        // pill-frame look from Figma 67:578 without drawing it pixel by
+        // pixel in a custom widget.
+        const int bw = 14;
+        auto green_outer = make_shared<Frame>(
             Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
-        container->add(frame);
+        green_outer->fill_flags({Theme::FillFlag::blend});
+        green_outer->color(Palette::ColorId::bg, dt::kGreen);
+        green_outer->border(0);
+        green_outer->border_radius(20);
+        container->add(green_outer);
+
+        auto white_inner = make_shared<Frame>(
+            Rect(bw, bw, dt::SCREEN_W - 2 * bw, dt::SCREEN_H - 2 * bw));
+        white_inner->fill_flags({Theme::FillFlag::blend});
+        white_inner->color(Palette::ColorId::bg, dt::kBgWhite);
+        white_inner->border(0);
+        white_inner->border_radius(8);
+        container->add(white_inner);
     }
 
     // Logo (top-left, full Figma size)
@@ -212,8 +195,8 @@ static TreatmentScreen make_treatment_container(
         cum_time_lbl->color(Palette::ColorId::label_text, text_color);
         container->add(cum_time_lbl);
 
-        // Description (left side)
-        auto desc = make_shared<Label>("Cumulative treatment time",
+        // Description (left side) — uppercase per Figma 67:578
+        auto desc = make_shared<Label>("CUMULATIVE TREATMENT TIME",
             Rect(CUM_LEFT_X, CUM_TIME_Y + 3, CUM_WIDTH / 2, 30),
             AlignFlag::left);
         desc->font(Font(18, Font::Weight::normal));
@@ -256,6 +239,7 @@ static shared_ptr<Frame> make_action_button(
     frame->color(Palette::ColorId::border, style.border);
     frame->border(style.border_width);
     frame->border_radius(dt::RADIUS_MD);
+    frame->border_flags({Theme::BorderFlag::drop_shadow});
 
     // Big verb (top) — 30 pt bold dominates the visual weight.
     auto big = make_shared<Label>(big_text,
@@ -736,7 +720,7 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
     if (filled < 0) filled = 0;
     if (filled > total_dashes) filled = total_dashes;
     auto dash_bar = make_shared<DashedProgressBar>(
-        Rect(60, DOTS_Y - 4, dt::SCREEN_W - 120, 12),
+        Rect(60, DOTS_Y - 6, dt::SCREEN_W - 120, 16),
         total_dashes, filled);
     container->add(dash_bar);
 
