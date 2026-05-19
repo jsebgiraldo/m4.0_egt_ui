@@ -290,17 +290,20 @@ static void center_pct_group(int value,
                              shared_ptr<Label> pct_label,
                              int num_y, int num_h, int pct_y)
 {
-    constexpr int PCT_GLYPH_W = 65;   // "%" at 56 pt bold
     constexpr int NUM_PCT_GAP = 10;
-    const int n_w     = pct_number_width_120(value);
-    const int total_w = n_w + NUM_PCT_GAP + PCT_GLYPH_W;
-    const int start_x = (dt::SCREEN_W - total_w) / 2;
+    const int n_w = pct_number_width_120(value);
 
-    num_label->move(Point(start_x, num_y));
+    // Centre the NUMBER on the screen — the % hangs off to the right as a
+    // unit suffix. Centring the whole "NN%" composite geometrically looks
+    // off-axis because the % is visually much lighter than the digits, so
+    // the digits read as shifted left of centre. Apple Watch / iOS fitness
+    // apps use this same convention: the value dominates, the unit floats.
+    const int num_x = (dt::SCREEN_W - n_w) / 2;
+    num_label->move(Point(num_x, num_y));
     num_label->resize(Size(n_w, num_h));
     num_label->text_align(AlignFlag::center);
 
-    pct_label->move(Point(start_x + n_w + NUM_PCT_GAP, pct_y));
+    pct_label->move(Point(num_x + n_w + NUM_PCT_GAP, pct_y));
 }
 
 // ── WARMING SCREEN ──────────────────────────────────────────────────────────
