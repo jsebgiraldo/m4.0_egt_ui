@@ -292,8 +292,8 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
                                      DemoBadgeStyle style)
 {
     if (style == DemoBadgeStyle::Card) {
-        const int badge_w = 130;
-        const int badge_h = 116;
+        const int badge_w = 150;
+        const int badge_h = 134;
         auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
         frame->fill_flags({Theme::FillFlag::blend});
         frame->color(Palette::ColorId::bg, dt::kWhite);
@@ -303,22 +303,22 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
         frame->border_flags({Theme::BorderFlag::drop_shadow});
 
         auto demo = make_shared<Label>("DEMO",
-            Rect(0, 8, badge_w, 26), AlignFlag::center);
-        demo->font(Font(20, Font::Weight::bold));
+            Rect(0, 10, badge_w, 28), AlignFlag::center);
+        demo->font(Font(22, Font::Weight::bold));
         demo->color(Palette::ColorId::label_text, dt::kAccentCyan);
         frame->add(demo);
 
         auto mode = make_shared<Label>("MODE",
-            Rect(0, 32, badge_w, 26), AlignFlag::center);
-        mode->font(Font(20, Font::Weight::bold));
+            Rect(0, 38, badge_w, 28), AlignFlag::center);
+        mode->font(Font(22, Font::Weight::bold));
         mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
         frame->add(mode);
 
         // Frame + centered Label, click handler — same approach as
         // Compact to avoid egt::Button's notch artifact at small sizes.
-        const int btn_w = 72, btn_h = 38;
+        const int btn_w = 84, btn_h = 42;
         const int btn_x = (badge_w - btn_w) / 2;
-        auto leave_btn = make_shared<Frame>(Rect(btn_x, 68, btn_w, btn_h));
+        auto leave_btn = make_shared<Frame>(Rect(btn_x, 78, btn_w, btn_h));
         leave_btn->fill_flags({Theme::FillFlag::blend});
         leave_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
         leave_btn->color(Palette::ColorId::border, dt::kAccentCyan);
@@ -327,7 +327,7 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
 
         auto card_arrow = make_shared<Label>("↩",
             Rect(0, 0, btn_w, btn_h), AlignFlag::center);
-        card_arrow->font(Font(22, Font::Weight::bold));
+        card_arrow->font(Font(24, Font::Weight::bold));
         card_arrow->color(Palette::ColorId::label_text, dt::kWhite);
         leave_btn->add(card_arrow);
 

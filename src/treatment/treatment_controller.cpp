@@ -171,7 +171,7 @@ static TreatmentScreen make_treatment_container(
     // Demo mode badge (top-right, vertical: DEMO MODE label + Exit below)
     if (state->config.demo_mode) {
         auto badge = ui::create_demo_mode_badge(
-            dt::SCREEN_W - 146, 8, state->callbacks.on_leave_to_home);
+            dt::SCREEN_W - 180, 24, state->callbacks.on_leave_to_home);
         container->add(badge.frame);
     }
 
