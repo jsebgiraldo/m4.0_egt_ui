@@ -576,101 +576,29 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     rebuild_rows();
 
     // ── Back button — shared layout via ui::add_back_button ────────────────
-    // Created BEFORE the Skip / overlay block so the overlay show/hide
-    // callbacks can capture it and toggle visibility as a unit when the
-    // Override modal opens.
-    auto back_widget = ui::add_back_button(*container, [alive, on_back]() {
+    ui::add_back_button(*container, [alive, on_back]() {
         *alive = false;
         if (on_back) on_back();
     });
 
-    // ── Skip WiFi button + Override overlay (bottom-right, OUTSIDE card) ──
+    // ── Wi-Fi-off icon (bottom-right) — goes directly to the "Not Connected"
+    // screen (screen_wifi_unavailable). The previous translucent overlay has
+    // been removed — Figma uses a dedicated screen for the override flow,
+    // not a modal. Tapping the icon fires on_connect("", "") which app.cpp
+    // routes to show_wifi_unavailable.
     {
-        // Mirror the Back button (46×46 @ y=414) on the right edge so the
-        // bottom strip reads as a symmetric pair: chevron-Back left, wifi-off
-        // right. Figma node 151:886 places both glyphs at the same size.
+        // Mirror the Back button (46×46 @ y=414) on the right edge.
         const int icon_sz = 46;
-        const int icon_x  = dt::SCREEN_W - icon_sz - 27;  // mirror Back's x=27
-        const int icon_y  = 414;                          // same y as Back
+        const int icon_x  = dt::SCREEN_W - icon_sz - 27;
+        const int icon_y  = 414;
 
         auto skip_btn = make_shared<SkipWiFiButton>(
             Rect(icon_x, icon_y, icon_sz, icon_sz));
-
         container->add(skip_btn);
 
-        // ── Override overlay (hidden until skip button is tapped) ──────────
-        auto overlay = make_shared<Frame>(
-            Rect(0, dt::SCREEN_H * 2 / 5, dt::SCREEN_W, dt::SCREEN_H * 3 / 5));
-        overlay->fill_flags({Theme::FillFlag::blend});
-        overlay->color(Palette::ColorId::bg, Color(80, 80, 80, 220));
-        overlay->border(0);
-        overlay->visible(false);
-        container->add(overlay);
-
-        // X close button (top-right of overlay). Bigger than before so the
-        // user has a clear single tap target — the user explicitly asked.
-        const int x_sz = 64;
-        auto btn_close = make_shared<Label>("\xE2\x9C\x95",
-            Rect(overlay->width() - x_sz - 12, 8, x_sz, x_sz));
-        btn_close->font(Font(40, Font::Weight::bold));
-        btn_close->color(Palette::ColorId::label_text, dt::kWhite);
-        btn_close->text_align(AlignFlag::center);
-        overlay->add(btn_close);
-        btn_close->on_event([overlay, back_widget, skip_btn](Event&) {
-            // Closing the modal restores the bottom strip controls.
-            overlay->visible(false);
-            overlay->damage();
-            back_widget->visible(true);
-            back_widget->damage();
-            skip_btn->visible(true);
-            skip_btn->damage();
-        }, {EventId::pointer_click});
-
-        // "If Wifi Network is Temporarily Unavailable" text
-        auto overlay_title = make_shared<Label>(
-            "If Wifi Network is Temporarily Unavailable",
-            Rect(0, 30, overlay->width(), 40));
-        overlay_title->font(Font(dt::FONT_SUBTITLE, Font::Weight::bold));
-        overlay_title->color(Palette::ColorId::label_text, dt::kWhite);
-        overlay->add(overlay_title);
-
-        // "Temporarily operate device in OVERRIDE MODE" button (cyan)
-        const int ob_w = 500;
-        const int ob_h = 100;
-        auto override_btn = make_shared<Frame>(
-            Rect((overlay->width() - ob_w) / 2, 90, ob_w, ob_h));
-        override_btn->fill_flags({Theme::FillFlag::blend});
-        override_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
-        override_btn->border(0);
-        override_btn->border_radius(dt::RADIUS_MD);
-        overlay->add(override_btn);
-
-        auto ob_line1 = make_shared<Label>("Temporarily operate device in",
-            Rect(0, 10, ob_w, 30));
-        ob_line1->font(Font(18, Font::Weight::normal));
-        ob_line1->color(Palette::ColorId::label_text, dt::kWhite);
-        override_btn->add(ob_line1);
-
-        auto ob_line2 = make_shared<Label>("OVERRIDE MODE",
-            Rect(0, 40, ob_w, 50));
-        ob_line2->font(Font(32, Font::Weight::bold));
-        ob_line2->color(Palette::ColorId::label_text, dt::kWhite);
-        override_btn->add(ob_line2);
-
-        override_btn->on_event([=](Event&) {
+        skip_btn->on_event([=](Event&) {
             *alive = false;
-            on_connect("", "");  // triggers override flow in app.cpp
-        }, {EventId::pointer_click});
-
-        // Show overlay when skip button is tapped — and hide the bottom-strip
-        // controls so the X is the only way out.
-        skip_btn->on_event([overlay, back_widget, skip_btn](Event&) {
-            overlay->visible(true);
-            overlay->damage();
-            back_widget->visible(false);
-            back_widget->damage();
-            skip_btn->visible(false);
-            skip_btn->damage();
+            on_connect("", "");
         }, {EventId::pointer_click});
     }
 

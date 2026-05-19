@@ -231,11 +231,18 @@ void run_app(int argc, char** argv)
         ));
     };
 
-    // ── WIFI UNAVAILABLE (Figma: WIFI_UNAVAILABLE) ──────────────────
+    // ── WIFI UNAVAILABLE — "Not Connected" screen (Figma) ────────────
     show_wifi_unavailable = [&]() {
         printf("[NAV] -> WIFI_UNAVAILABLE\n"); fflush(stdout);
         screens.show(create_wifi_unavailable_screen(
-            [&]() { show_wifi_override_info(); }  // Continue -> Override Info
+            // Retry WiFi → go back to the network list (will re-scan)
+            [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); },
+            // Setting → open device Settings
+            [&]() { show_settings(); },
+            // Override → existing override-info flow (7-day countdown / password)
+            [&]() { show_wifi_override_info(); },
+            // Back → previous screen (the WiFi list)
+            [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); }
         ));
     };
 
@@ -249,14 +256,16 @@ void run_app(int argc, char** argv)
     };
 
     // ── Boot: start with WiFi Init (or a specific screen for diagnostics) ─
-    // EGT_START_SCREEN={settings|home|wifi-settings|login} lets the simulator
-    // skip the normal boot flow when iterating on a single screen.
+    // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable}
+    // lets the simulator skip the normal boot flow when iterating on a single
+    // screen.
     const char* start = std::getenv("EGT_START_SCREEN");
-    if      (start && std::string(start) == "settings")      show_settings();
-    else if (start && std::string(start) == "home")          show_home();
-    else if (start && std::string(start) == "wifi-settings") show_wifi_setup(nullptr, [&]() { show_home(); });
-    else if (start && std::string(start) == "login")         show_login(false);
-    else                                                     show_wifi_init();
+    if      (start && std::string(start) == "settings")          show_settings();
+    else if (start && std::string(start) == "home")              show_home();
+    else if (start && std::string(start) == "wifi-settings")     show_wifi_setup(nullptr, [&]() { show_home(); });
+    else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable();
+    else if (start && std::string(start) == "login")             show_login(false);
+    else                                                         show_wifi_init();
 
     win.show();
     app.run();
