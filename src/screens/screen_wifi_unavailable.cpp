@@ -120,8 +120,8 @@ shared_ptr<Frame> make_icon_button(int x, int y, int w, int h,
     frame->color(Palette::ColorId::border, dt::kGrayLight);
     frame->border_radius(8);
 
-    const int circle_d = 36;
-    const int circle_x = 14;
+    const int circle_d = 44;
+    const int circle_x = 16;
     const int circle_y = (h - circle_d) / 2;
     auto bg = make_shared<Frame>(Rect(circle_x, circle_y, circle_d, circle_d));
     bg->fill_flags({Theme::FillFlag::blend});
@@ -131,7 +131,7 @@ shared_ptr<Frame> make_icon_button(int x, int y, int w, int h,
     frame->add(bg);
 
     if (!icon.empty()) {
-        const int icon_sz = 22;
+        const int icon_sz = 26;
         auto icon_lbl = make_shared<ImageLabel>(icon);
         icon_lbl->fill_flags({});
         icon_lbl->color(Palette::ColorId::bg, palette::kGray200);
@@ -143,9 +143,9 @@ shared_ptr<Frame> make_icon_button(int x, int y, int w, int h,
     }
 
     auto lbl = make_shared<Label>(label,
-        Rect(circle_x + circle_d + 12, 0,
-             w - (circle_x + circle_d + 12) - 8, h));
-    lbl->font(Font(15, Font::Weight::bold));
+        Rect(circle_x + circle_d + 14, 0,
+             w - (circle_x + circle_d + 14) - 8, h));
+    lbl->font(Font(17, Font::Weight::bold));
     lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
     frame->add(lbl);
@@ -190,7 +190,7 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     // dark (not white-left). The wifi-off chip sits floating top-left and
     // does NOT push the text — the text rect uses the full banner width so
     // the two lines read centred on the page axis.
-    const int banner_h = 90;
+    const int banner_h = 100;
     auto banner = make_shared<Frame>(Rect(0, 0, card_w, banner_h));
     banner->fill_flags({Theme::FillFlag::blend});
     banner->color(Palette::ColorId::bg, dt::kOrange);
@@ -214,23 +214,24 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
 
     // Two centred dark lines spanning the full banner width.
     auto banner_l1 = make_shared<Label>("Wi-Fi Network not found.",
-        Rect(0, 18, card_w, 26));
-    banner_l1->font(Font(18, Font::Weight::bold));
+        Rect(0, 22, card_w, 28));
+    banner_l1->font(Font(19, Font::Weight::bold));
     banner_l1->color(Palette::ColorId::label_text, dt::kTextPrimary);
     banner_l1->text_align(AlignFlag::center);
     banner->add(banner_l1);
 
     auto banner_l2 = make_shared<Label>("No available network detected.",
-        Rect(0, 46, card_w, 26));
+        Rect(0, 52, card_w, 26));
     banner_l2->font(Font(16, Font::Weight::normal));
     banner_l2->color(Palette::ColorId::label_text, dt::kTextPrimary);
     banner_l2->text_align(AlignFlag::center);
     banner->add(banner_l2);
 
-    // ── 2) Override card — tap to toggle "selected" (cyan) then again to confirm ─
-    const int ov_y = banner_h + 20;
+    // ── 2) Override card — the hero of this screen. Taller card with bigger
+    //     icon + text so it dominates the layout, matching Figma weighting.
+    const int ov_y = banner_h + 24;
     const int ov_w = card_w - 60;
-    const int ov_h = 110;
+    const int ov_h = 150;
     const int ov_x = (card_w - ov_w) / 2;
     auto ov_card = make_shared<Frame>(Rect(ov_x, ov_y, ov_w, ov_h));
     ov_card->fill_flags({Theme::FillFlag::blend});
@@ -240,36 +241,42 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     ov_card->border_radius(10);
     card->add(ov_card);
 
-    // Override icon (wifi-off in a gray pill)
-    const int ov_glyph_d = 48;
+    // Override icon (wifi-off in a gray pill) — bumped from 48 → 64 to match
+    // the heavier hero treatment.
+    const int ov_glyph_d = 64;
     auto ov_chip = make_shared<Frame>(
-        Rect(20, (ov_h - ov_glyph_d) / 2, ov_glyph_d, ov_glyph_d));
+        Rect(24, (ov_h - ov_glyph_d) / 2, ov_glyph_d, ov_glyph_d));
     ov_chip->fill_flags({Theme::FillFlag::blend});
     ov_chip->color(Palette::ColorId::bg, palette::kGray200);
     ov_chip->border(0);
     ov_chip->border_radius(ov_glyph_d / 2);
     ov_card->add(ov_chip);
     auto ov_glyph = make_shared<WifiOffGlyph>(
-        Rect(20, (ov_h - ov_glyph_d) / 2, ov_glyph_d, ov_glyph_d), dt::kTextPrimary);
+        Rect(24, (ov_h - ov_glyph_d) / 2, ov_glyph_d, ov_glyph_d), dt::kTextPrimary);
     ov_card->add(ov_glyph);
 
+    // Text block centred vertically in the 150-tall card:
+    //   line1 (18 bold) + gap + line2 (14 normal) + line3 (14 bold) ≈ 80px
+    //   top = (150 - 80) / 2 = 35
+    const int tx = 24 + ov_glyph_d + 18;
+    const int tw = ov_w - tx - 20;
     auto ov_line1 = make_shared<Label>("Operate without WiFi",
-        Rect(20 + ov_glyph_d + 16, 22, ov_w - (20 + ov_glyph_d + 16) - 20, 24));
-    ov_line1->font(Font(16, Font::Weight::bold));
+        Rect(tx, 35, tw, 28));
+    ov_line1->font(Font(18, Font::Weight::bold));
     ov_line1->color(Palette::ColorId::label_text, dt::kTextPrimary);
     ov_line1->text_align(AlignFlag::left | AlignFlag::center_vertical);
     ov_card->add(ov_line1);
 
     auto ov_line2 = make_shared<Label>("Temporarily operate device in",
-        Rect(20 + ov_glyph_d + 16, 50, ov_w - (20 + ov_glyph_d + 16) - 20, 22));
-    ov_line2->font(Font(13, Font::Weight::normal));
+        Rect(tx, 70, tw, 24));
+    ov_line2->font(Font(14, Font::Weight::normal));
     ov_line2->color(Palette::ColorId::label_text, dt::kTextPrimary);
     ov_line2->text_align(AlignFlag::left | AlignFlag::center_vertical);
     ov_card->add(ov_line2);
 
     auto ov_line3 = make_shared<Label>("OVERRIDE MODE.",
-        Rect(20 + ov_glyph_d + 16, 70, ov_w - (20 + ov_glyph_d + 16) - 20, 22));
-    ov_line3->font(Font(13, Font::Weight::bold));
+        Rect(tx, 95, tw, 24));
+    ov_line3->font(Font(14, Font::Weight::bold));
     ov_line3->color(Palette::ColorId::label_text, dt::kTextPrimary);
     ov_line3->text_align(AlignFlag::left | AlignFlag::center_vertical);
     ov_card->add(ov_line3);
@@ -294,14 +301,14 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     }, {EventId::pointer_click});
 
     // ── 3) Bottom row: Retry WiFi + Setting ───────────────────────────────
-    const int row_y = ov_y + ov_h + 24;
-    const int row_h = 56;
+    const int row_y = ov_y + ov_h + 28;
+    const int row_h = 72;
     const int row_gap = 18;
     const int row_w = (card_w - 30 * 2 - row_gap) / 2;
 
     // Same gear glyph as HOME / Settings — single source of icon truth.
-    auto refresh_icon = load_svg_icon("refresh", kRefreshSvg, 22);
-    auto gear_icon    = load_svg_icon("gear",    kGearSvg,    22);
+    auto refresh_icon = load_svg_icon("refresh", kRefreshSvg, 26);
+    auto gear_icon    = load_svg_icon("gear",    kGearSvg,    26);
 
     auto retry = make_icon_button(
         30, row_y, row_w, row_h, "Retry WiFi", refresh_icon, on_retry_wifi);
