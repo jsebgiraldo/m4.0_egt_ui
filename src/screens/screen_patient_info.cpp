@@ -288,8 +288,12 @@ static shared_ptr<Widget> create_gender_step(
 {
     auto container = make_patient_step(0, demo_mode, on_leave_demo);
 
-    bool is_female = (info->gender == "Female");
-    if (info->gender.empty()) { info->gender = "Male"; is_female = false; }
+    // Tri-state: empty = neither card selected (after Skip / first visit),
+    // "Male" or "Female" = that card highlighted. We never auto-commit a
+    // default — that was the bug that made Skip leak "Male" into the
+    // summary even though the user explicitly opted out.
+    const bool has_gender = !info->gender.empty();
+    const bool is_female  = (info->gender == "Female");
 
     auto select_and_rebuild = [=](bool female) {
         info->gender = female ? "Female" : "Male";
@@ -304,7 +308,7 @@ static shared_ptr<Widget> create_gender_step(
     const int icon_sz = 66, icon_y = 18;
 
     auto build_card = [&](bool female_card) {
-        const bool selected = (female_card == is_female);
+        const bool selected = has_gender && (female_card == is_female);
         const int x = start_x + (female_card ? (card_w + gap) : 0);
 
         auto card = make_shared<Frame>(Rect(x, card_y, card_w, card_h));
@@ -355,6 +359,7 @@ static shared_ptr<Widget> create_gender_step(
         "skip-next-pi", kSkipNextSvg, "  Skip",
         Rect(292, 380, 156, 61),
         [=]() {
+            info->gender.clear();   // skip => no value collected
             if (on_show_screen)
                 on_show_screen(create_age_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
@@ -401,12 +406,14 @@ static shared_ptr<Widget> create_age_step(
     };
     const int num_ranges = 6;
 
-    // Default selection: 13-18 (index 2) when no age is set yet
+    // Default visible selection: 13-18 (index 2) when no age is set yet.
+    // IMPORTANT: we no longer commit info->age here — the value is only
+    // written when the user explicitly clicks Continue (or drags the
+    // picker). Otherwise Skip would leak the default into the summary.
     int sel = 2;
     for (int i = 0; i < num_ranges; i++) {
         if (info->age == ranges[i].low) { sel = i; break; }
     }
-    info->age = ranges[sel].low;  // commit the visible selection
 
     // Picker placed BELOW the tab divider+indicator (y=115) so the green
     // active-tab bar stays visible.
@@ -513,8 +520,10 @@ static shared_ptr<Widget> create_age_step(
         const int v = picker_slider->value();
         if (v != *live) {
             *live = v;
-            info->age = ranges[v].low;
             redraw(v);
+            // intentionally NOT committing info->age here — Continue does
+            // that. This keeps Skip honest even if the user dragged before
+            // changing their mind.
         }
     });
 
@@ -533,6 +542,7 @@ static shared_ptr<Widget> create_age_step(
         "skip-next-pi", kSkipNextSvg, "  Skip",
         Rect(292, 380, 156, 61),
         [=]() {
+            info->age = 0;  // skip => no value collected
             if (on_show_screen)
                 on_show_screen(create_zip_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
@@ -543,11 +553,10 @@ static shared_ptr<Widget> create_age_step(
         "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
         Rect(541, 380, 217, 61),
         [=]() {
-            if (info->age > 0) {
-                if (on_show_screen)
-                    on_show_screen(create_zip_step(demo_mode, info, on_complete,
-                        on_back, on_show_screen, on_leave_demo));
-            }
+            info->age = ranges[*live].low;  // commit the visible selection
+            if (on_show_screen)
+                on_show_screen(create_zip_step(demo_mode, info, on_complete,
+                    on_back, on_show_screen, on_leave_demo));
         },
         dt::kAccentCyan);
     container->add(btn_continue);
@@ -655,7 +664,15 @@ static shared_ptr<Widget> create_zip_step(
         "skip-next-pi", kSkipNextSvg, "  Skip",
         Rect(292, 380, 156, 61),
         [=]() {
-            if (on_complete) on_complete(*info);
+            info->zip_code.clear();  // skip => no value collected
+            if (on_show_screen)
+                on_show_screen(create_summary_step(demo_mode, info, on_complete,
+                    [=]() {
+                        if (on_show_screen)
+                            on_show_screen(create_zip_step(demo_mode, info, on_complete,
+                                on_back, on_show_screen, on_leave_demo));
+                    },
+                    on_show_screen, on_leave_demo));
         });
     container->add(btn_skip);
 
@@ -698,10 +715,11 @@ static shared_ptr<Widget> create_summary_step(
     card->border_radius(dt::RADIUS_MD);
     container->add(card);
 
-    // Row: label + bold value
+    // Row: label + bold value. Skipped fields show "-" so the summary
+    // honestly reflects what the user actually provided.
     struct SummaryRow { const char* label; string value; int y; };
     SummaryRow rows[] = {
-        {"Gender :",  info->gender,
+        {"Gender :",  info->gender.empty() ? "-" : info->gender,
                       165},
         {"Age:",      info->age > 0 ? to_string(info->age) : "-",
                       225},
@@ -709,16 +727,23 @@ static shared_ptr<Widget> create_summary_step(
                       285},
     };
 
+    // Centre the label+value group within the card. Card is at x=90, w=620
+    // → centre x = 400. Group: label(180) + gap(20) + value(220) = 420
+    // wide. Left edge: 400 - 420/2 = 190. Earlier the labels started at
+    // x=160 which left ~70px on the left and ~130px on the right — visibly
+    // off-centre. Now the padding is balanced inside the card.
+    const int lbl_x = 190, lbl_w = 180;
+    const int val_x = lbl_x + lbl_w + 20, val_w = 220;
     for (auto& r : rows) {
         auto lbl = make_shared<Label>(r.label,
-            Rect(160, r.y, 180, 40),
+            Rect(lbl_x, r.y, lbl_w, 40),
             AlignFlag::center_vertical | AlignFlag::right);
         lbl->font(Font(20, Font::Weight::normal));
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         container->add(lbl);
 
         auto val = make_shared<Label>(r.value,
-            Rect(360, r.y, 220, 40),
+            Rect(val_x, r.y, val_w, 40),
             AlignFlag::center_vertical | AlignFlag::left);
         val->font(Font(20, Font::Weight::bold));
         val->color(Palette::ColorId::label_text, dt::kTextPrimary);
