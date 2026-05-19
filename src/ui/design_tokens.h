@@ -38,7 +38,7 @@ inline const egt::Color& kErrorCritBanner   = palette::kError;
 
 // ── Fonts ───────────────────────────────────────────────────────────────────
 // Font size constants
-inline constexpr int FONT_HUGE     = 72;
+inline constexpr int FONT_HUGE     = 100;
 inline constexpr int FONT_LARGE    = 42;
 inline constexpr int FONT_TITLE    = 28;
 inline constexpr int FONT_SUBTITLE = 22;

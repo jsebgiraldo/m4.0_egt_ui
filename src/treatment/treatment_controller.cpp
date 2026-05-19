@@ -141,9 +141,9 @@ static constexpr int CUM_WIDTH      = 400;  // width of cumulative area (up to d
 
 // Main content area
 static constexpr int CONTENT_Y      = 120;  // y for large number/percentage
-static constexpr int CONTENT_H      = 120;  // height of large number area
-static constexpr int STATUS_Y       = 255;  // y for status text below countdown
-static constexpr int DOTS_Y         = 305;  // y for segmented progress dots
+static constexpr int CONTENT_H      = 145;  // height of large number area
+static constexpr int STATUS_Y       = 275;  // y for status text below countdown
+static constexpr int DOTS_Y         = 325;  // y for segmented progress dots
 static constexpr int BTN_Y          = 390;  // y for bottom buttons
 static constexpr int BTN_W          = 220;  // button width
 static constexpr int BTN_H          = 80;   // button height
@@ -212,6 +212,63 @@ static TreatmentScreen make_treatment_container(
     }
 
     return {container, cum_time_lbl};
+}
+
+// Two-tier action button used across treatment screens: the verb
+// ("Pause" / "End" / "Resume") is the dominant text, "Treatment" below it
+// is small and secondary. The previous `create_outlined_button("Pause\n…")`
+// rendered both lines at the same size — the verb (the actually useful
+// affordance) got lost in the wall of text. Style is passed in so the
+// same shape works for outlined, green-filled, cyan-filled, and white-on-
+// green variants the treatment screens use.
+struct ActionBtnStyle {
+    Color bg;
+    Color fg;
+    Color border;
+    int   border_width;
+};
+
+static const ActionBtnStyle BTN_OUTLINED        = { dt::kWhite,      dt::kTextPrimary, dt::kGrayLight, 2 };
+static const ActionBtnStyle BTN_GREEN_FILLED    = { dt::kGreen,      dt::kWhite,       dt::kGreen,     0 };
+static const ActionBtnStyle BTN_CYAN_FILLED     = { dt::kAccentCyan, dt::kWhite,       dt::kAccentCyan,0 };
+static const ActionBtnStyle BTN_WHITE_GREEN_FG  = { dt::kWhite,      dt::kGreen,       dt::kWhite,     0 };
+
+static shared_ptr<Frame> make_action_button(
+    const string& big_text,
+    const string& small_text,
+    const Rect& rect,
+    const ActionBtnStyle& style,
+    function<void()> on_click)
+{
+    auto frame = make_shared<Frame>(rect);
+    frame->fill_flags({Theme::FillFlag::blend});
+    frame->color(Palette::ColorId::bg, style.bg);
+    frame->color(Palette::ColorId::border, style.border);
+    frame->border(style.border_width);
+    frame->border_radius(dt::RADIUS_MD);
+
+    // Big verb (top) — 30 pt bold dominates the visual weight.
+    auto big = make_shared<Label>(big_text,
+        Rect(0, 10, rect.width(), 38),
+        AlignFlag::center);
+    big->font(Font(30, Font::Weight::bold));
+    big->color(Palette::ColorId::label_text, style.fg);
+    frame->add(big);
+
+    // Small qualifier — 14 pt regular, sits below the verb.
+    auto small = make_shared<Label>(small_text,
+        Rect(0, 48, rect.width(), 22),
+        AlignFlag::center);
+    small->font(Font(14, Font::Weight::normal));
+    small->color(Palette::ColorId::label_text, style.fg);
+    frame->add(small);
+
+    if (on_click) {
+        frame->on_event([on_click](Event& e) {
+            if (e.id() == EventId::pointer_click) on_click();
+        }, {EventId::pointer_click});
+    }
+    return frame;
 }
 
 // Helper: add segmented progress dots at standard y position
@@ -461,11 +518,13 @@ static void show_ready(shared_ptr<TreatmentState> state)
 }
 
 // ── POSITION TIP SCREEN ────────────────────────────────────────────────────
-// Figma Group 209: Logo, DEMO MODE, countdown, status text, Pause/End buttons.
-// No cumulative time, no segmented dots.
+// Figma Group 209: Logo, DEMO MODE, cumulative time header, countdown,
+// status text, Pause/End buttons. The cumulative header was previously
+// suppressed which made the user feel the timer "disappeared" between
+// cycles — keep it visible so the running total stays anchored.
 static void show_position_tip(shared_ptr<TreatmentState> state)
 {
-    auto [container, _cum_lbl2] = make_treatment_container(state, false);
+    auto [container, _cum_lbl2] = make_treatment_container(state, true);
 
     bool is_reposition = state->cycles_completed > 0;
     string title = is_reposition
@@ -489,16 +548,18 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
     container->add(status);
 
     // Pause / End buttons (Figma: y=194, left=21, right=290)
-    auto btn_pause = ui::create_outlined_button("Pause\nTreatment",
+    auto btn_pause = make_action_button("Pause", "Treatment",
         Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_OUTLINED,
         [=]() {
             if (state->active_timer) state->active_timer->cancel();
             show_treatment_paused(state);
         });
     container->add(btn_pause);
 
-    auto btn_end = ui::create_outlined_button("End\nTreatment",
+    auto btn_end = make_action_button("End", "Treatment",
         Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_OUTLINED,
         [=]() {
             if (state->active_timer) state->active_timer->cancel();
             show_end_confirmation(state);
@@ -561,8 +622,9 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     // Pause / End buttons (Figma: y=194, left=21, right=290)
     auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
 
-    auto btn_pause = ui::create_outlined_button("Pause\nTreatment",
+    auto btn_pause = make_action_button("Pause", "Treatment",
         Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_OUTLINED,
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_treatment_paused(state);
@@ -570,16 +632,13 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     container->add(btn_pause);
 
     // End Treatment: green fill + white text (Figma green/white palette)
-    auto btn_end = make_shared<Button>("End\nTreatment", Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H));
-    btn_end->font(dt::fontButton());
-    btn_end->color(Palette::ColorId::button_bg, dt::kGreen);
-    btn_end->color(Palette::ColorId::button_text, dt::kWhite);
-    btn_end->border(0);
-    btn_end->border_radius(dt::RADIUS_MD);
-    btn_end->on_click([=](Event&) {
-        if (*timer_ref) (*timer_ref)->cancel();
-        show_end_confirmation(state);
-    });
+    auto btn_end = make_action_button("End", "Treatment",
+        Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_GREEN_FILLED,
+        [=]() {
+            if (*timer_ref) (*timer_ref)->cancel();
+            show_end_confirmation(state);
+        });
     container->add(btn_end);
 
     state->callbacks.on_show_screen(container);
@@ -660,27 +719,18 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
     // Buttons: white bg + green text (stand out on green background)
     auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
 
-    auto make_white_btn = [](const string& text, const Rect& rect, function<void()> cb) {
-        auto btn = make_shared<Button>(text, rect);
-        btn->font(dt::fontButton());
-        btn->color(Palette::ColorId::button_bg, dt::kWhite);
-        btn->color(Palette::ColorId::button_text, dt::kGreen);
-        btn->border(0);
-        btn->border_radius(dt::RADIUS_MD);
-        if (cb) btn->on_click([cb](Event&) { cb(); });
-        return btn;
-    };
-
-    auto btn_pause = make_white_btn("Pause\nTreatment",
+    auto btn_pause = make_action_button("Pause", "Treatment",
         Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_WHITE_GREEN_FG,
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_treatment_paused(state);
         });
     container->add(btn_pause);
 
-    auto btn_end = make_white_btn("End\nTreatment",
+    auto btn_end = make_action_button("End", "Treatment",
         Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_WHITE_GREEN_FG,
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_end_confirmation(state);
@@ -757,16 +807,18 @@ static void show_treatment_paused(shared_ptr<TreatmentState> state)
     container->add(tip);
 
     // Resume / End buttons (Figma: y=198, Resume=filled left, End=outlined right)
-    auto btn_resume = ui::create_filled_button("Resume\nTreatment",
+    auto btn_resume = make_action_button("Resume", "Treatment",
         Rect(BTN_LEFT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_CYAN_FILLED,
         [=]() {
             state->is_paused = false;
             show_warming(state);
         });
     container->add(btn_resume);
 
-    auto btn_end = ui::create_outlined_button("End\nTreatment",
+    auto btn_end = make_action_button("End", "Treatment",
         Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_OUTLINED,
         [=]() {
             show_end_confirmation(state);
         });
@@ -821,8 +873,9 @@ static void show_end_confirmation(shared_ptr<TreatmentState> state)
         });
     container->add(btn_cancel);
 
-    auto btn_end = ui::create_filled_button("End\nTreatment",
+    auto btn_end = make_action_button("End", "Treatment",
         Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
+        BTN_CYAN_FILLED,
         [=]() {
             if (state->active_timer) state->active_timer->cancel();
             show_treatment_completed(state, true);
