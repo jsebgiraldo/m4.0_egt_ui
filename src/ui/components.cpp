@@ -283,55 +283,83 @@ CumulativeTimeFooter create_cumulative_time_footer(int x, int y, int width)
 }
 
 // ── Demo Mode Badge ────────────────────────────────────────────────────────
-// Floating card with "DEMO / MODE" stacked on top + a leave-arrow button
-// underneath. White fill, rounded border, drop shadow — lifts the badge
-// off the page so it reads as an actionable affordance, not background
-// chrome. Matches the Figma intent (corner card) while restoring legible
-// type sizes.
-DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave)
+// Two visual variants — see create_demo_mode_badge docstring in components.h.
+// Treatment uses Card (floating card with border/shadow, prominent Exit so
+// the user can always abort a running cycle). Patient-info uses Compact
+// (clean labels + small button, no card chrome) so the badge doesn't
+// compete with the form steps for attention.
+DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
+                                     DemoBadgeStyle style)
 {
-    const int badge_w = 130;
-    const int badge_h = 116;
+    if (style == DemoBadgeStyle::Card) {
+        const int badge_w = 130;
+        const int badge_h = 116;
+        auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
+        frame->fill_flags({Theme::FillFlag::blend});
+        frame->color(Palette::ColorId::bg, dt::kWhite);
+        frame->color(Palette::ColorId::border, palette::kGray400);
+        frame->border(1);
+        frame->border_radius(dt::RADIUS_SM);
+        frame->border_flags({Theme::BorderFlag::drop_shadow});
 
-    // White card with a clear border + drop shadow — lifts the badge
-    // visibly above the page so it reads as a chip in the corner.
+        auto demo = make_shared<Label>("DEMO",
+            Rect(0, 8, badge_w, 26), AlignFlag::center);
+        demo->font(Font(20, Font::Weight::bold));
+        demo->color(Palette::ColorId::label_text, dt::kAccentCyan);
+        frame->add(demo);
+
+        auto mode = make_shared<Label>("MODE",
+            Rect(0, 32, badge_w, 26), AlignFlag::center);
+        mode->font(Font(20, Font::Weight::bold));
+        mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
+        frame->add(mode);
+
+        const int btn_w = 72, btn_h = 38;
+        const int btn_x = (badge_w - btn_w) / 2;
+        auto leave_btn = make_shared<Button>("↩",
+            Rect(btn_x, 68, btn_w, btn_h));
+        leave_btn->font(Font(22, Font::Weight::bold));
+        leave_btn->color(Palette::ColorId::button_bg, dt::kWhite);
+        leave_btn->color(Palette::ColorId::button_text, dt::kAccentCyan);
+        leave_btn->color(Palette::ColorId::border, palette::kGray400);
+        leave_btn->border_radius(dt::RADIUS_XS);
+        leave_btn->border(1);
+        if (on_leave) leave_btn->on_click([on_leave](Event&) { on_leave(); });
+        frame->add(leave_btn);
+
+        return {frame, leave_btn};
+    }
+
+    // ── Compact variant ────────────────────────────────────────────────
+    const int badge_w = 90;
+    const int badge_h = 72;
     auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
-    frame->fill_flags({Theme::FillFlag::blend});
-    frame->color(Palette::ColorId::bg, dt::kWhite);
-    frame->color(Palette::ColorId::border, palette::kGray400);
-    frame->border(1);
-    frame->border_radius(dt::RADIUS_SM);
-    frame->border_flags({Theme::BorderFlag::drop_shadow});
+    frame->color(Palette::ColorId::bg, dt::kTransparent);
+    frame->border(0);
 
-    // "DEMO" / "MODE" stacked — 20 pt bold so the label dominates the
-    // chip, matching the visual weight in the Figma corner.
     auto demo = make_shared<Label>("DEMO",
-        Rect(0, 8, badge_w, 26), AlignFlag::center);
-    demo->font(Font(20, Font::Weight::bold));
+        Rect(0, 0, badge_w, 20), AlignFlag::center);
+    demo->font(Font(14, Font::Weight::bold));
     demo->color(Palette::ColorId::label_text, dt::kAccentCyan);
     frame->add(demo);
 
     auto mode = make_shared<Label>("MODE",
-        Rect(0, 32, badge_w, 26), AlignFlag::center);
-    mode->font(Font(20, Font::Weight::bold));
+        Rect(0, 18, badge_w, 20), AlignFlag::center);
+    mode->font(Font(14, Font::Weight::bold));
     mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
     frame->add(mode);
 
-    // Exit-icon button — bigger and clearly framed so it reads as an
-    // affordance, not decoration.
-    const int btn_w = 72, btn_h = 38;
+    const int btn_w = 44, btn_h = 26;
     const int btn_x = (badge_w - btn_w) / 2;
     auto leave_btn = make_shared<Button>("↩",
-        Rect(btn_x, 68, btn_w, btn_h));
-    leave_btn->font(Font(22, Font::Weight::bold));
+        Rect(btn_x, 42, btn_w, btn_h));
+    leave_btn->font(Font(16, Font::Weight::bold));
     leave_btn->color(Palette::ColorId::button_bg, dt::kWhite);
     leave_btn->color(Palette::ColorId::button_text, dt::kAccentCyan);
-    leave_btn->color(Palette::ColorId::border, palette::kGray400);
+    leave_btn->color(Palette::ColorId::border, dt::kGrayLight);
     leave_btn->border_radius(dt::RADIUS_XS);
     leave_btn->border(1);
-    if (on_leave) {
-        leave_btn->on_click([on_leave](Event&) { on_leave(); });
-    }
+    if (on_leave) leave_btn->on_click([on_leave](Event&) { on_leave(); });
     frame->add(leave_btn);
 
     return {frame, leave_btn};

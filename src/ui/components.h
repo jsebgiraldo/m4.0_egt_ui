@@ -65,7 +65,15 @@ CumulativeTimeFooter create_cumulative_time_footer(
     int x, int y, int width);
 
 // ── Demo Mode Badge ────────────────────────────────────────────────────────
-/// Cyan "DEMO MODE" text + leave (house) button.
+/// Cyan "DEMO MODE" text + leave button. Two visual variants:
+///   - Card    (default): floating white card with border + drop shadow,
+///                        used during treatment so Exit reads as a
+///                        prominent affordance.
+///   - Compact:           clean stacked text + small button, no card
+///                        chrome — used on patient-info where the badge
+///                        should sit quietly in the corner.
+enum class DemoBadgeStyle { Card, Compact };
+
 struct DemoModeBadge {
     std::shared_ptr<egt::Frame> frame;
     std::shared_ptr<egt::Button> leave_btn;
@@ -73,7 +81,8 @@ struct DemoModeBadge {
 
 DemoModeBadge create_demo_mode_badge(
     int x, int y,
-    std::function<void()> on_leave);
+    std::function<void()> on_leave,
+    DemoBadgeStyle style = DemoBadgeStyle::Card);
 
 // ── Error Overlay ──────────────────────────────────────────────────────────
 enum class ErrorSeverity { Informational, Warning, CriticalFault };
