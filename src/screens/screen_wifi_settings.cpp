@@ -112,7 +112,11 @@ private:
     float m_angle{0.0f};
 };
 
-// ── Skip WiFi button: round icon with skip symbol ─────────────────────────
+// ── Skip WiFi button (now: wifi-offline glyph) ────────────────────────────
+// Visually mirrors the Back button at the bottom-left: same 46-px gray pill
+// circle, glyph drawn with the primary text colour. Glyph = three concentric
+// wifi arcs with a diagonal slash, matching Figma node 151:886's bottom-right
+// "offline / override" affordance.
 class SkipWiFiButton : public Widget {
 public:
     explicit SkipWiFiButton(const Rect& rect)
@@ -125,43 +129,36 @@ public:
     void draw(Painter& painter, const Rect& /*rect*/) override
     {
         auto b = content_area();
-        float sz  = static_cast<float>(min(b.width(), b.height()));
-        float cx  = b.x() + b.width()  / 2.0f;
-        float cy  = b.y() + b.height() / 2.0f;
+        const float sz  = static_cast<float>(min(b.width(), b.height()));
+        const float cx  = b.x() + b.width()  / 2.0f;
+        const float cy  = b.y() + b.height() / 2.0f;
 
-        // Semi-transparent dark gray background circle
-        Color bg_col(70, 70, 70, 200);
-        painter.set(bg_col);
-        painter.draw(Arc(PointF(cx, cy), sz * 0.48f, 0.0f, 2.0f * M_PI));
+        // Light gray pill (same colour family as the Back button)
+        painter.set(palette::kGray200);
+        painter.draw(Arc(PointF(cx, cy), sz * 0.50f - 1.0f,
+                         0.0f, 2.0f * static_cast<float>(M_PI)));
         painter.fill();
 
-        // White border
-        Color border_col(255, 255, 255, 240);
-        painter.set(border_col);
-        painter.line_width(sz * 0.08f);
-        painter.draw(Arc(PointF(cx, cy), sz * 0.48f, 0.0f, 2.0f * M_PI));
-        painter.stroke();
+        // Wi-Fi arcs (open downward → represent broadcast)
+        constexpr float start = -static_cast<float>(M_PI) * 0.75f;
+        constexpr float end   = -static_cast<float>(M_PI) * 0.25f;
+        const auto pivot = PointF(cx, cy + sz * 0.18f);
+        const float radii[] = {sz * 0.32f, sz * 0.22f, sz * 0.12f};
 
-        // White skip text/symbol (►► style or "SKIP")
-        painter.set(border_col);
-        painter.line_width(sz * 0.06f);
-        // Draw two triangular skip forward symbols
-        float tri_gap = sz * 0.08f;
-        float tri_x1 = cx - tri_gap - sz * 0.12f;
-        float tri_x2 = cx + tri_gap;
-        float tri_y_top = cy - sz * 0.15f;
-        float tri_y_bot = cy + sz * 0.15f;
-        
-        // First triangle (left)
-        painter.draw(Line(PointF(tri_x1, tri_y_top), PointF(tri_x1 + sz * 0.08f, cy)));
-        painter.stroke();
-        painter.draw(Line(PointF(tri_x1 + sz * 0.08f, cy), PointF(tri_x1, tri_y_bot)));
-        painter.stroke();
-        
-        // Second triangle (right)
-        painter.draw(Line(PointF(tri_x2, tri_y_top), PointF(tri_x2 + sz * 0.08f, cy)));
-        painter.stroke();
-        painter.draw(Line(PointF(tri_x2 + sz * 0.08f, cy), PointF(tri_x2, tri_y_bot)));
+        painter.set(dt::kTextPrimary);
+        painter.line_width(std::max(2.0f, sz * 0.045f));
+        for (float r : radii) {
+            painter.draw(Arc(pivot, r, start, end));
+            painter.stroke();
+        }
+        // Tiny base dot under the arcs
+        painter.draw(Arc(pivot, sz * 0.04f, 0.0f, 2.0f * static_cast<float>(M_PI)));
+        painter.fill();
+
+        // Diagonal slash through the glyph — the "offline / no connection" cue
+        painter.line_width(std::max(2.5f, sz * 0.055f));
+        painter.draw(Line(PointF(cx - sz * 0.30f, cy - sz * 0.22f),
+                          PointF(cx + sz * 0.30f, cy + sz * 0.22f)));
         painter.stroke();
     }
 };
@@ -581,10 +578,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     // ── Skip WiFi button button (bottom-right, OUTSIDE the card) ────────────────
     // Positioned in the strip below the card
     {
-        const int icon_sz = 80;  // increased for better visibility
-        const int strip_top = card_y + card_h;
-        const int icon_x = dt::SCREEN_W - icon_sz - 40;
-        const int icon_y = strip_top + 5;  // fully below card, no overlap
+        // Mirror the Back button (46×46 @ y=414) on the right edge so the
+        // bottom strip reads as a symmetric pair: chevron-Back left, wifi-off
+        // right. Figma node 151:886 places both glyphs at the same size.
+        const int icon_sz = 46;
+        const int icon_x  = dt::SCREEN_W - icon_sz - 27;  // mirror Back's x=27
+        const int icon_y  = 414;                          // same y as Back
 
         auto skip_btn = make_shared<SkipWiFiButton>(
             Rect(icon_x, icon_y, icon_sz, icon_sz));
