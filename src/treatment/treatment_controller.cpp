@@ -312,24 +312,28 @@ static void show_warming(shared_ptr<TreatmentState> state)
     // Number font 120px → rendered height ~145px
     const int W_NUM_Y      = 120;  // top of big number area (below full-size logo)
     const int W_NUM_H      = 155;  // height of number rect (120px font)
-    const int W_PCT_Y      = 125;  // % superscript y (raised from baseline)
+    const int W_PCT_H      = 80;   // height of % rect
+    const int W_PCT_Y      = W_NUM_Y + W_NUM_H - W_PCT_H;  // bottom-aligned with number
     const int W_STATUS1_Y  = 285;  // "Warming up"
     const int W_STATUS2_Y  = 313;  // "for Treatment"
     const int W_BAR_Y      = 405;  // progress bar y
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // ── Large number + "%" superscript, centred as a group ────────────────
-    // Position is re-computed every tick via center_pct_group so the
-    // composite stays centred when digit count changes.
+    // ── Large number + "%" suffix at baseline, centred as a group ─────────
+    // The "%" used to sit at the top (superscript style); we now bottom-
+    // align it so it reads at the baseline of the digits, like "100%"
+    // written normally. Position is re-computed each tick via
+    // center_pct_group so the composite stays centred when digit count
+    // changes.
     auto num_label = make_shared<Label>("0");
     num_label->font(Font(120, Font::Weight::bold));
     num_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(num_label);
 
     auto pct_sup = make_shared<Label>("%",
-        Rect(0, W_PCT_Y, 90, 80),
-        AlignFlag::top | AlignFlag::left);
+        Rect(0, W_PCT_Y, 90, W_PCT_H),
+        AlignFlag::bottom | AlignFlag::left);
     pct_sup->font(Font(56, Font::Weight::bold));
     pct_sup->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(pct_sup);
@@ -407,21 +411,22 @@ static void show_ready(shared_ptr<TreatmentState> state)
 {
     const int W_NUM_Y      = 120;
     const int W_NUM_H      = 155;
-    const int W_PCT_Y      = 125;
+    const int W_PCT_H      = 80;
+    const int W_PCT_Y      = W_NUM_Y + W_NUM_H - W_PCT_H;  // bottom-aligned
     const int W_STATUS1_Y  = 285;
     const int W_STATUS2_Y  = 313;
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // ── Large "100" + "%" superscript, centred as a group ─────────────────
+    // ── Large "100" + "%" suffix at baseline, centred as a group ──────────
     auto num_label = make_shared<Label>("100");
     num_label->font(Font(120, Font::Weight::bold));
     num_label->color(Palette::ColorId::label_text, dt::kGreen);
     container->add(num_label);
 
     auto pct_sup = make_shared<Label>("%",
-        Rect(0, W_PCT_Y, 90, 80),
-        AlignFlag::top | AlignFlag::left);
+        Rect(0, W_PCT_Y, 90, W_PCT_H),
+        AlignFlag::bottom | AlignFlag::left);
     pct_sup->font(Font(56, Font::Weight::bold));
     pct_sup->color(Palette::ColorId::label_text, dt::kGreen);
     container->add(pct_sup);
