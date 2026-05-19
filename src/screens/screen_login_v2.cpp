@@ -39,16 +39,17 @@ shared_ptr<Widget> create_login_screen_v2(
 
     // ── Wheel-list picker ────────────────────────────────────────────────
     // Layout constants chosen so the box visually matches Figma's 180×166
-    // ratio scaled up to a 800×480 viewport (≈ 380×260 here, slot_h tuned
-    // so 5 names + chevrons fit cleanly).
-    const int slot_h     = 44;
+    // ratio scaled up to a 800×480 viewport (≈ 380×320 here). Slot_h is
+    // bumped to 52 so the names breathe; the box stretches down to give
+    // Guest room to sit comfortably above Back without crowding.
+    const int slot_h     = 52;
     const int n_slots    = 5;             // odd → middle slot is "selected"
     const int chevron_h  = 22;
     const int padding    = 8;
     const int box_w      = 380;
     const int box_h      = n_slots * slot_h + 2 * (chevron_h + padding);
     const int box_x      = (dt::SCREEN_W - box_w) / 2;
-    const int box_y      = 78;
+    const int box_y      = 66;
     const int center_idx = n_slots / 2;
     const int slots_top  = chevron_h + padding;
 
