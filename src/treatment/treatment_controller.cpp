@@ -29,6 +29,44 @@ static Image load_home_icon(int size)
     } catch (...) { return {}; }
 }
 
+// Result glyph for the completed/ended screen: a checkmark (success) or an
+// X (ended early), drawn with the Painter so it renders on the target —
+// the ✓/✕ unicode glyphs came up blank in the device font.
+class ResultGlyph : public egt::Widget {
+public:
+    ResultGlyph(const egt::Rect& rect, bool check, const egt::Color& col)
+        : egt::Widget(rect), m_check(check), m_col(col) {
+        fill_flags({egt::Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(egt::Painter& p, const egt::Rect&) override {
+        auto b = content_area();
+        const float sz = static_cast<float>(std::min(b.width(), b.height()));
+        const float cx = b.x() + b.width()  / 2.0f;
+        const float cy = b.y() + b.height() / 2.0f;
+        p.set(m_col);
+        p.line_width(std::max(4.0f, sz * 0.10f));
+        if (m_check) {
+            // Checkmark: short down-stroke then long up-stroke.
+            p.draw(egt::Line(egt::PointF(cx - sz * 0.26f, cy + sz * 0.02f),
+                             egt::PointF(cx - sz * 0.06f, cy + sz * 0.22f)));
+            p.stroke();
+            p.draw(egt::Line(egt::PointF(cx - sz * 0.06f, cy + sz * 0.22f),
+                             egt::PointF(cx + sz * 0.28f, cy - sz * 0.22f)));
+            p.stroke();
+        } else {
+            const float r = sz * 0.24f;
+            p.draw(egt::Line(egt::PointF(cx - r, cy - r), egt::PointF(cx + r, cy + r)));
+            p.stroke();
+            p.draw(egt::Line(egt::PointF(cx + r, cy - r), egt::PointF(cx - r, cy + r)));
+            p.stroke();
+        }
+    }
+private:
+    bool m_check;
+    egt::Color m_col;
+};
+
 // ── Shared state across treatment screens ───────────────────────────────────
 struct TreatmentState {
     TreatmentConfig config;
@@ -376,39 +414,55 @@ void start_treatment_flow(
 // at 1 digit but the whole "10%" / "100%" group drifted left as more digits
 // appeared, throwing the visual centre off.
 //
-// Digit widths at 120 pt bold Lato — calibrated from rendered output:
-// "1" comes out ~70 px wide, all other digits ~110 px. The "%" at 56 pt
-// bold renders ~65 px. The estimates don't have to be perfectly tight —
-// they just need to track the digit-count transitions so the composite
-// re-centres cleanly as the warming counter rolls over 9→10 and 99→100.
-static int pct_digit_width_120(char d) { return (d == '1') ? 70 : 110; }
-static int pct_number_width_120(int v) {
-    string s = to_string(v);
-    int w = 0;
-    for (char c : s) w += pct_digit_width_120(c);
-    return w;
-}
+// Big "NN%" display drawn entirely with the Painter, measuring the real
+// glyph widths via text_size at draw time. This replaces the old approach
+// of two Labels positioned by hard-coded width estimates — those estimates
+// were calibrated on the host font and left the "%" floating far from the
+// number on the target (different font metrics). Measuring at runtime keeps
+// the % tucked right against the number on any font/host.
+class PercentDisplay : public Widget {
+public:
+    PercentDisplay(const Rect& rect, int value, const Color& color)
+        : Widget(rect), m_value(value), m_color(color) {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void set_value(int v) { if (v != m_value) { m_value = v; damage(); } }
+    void set_color(const Color& c) { m_color = c; damage(); }
 
-static void center_pct_group(int value,
-                             shared_ptr<Label> num_label,
-                             shared_ptr<Label> pct_label,
-                             int num_y, int num_h, int pct_y)
-{
-    constexpr int NUM_PCT_GAP = 10;
-    const int n_w = pct_number_width_120(value);
+    void draw(Painter& painter, const Rect&) override {
+        auto b = content_area();
+        const string num = to_string(m_value);
+        const Font num_font(120, Font::Weight::bold);
+        const Font pct_font(56, Font::Weight::bold);
+        const int gap = 8;
 
-    // Centre the NUMBER on the screen — the % hangs off to the right as a
-    // unit suffix. Centring the whole "NN%" composite geometrically looks
-    // off-axis because the % is visually much lighter than the digits, so
-    // the digits read as shifted left of centre. Apple Watch / iOS fitness
-    // apps use this same convention: the value dominates, the unit floats.
-    const int num_x = (dt::SCREEN_W - n_w) / 2;
-    num_label->move(Point(num_x, num_y));
-    num_label->resize(Size(n_w, num_h));
-    num_label->text_align(AlignFlag::center);
+        painter.set(num_font);
+        const auto ns = painter.text_size(num);
+        painter.set(pct_font);
+        const auto ps = painter.text_size("%");
 
-    pct_label->move(Point(num_x + n_w + NUM_PCT_GAP, pct_y));
-}
+        const float total = ns.width() + gap + ps.width();
+        const float sx = b.x() + (b.width()  - total) / 2.0f;
+        // Vertically centre the number; bottom-align the % to the number's
+        // baseline (its bottom).
+        const float num_top = b.y() + (b.height() - ns.height()) / 2.0f;
+        const float pct_top = num_top + ns.height() - ps.height();
+
+        painter.set(num_font);
+        painter.set(m_color);
+        painter.draw(PointF(sx, num_top));
+        painter.draw(num);
+
+        painter.set(pct_font);
+        painter.set(m_color);
+        painter.draw(PointF(sx + ns.width() + gap, pct_top));
+        painter.draw(std::string("%"));
+    }
+private:
+    int m_value;
+    Color m_color;
+};
 
 // ── WARMING SCREEN ──────────────────────────────────────────────────────────
 // Figma Group 179: large % number + superscript %, two-line status, progress bar.
@@ -427,25 +481,11 @@ static void show_warming(shared_ptr<TreatmentState> state)
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // ── Large number + "%" suffix at baseline, centred as a group ─────────
-    // The "%" used to sit at the top (superscript style); we now bottom-
-    // align it so it reads at the baseline of the digits, like "100%"
-    // written normally. Position is re-computed each tick via
-    // center_pct_group so the composite stays centred when digit count
-    // changes.
-    auto num_label = make_shared<Label>("0");
-    num_label->font(Font(120, Font::Weight::bold));
-    num_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(num_label);
-
-    auto pct_sup = make_shared<Label>("%",
-        Rect(0, W_PCT_Y, 90, W_PCT_H),
-        AlignFlag::bottom | AlignFlag::left);
-    pct_sup->font(Font(56, Font::Weight::bold));
-    pct_sup->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    container->add(pct_sup);
-
-    center_pct_group(0, num_label, pct_sup, W_NUM_Y, W_NUM_H, W_PCT_Y);
+    // ── Large "NN%" display (Painter-measured, % tucked to the number) ────
+    (void)W_PCT_H; (void)W_PCT_Y;
+    auto pct_display = make_shared<PercentDisplay>(
+        Rect(0, W_NUM_Y, dt::SCREEN_W, W_NUM_H), 0, dt::kTextPrimary);
+    container->add(pct_display);
 
     // ── Two-line status text ──────────────────────────────────────────────
     auto status1 = make_shared<Label>("Warming up",
@@ -478,10 +518,8 @@ static void show_warming(shared_ptr<TreatmentState> state)
     auto timer = make_shared<PeriodicTimer>(chrono::milliseconds(50));
     state->active_timer = timer;
 
-    weak_ptr<Label> w_num = num_label;
-    weak_ptr<Label> w_pct = pct_sup;
+    weak_ptr<PercentDisplay> w_pct_disp = pct_display;
     weak_ptr<Frame> w_bar = progress_bar;
-    auto last_digits = make_shared<int>(1);  // re-centre only when digit count changes
 
     timer->on_timeout([=]() {
         if (!*state->alive) { timer->cancel(); return; }
@@ -489,16 +527,8 @@ static void show_warming(shared_ptr<TreatmentState> state)
         *progress_val = min(100.0f, (*elapsed_ms * 100.0f) / total_ms);
 
         const int iv = static_cast<int>(*progress_val);
-        if (auto lb = w_num.lock())
-            lb->text(to_string(iv));
-
-        const int digits = (iv >= 100) ? 3 : (iv >= 10) ? 2 : 1;
-        if (digits != *last_digits) {
-            *last_digits = digits;
-            auto lb = w_num.lock(); auto pc = w_pct.lock();
-            if (lb && pc)
-                center_pct_group(iv, lb, pc, W_NUM_Y, W_NUM_H, W_PCT_Y);
-        }
+        if (auto pd = w_pct_disp.lock())
+            pd->set_value(iv);
 
         if (auto bar = w_bar.lock())
             ui::update_linear_progress(bar, *progress_val);
@@ -516,30 +546,18 @@ static void show_warming(shared_ptr<TreatmentState> state)
 // User must press Begin to proceed — no auto-advance.
 static void show_ready(shared_ptr<TreatmentState> state)
 {
-    const int W_NUM_Y      = 120;
-    const int W_NUM_H      = 155;
-    const int W_PCT_H      = 80;
-    const int W_PCT_Y      = W_NUM_Y + W_NUM_H - W_PCT_H;  // bottom-aligned
-    const int W_STATUS1_Y  = 285;
-    const int W_STATUS2_Y  = 313;
-    const int W_BAR_Y      = 360;
+    const int W_NUM_Y      = 116;
+    const int W_NUM_H      = 150;
+    const int W_STATUS1_Y  = 276;
+    const int W_STATUS2_Y  = 304;
+    const int W_BAR_Y      = 336;   // raised so it clears the Begin button
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // ── Large "100" + "%" suffix at baseline, centred as a group ──────────
-    auto num_label = make_shared<Label>("100");
-    num_label->font(Font(120, Font::Weight::bold));
-    num_label->color(Palette::ColorId::label_text, dt::kGreen);
-    container->add(num_label);
-
-    auto pct_sup = make_shared<Label>("%",
-        Rect(0, W_PCT_Y, 90, W_PCT_H),
-        AlignFlag::bottom | AlignFlag::left);
-    pct_sup->font(Font(56, Font::Weight::bold));
-    pct_sup->color(Palette::ColorId::label_text, dt::kGreen);
-    container->add(pct_sup);
-
-    center_pct_group(100, num_label, pct_sup, W_NUM_Y, W_NUM_H, W_PCT_Y);
+    // ── Large "100%" display (Painter-measured, % tucked to the number) ────
+    auto pct_display = make_shared<PercentDisplay>(
+        Rect(0, W_NUM_Y, dt::SCREEN_W, W_NUM_H), 100, dt::kGreen);
+    container->add(pct_display);
 
     // ── "Ready" / "for Treatment" ──────────────────────────────────────────
     auto status1 = make_shared<Label>("Ready",
@@ -1027,11 +1045,8 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     circle->border_radius(icon_sz / 2);
     container->add(circle);
 
-    auto glyph = make_shared<Label>(early ? "✕" : "✓",
-        Rect(0, 0, icon_sz, icon_sz), AlignFlag::center);
-    glyph->font(Font(64, Font::Weight::bold));
-    glyph->color(Palette::ColorId::label_text, ring_color);
-    circle->add(glyph);
+    circle->add(make_shared<ResultGlyph>(
+        Rect(0, 0, icon_sz, icon_sz), /*check=*/!early, ring_color));
 
     // Title text below the hero icon
     auto title_lbl = make_shared<Label>(title,
@@ -1053,20 +1068,39 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
             state->callbacks.on_treatment_completed();
     };
 
-    // "Back to Home" button — cyan filled, house icon + label, matching the
-    // Figma. Slightly wider than the default to fit the icon + 2-line text.
-    const int home_w = 240;
-    auto home_icon = load_home_icon(40);
-    auto btn_home = make_shared<ImageButton>(home_icon, "Back to\nHome",
-        Rect((dt::SCREEN_W - home_w) / 2, BTN_Y, home_w, BTN_H),
-        AlignFlag::center);
-    btn_home->image_align(AlignFlag::left | AlignFlag::center_vertical);
-    btn_home->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
-    btn_home->color(Palette::ColorId::button_bg, dt::kAccentCyan);
-    btn_home->color(Palette::ColorId::button_text, dt::kWhite);
+    // "Back to Home" button — built from a Frame + house ImageLabel + a
+    // single, centred label. (egt::ImageButton mis-laid-out the 2-line text,
+    // making "Home" look bigger/off-centre vs "Back to".) Icon sits left,
+    // text centred in the button.
+    const int home_w = 250, home_h = BTN_H;
+    const int home_x = (dt::SCREEN_W - home_w) / 2;
+    auto btn_home = make_shared<Frame>(Rect(home_x, BTN_Y, home_w, home_h));
+    btn_home->fill_flags({Theme::FillFlag::blend});
+    btn_home->color(Palette::ColorId::bg, dt::kAccentCyan);
+    btn_home->color(Palette::ColorId::border, dt::kAccentCyan);
     btn_home->border(0);
     btn_home->border_radius(dt::RADIUS_MD);
-    btn_home->on_click([go_home](Event&) { go_home(); });
+
+    auto home_icon = load_home_icon(40);
+    if (!home_icon.empty()) {
+        auto hi = make_shared<ImageLabel>(home_icon);
+        hi->fill_flags({});
+        hi->color(Palette::ColorId::bg, dt::kAccentCyan);
+        hi->image_align(AlignFlag::center);
+        hi->move(Point(28, (home_h - 40) / 2));
+        hi->resize(Size(40, 40));
+        btn_home->add(hi);
+    }
+
+    auto home_lbl = make_shared<Label>("Back to\nHome",
+        Rect(78, 0, home_w - 78 - 10, home_h), AlignFlag::center);
+    home_lbl->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    home_lbl->color(Palette::ColorId::label_text, dt::kWhite);
+    btn_home->add(home_lbl);
+
+    btn_home->on_event([go_home](Event& e) {
+        if (e.id() == EventId::pointer_click) go_home();
+    }, {EventId::pointer_click});
     container->add(btn_home);
 
     state->callbacks.on_show_screen(container);
