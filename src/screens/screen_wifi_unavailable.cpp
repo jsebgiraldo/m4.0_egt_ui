@@ -281,23 +281,11 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     ov_line3->text_align(AlignFlag::left | AlignFlag::center_vertical);
     ov_card->add(ov_line3);
 
-    // Two-step interaction: first tap "selects" the card (blue), second tap
-    // commits and triggers the override flow. Matches Figma State-1 → State-2
-    // transition.
-    auto selected = make_shared<bool>(false);
+    // Single tap navigates straight to the override-info screen. (It used
+    // to require two taps — first to "select" the card blue, then to
+    // commit — which read as two screens; the intent was a simple tap.)
     ov_card->on_event([=](Event&) {
-        if (*selected) {
-            if (on_override) on_override();
-        } else {
-            *selected = true;
-            ov_card->color(Palette::ColorId::bg, dt::kAccentCyan);
-            ov_chip->color(Palette::ColorId::bg, Color(0, 0, 0, 50));
-            ov_glyph->set_color(dt::kWhite);
-            ov_line1->color(Palette::ColorId::label_text, dt::kWhite);
-            ov_line2->color(Palette::ColorId::label_text, dt::kWhite);
-            ov_line3->color(Palette::ColorId::label_text, dt::kWhite);
-            ov_card->damage();
-        }
+        if (on_override) on_override();
     }, {EventId::pointer_click});
 
     // ── 3) Bottom row: Retry WiFi + Setting ───────────────────────────────

@@ -261,8 +261,10 @@ void run_app(int argc, char** argv)
     show_wifi_override_info = [&]() {
         printf("[NAV] -> WIFI_OVERRIDE_INFO\n"); fflush(stdout);
         screens.show(create_wifi_override_info_screen(
-            [&]() { show_override_prompt(); },    // Continue -> Override Password
-            [&]() { show_wifi_unavailable(); }    // Back -> WiFi Unavailable
+            [&]() { show_override_prompt(); },                              // Continue -> Override Password
+            [&]() { show_wifi_unavailable(); },                            // Back -> WiFi Unavailable
+            [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); },    // Retry WiFi -> rescan
+            [&]() { show_settings(); }                                     // Setting -> Settings menu
         ));
     };
 
