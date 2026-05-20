@@ -1024,45 +1024,40 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     string title = early ? "Treatment Ended" : "Treatment Completed";
     auto [container, _cum_lbl5] = make_treatment_container(state, true);
 
-    // Large final counter (Figma: "0" at y=60, 64px)
-    auto icon_label = make_shared<Label>(early ? "✕" : "0",
-        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
-    icon_label->font(dt::fontHuge());
-    icon_label->color(Palette::ColorId::label_text,
-        early ? dt::kOrange : dt::kTextPrimary);
-    container->add(icon_label);
+    // Hero icon: a big ring with ✓ (completed, green) or ✕ (ended early,
+    // orange). This replaces the old layout where a redundant "0"/"✕"
+    // number sat up top AND a separate checkmark circle collided with the
+    // Back-to-Home button (ToDo master task 7). Now it's a single centred
+    // focal icon with nothing overlapping below it.
+    const Color ring_color = early ? dt::kOrange : dt::kGreen;
+    const int icon_sz = 120;
+    const int icon_x  = (dt::SCREEN_W - icon_sz) / 2;
+    const int icon_y  = 120;
 
-    // Title text (Figma: y=130, 16px bold)
+    auto circle = make_shared<Frame>(Rect(icon_x, icon_y, icon_sz, icon_sz));
+    circle->fill_flags({Theme::FillFlag::blend});
+    circle->color(Palette::ColorId::bg, dt::kBgWhite);
+    circle->color(Palette::ColorId::border, ring_color);
+    circle->border(6);
+    circle->border_radius(icon_sz / 2);
+    container->add(circle);
+
+    auto glyph = make_shared<Label>(early ? "✕" : "✓",
+        Rect(0, 0, icon_sz, icon_sz), AlignFlag::center);
+    glyph->font(Font(64, Font::Weight::bold));
+    glyph->color(Palette::ColorId::label_text, ring_color);
+    circle->add(glyph);
+
+    // Title text below the hero icon
     auto title_lbl = make_shared<Label>(title,
-        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
-    title_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
+        Rect(0, icon_y + icon_sz + 18, dt::SCREEN_W, 32));
+    title_lbl->font(Font(dt::FONT_TITLE, Font::Weight::bold));
     title_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title_lbl);
 
-    // Segmented dots (all filled for completed)
-    add_segmented_progress(container, state);
-
-    // Circle checkmark icon (green ring + green ✓ inside)
-    if (!early) {
-        const int icon_sz = 72;
-        const int icon_x  = (dt::SCREEN_W - icon_sz) / 2;
-        const int icon_y  = DOTS_Y + 28;
-
-        auto circle = make_shared<Frame>(Rect(icon_x, icon_y, icon_sz, icon_sz));
-        circle->fill_flags({Theme::FillFlag::blend});
-        circle->color(Palette::ColorId::bg, dt::kBgWhite);
-        circle->color(Palette::ColorId::border, dt::kGreen);
-        circle->border(4);
-        circle->border_radius(icon_sz / 2);
-        container->add(circle);
-
-        // ✓ inside the circle (positioned relative to circle)
-        auto check_lbl = make_shared<Label>("✓",
-            Rect(0, 0, icon_sz, icon_sz));
-        check_lbl->font(Font(38, Font::Weight::bold));
-        check_lbl->color(Palette::ColorId::label_text, dt::kGreen);
-        circle->add(check_lbl);
-    }
+    // Segmented dots (all filled) only on the completed (not ended) screen
+    if (!early)
+        add_segmented_progress(container, state);
 
     // Back to Home button at bottom
     auto go_home = [=]() {
