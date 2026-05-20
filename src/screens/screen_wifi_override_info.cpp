@@ -46,6 +46,37 @@ private:
     Color m_col;
 };
 
+// X close glyph drawn with the Painter (two crossed strokes) so it renders
+// on the target regardless of whether the device font has a ✕ glyph — the
+// unicode character was coming up blank on the hardware.
+class CloseX : public Widget {
+public:
+    CloseX(const Rect& rect, const Color& col, function<void()> on_click)
+        : Widget(rect), m_col(col), m_on_click(std::move(on_click)) {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        if (m_on_click)
+            on_event([this](Event&){ if (m_on_click) m_on_click(); },
+                     {EventId::pointer_click});
+    }
+    void draw(Painter& painter, const Rect&) override {
+        auto b = content_area();
+        const float sz = static_cast<float>(min(b.width(), b.height()));
+        const float cx = b.x() + b.width()  / 2.0f;
+        const float cy = b.y() + b.height() / 2.0f;
+        const float r  = sz * 0.30f;
+        painter.set(m_col);
+        painter.line_width(std::max(3.0f, sz * 0.09f));
+        painter.draw(Line(PointF(cx - r, cy - r), PointF(cx + r, cy + r)));
+        painter.stroke();
+        painter.draw(Line(PointF(cx + r, cy - r), PointF(cx - r, cy + r)));
+        painter.stroke();
+    }
+private:
+    Color m_col;
+    function<void()> m_on_click;
+};
+
 // "!" in a circle — the info badge (orange disc, white "!").
 class InfoBadge : public Widget {
 public:
@@ -221,10 +252,12 @@ shared_ptr<Widget> create_wifi_override_info_screen(
         Rect(cont_x, cont_y, cont_w, cont_h), on_continue);
     card->add(btn_continue);
 
-    // Info popup (built below) toggled by the badge.
+    // Full-screen dark popup (built below) toggled by the badge. The dark
+    // layer itself IS the popup surface (covers the whole screen, per the
+    // Figma) rather than a small centred card.
     auto popup = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     popup->fill_flags({Theme::FillFlag::blend});
-    popup->color(Palette::ColorId::bg, Color(40, 40, 40, 200));
+    popup->color(Palette::ColorId::bg, Color(45, 45, 45, 235));
     popup->border(0);
     popup->hide();
 
@@ -247,52 +280,44 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     card->add(make_icon_button(30 + 2 * (row_w + row_gap), row_y, row_w, row_h,
         "Setting", gear_icon, on_settings));
 
-    // ── Info popup overlay (Figma right screen) ─────────────────────────────
+    // ── Info popup content (full-screen, text directly on the dark layer) ───
     {
-        const int pc_w = 560, pc_h = 300;
-        auto pcard = make_shared<Frame>(
-            Rect((dt::SCREEN_W - pc_w) / 2, (dt::SCREEN_H - pc_h) / 2, pc_w, pc_h));
-        pcard->fill_flags({Theme::FillFlag::blend});
-        pcard->color(Palette::ColorId::bg, Color(60, 60, 60, 235));
-        pcard->border(0); pcard->border_radius(12);
-        popup->add(pcard);
+        const int M = 60;                       // side margin
+        const int tw = dt::SCREEN_W - 2 * M;    // text width
 
-        // X close (top-right)
-        auto close = make_shared<Label>("✕",
-            Rect(pc_w - 52, 10, 42, 42), AlignFlag::center);
-        close->font(Font(26, Font::Weight::bold));
-        close->color(Palette::ColorId::label_text, dt::kWhite);
-        close->on_event([popup](Event&){ popup->hide(); }, {EventId::pointer_click});
-        pcard->add(close);
+        // X close — Painter-drawn, top-right corner of the screen.
+        popup->add(make_shared<CloseX>(
+            Rect(dt::SCREEN_W - 64, 18, 44, 44), dt::kWhite,
+            [popup]() { popup->hide(); }));
 
-        // Body text with the green "N calendar day(s)" inline is hard in one
-        // Label; render as three stacked lines, the day count line green.
+        // The green "N calendar day(s)" sits inline; render as stacked lines
+        // with the day-count line green.
         auto l1 = make_shared<Label>("Please note that on",
-            Rect(36, 40, pc_w - 72, 30), AlignFlag::left | AlignFlag::center_vertical);
-        l1->font(Font(17)); l1->color(Palette::ColorId::label_text, dt::kWhite);
-        pcard->add(l1);
+            Rect(M, 70, tw, 34), AlignFlag::left | AlignFlag::center_vertical);
+        l1->font(Font(20)); l1->color(Palette::ColorId::label_text, dt::kWhite);
+        popup->add(l1);
 
         auto l2 = make_shared<Label>(to_string(days) + " calendar day(s) from today,",
-            Rect(36, 68, pc_w - 72, 30), AlignFlag::left | AlignFlag::center_vertical);
-        l2->font(Font(17, Font::Weight::bold));
+            Rect(M, 106, tw, 34), AlignFlag::left | AlignFlag::center_vertical);
+        l2->font(Font(20, Font::Weight::bold));
         l2->color(Palette::ColorId::label_text, dt::kGreen);
-        pcard->add(l2);
+        popup->add(l2);
 
         auto l3 = make_shared<Label>(
             "a Wi-Fi/Network Connection must be established,\n"
             "or an Override Password must be entered for the\n"
             "device to continue to operate.",
-            Rect(36, 100, pc_w - 72, 76), AlignFlag::left);
-        l3->font(Font(16)); l3->color(Palette::ColorId::label_text, dt::kWhite);
-        pcard->add(l3);
+            Rect(M, 148, tw, 96), AlignFlag::left);
+        l3->font(Font(19)); l3->color(Palette::ColorId::label_text, dt::kWhite);
+        popup->add(l3);
 
         auto l4 = make_shared<Label>(
-            "(An Override Password is provided by Larada\n"
-            "Sciences, please contact your Clinic Success\n"
-            "contact for more details).",
-            Rect(36, 184, pc_w - 72, 76), AlignFlag::left);
-        l4->font(Font(15)); l4->color(Palette::ColorId::label_text, palette::kGray200);
-        pcard->add(l4);
+            "(An Override Password is provided by Larada Sciences,\n"
+            "please contact your Clinic Success contact for more\n"
+            "details).",
+            Rect(M, 270, tw, 96), AlignFlag::left);
+        l4->font(Font(18)); l4->color(Palette::ColorId::label_text, palette::kGray200);
+        popup->add(l4);
     }
     container->add(popup);
 
