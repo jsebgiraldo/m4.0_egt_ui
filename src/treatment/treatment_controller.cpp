@@ -368,12 +368,13 @@ static float treatment_progress(const shared_ptr<TreatmentState>& state)
 // staying empty for many short cycles.
 static shared_ptr<Frame> add_segmented_progress(
     shared_ptr<Frame> container,
-    shared_ptr<TreatmentState> state)
+    shared_ptr<TreatmentState> state,
+    int y = DOTS_Y)
 {
     const int seg_display = dt::SEGMENT_COUNT;
     auto seg_bar = ui::create_segmented_progress(
         (dt::SCREEN_W - (seg_display * (dt::SEGMENT_W + dt::SEGMENT_GAP) - dt::SEGMENT_GAP)) / 2,
-        DOTS_Y,
+        y,
         seg_display);
     ui::update_segmented_progress_fraction(seg_bar, treatment_progress(state));
     container->add(seg_bar);
@@ -1061,9 +1062,12 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     title_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title_lbl);
 
-    // Segmented dots (all filled) only on the completed (not ended) screen
+    // Segmented dots (all filled) only on the completed (not ended) screen.
+    // Placed lower than the in-treatment DOTS_Y so they sit a comfortable
+    // distance below the "Treatment Completed" title (no banner here to
+    // crowd them).
     if (!early)
-        add_segmented_progress(container, state);
+        add_segmented_progress(container, state, /*y=*/330);
 
     // Back to Home button at bottom
     auto go_home = [=]() {
