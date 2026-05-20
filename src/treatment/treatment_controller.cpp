@@ -174,10 +174,13 @@ static constexpr int CUM_LEFT_X     = 180;  // x start (right of logo at x=10+16
 static constexpr int CUM_WIDTH      = 400;  // width of cumulative area (up to demo badge at x=580)
 
 // Main content area
-static constexpr int CONTENT_Y      = 120;  // y for large number/percentage
-static constexpr int CONTENT_H      = 145;  // height of large number area
-static constexpr int STATUS_Y       = 275;  // y for status text below countdown
-static constexpr int DOTS_Y         = 325;  // y for segmented progress dots
+// Vertical rhythm tuned so the countdown, status, dots, the process-limit
+// warning banner, and the bottom buttons all fit without overlap now that
+// the buttons sit higher (32 px bottom margin → BTN_Y=368).
+static constexpr int CONTENT_Y      = 110;  // y for large number/percentage
+static constexpr int CONTENT_H      = 130;  // height of large number area
+static constexpr int STATUS_Y       = 250;  // y for status text below countdown
+static constexpr int DOTS_Y         = 296;  // y for segmented progress dots
 // Standard bottom margin for action buttons across screens (≈32 px). All
 // bottom buttons share the same bottom edge (SCREEN_H - BTN_BOTTOM_MARGIN).
 static constexpr int BTN_BOTTOM_MARGIN = 32;
@@ -702,9 +705,11 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     // 5-min mark, red at the 1-min mark, with a live "limit in M:SS"
     // countdown. Placeholder styling for client review — Figma hasn't
     // defined these notification screens yet.
-    const int wb_w = 460, wb_h = 40;
+    const int wb_w = 460, wb_h = 36;
+    // Sits between the dots and the bottom buttons (dots end ~306, buttons
+    // start at 368) — clear of both.
     auto warn_banner = make_shared<Frame>(
-        Rect((dt::SCREEN_W - wb_w) / 2, 336, wb_w, wb_h));
+        Rect((dt::SCREEN_W - wb_w) / 2, 322, wb_w, wb_h));
     warn_banner->fill_flags({Theme::FillFlag::blend});
     warn_banner->border(0);
     warn_banner->border_radius(dt::RADIUS_SM);
@@ -1082,19 +1087,26 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     btn_home->border(0);
     btn_home->border_radius(dt::RADIUS_MD);
 
-    auto home_icon = load_home_icon(40);
+    // Icon + text laid out as a tight centred group: [icon] gap [2-line
+    // text]. icon(40) + gap(12) + text(120) = 172 wide → centred in home_w.
+    const int icon_sz2 = 40, txt_w = 120, ico_gap = 12;
+    const int group_w = icon_sz2 + ico_gap + txt_w;
+    const int group_x = (home_w - group_w) / 2;
+
+    auto home_icon = load_home_icon(icon_sz2);
     if (!home_icon.empty()) {
         auto hi = make_shared<ImageLabel>(home_icon);
         hi->fill_flags({});
         hi->color(Palette::ColorId::bg, dt::kAccentCyan);
         hi->image_align(AlignFlag::center);
-        hi->move(Point(28, (home_h - 40) / 2));
-        hi->resize(Size(40, 40));
+        hi->move(Point(group_x, (home_h - icon_sz2) / 2));
+        hi->resize(Size(icon_sz2, icon_sz2));
         btn_home->add(hi);
     }
 
     auto home_lbl = make_shared<Label>("Back to\nHome",
-        Rect(78, 0, home_w - 78 - 10, home_h), AlignFlag::center);
+        Rect(group_x + icon_sz2 + ico_gap, 0, txt_w, home_h),
+        AlignFlag::center);
     home_lbl->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
     home_lbl->color(Palette::ColorId::label_text, dt::kWhite);
     btn_home->add(home_lbl);
