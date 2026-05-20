@@ -291,14 +291,14 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             [popup]() { popup->hide(); }));
 
         // The green "N calendar day(s)" sits inline; render as stacked lines
-        // with the day-count line green.
+        // with the day-count line green. All centred.
         auto l1 = make_shared<Label>("Please note that on",
-            Rect(M, 70, tw, 34), AlignFlag::left | AlignFlag::center_vertical);
+            Rect(M, 70, tw, 34), AlignFlag::center);
         l1->font(Font(20)); l1->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l1);
 
         auto l2 = make_shared<Label>(to_string(days) + " calendar day(s) from today,",
-            Rect(M, 106, tw, 34), AlignFlag::left | AlignFlag::center_vertical);
+            Rect(M, 106, tw, 34), AlignFlag::center);
         l2->font(Font(20, Font::Weight::bold));
         l2->color(Palette::ColorId::label_text, dt::kGreen);
         popup->add(l2);
@@ -307,7 +307,7 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             "a Wi-Fi/Network Connection must be established,\n"
             "or an Override Password must be entered for the\n"
             "device to continue to operate.",
-            Rect(M, 148, tw, 96), AlignFlag::left);
+            Rect(M, 148, tw, 96), AlignFlag::center);
         l3->font(Font(19)); l3->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l3);
 
@@ -315,7 +315,7 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             "(An Override Password is provided by Larada Sciences,\n"
             "please contact your Clinic Success contact for more\n"
             "details).",
-            Rect(M, 270, tw, 96), AlignFlag::left);
+            Rect(M, 270, tw, 96), AlignFlag::center);
         l4->font(Font(18)); l4->color(Palette::ColorId::label_text, palette::kGray200);
         popup->add(l4);
     }
