@@ -198,6 +198,23 @@ static shared_ptr<ImageButton> make_icon_filled_btn(
     return btn;
 }
 
+// Continue button with a "required field filled" gate (ToDo master task 5).
+// When `enabled` is false it renders gray and ignores taps; when true it
+// uses the flow accent (green real / blue demo) and runs `on_click`.
+static shared_ptr<ImageButton> make_continue_btn(
+    bool enabled, bool demo, const Rect& rect, function<void()> on_click)
+{
+    auto btn = make_icon_filled_btn(
+        "arrow-fwd-pi", kArrowFwdSvg, "  Continue", rect,
+        enabled ? on_click : function<void()>(nullptr),
+        enabled ? flow_accent(demo) : dt::kGrayLight);
+    if (!enabled) {
+        // Dim the label/icon text so the disabled state reads clearly.
+        btn->color(Palette::ColorId::button_text, palette::kGray500);
+    }
+    return btn;
+}
+
 // ── Common header + tab bar (Figma layout) ──────────────────────────────────
 // step: 0=Gender, 1=Age, 2=ZIP
 // nav_to_step: optional callback to navigate when a tab is clicked
@@ -374,15 +391,15 @@ static shared_ptr<Widget> create_gender_step(
         });
     container->add(btn_skip);
 
-    auto btn_continue = make_icon_filled_btn(
-        "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
+    // Continue gated on a gender being selected (task 5).
+    auto btn_continue = make_continue_btn(
+        !info->gender.empty(), demo_mode,
         Rect(541, 380, 217, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_age_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
-        },
-        flow_accent(demo_mode));
+        });
     container->add(btn_continue);
 
     return container;
@@ -684,11 +701,12 @@ static shared_ptr<Widget> create_zip_step(
         });
     container->add(btn_skip);
 
-    auto btn_continue = make_icon_filled_btn(
-        "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
+    // Continue gated on the ZIP field being non-empty (task 5).
+    auto btn_continue = make_continue_btn(
+        !info->zip_code.empty(), demo_mode,
         Rect(541, 380, 217, 61),
         [=]() {
-            if (info->zip_code.length() >= 3 && on_show_screen)
+            if (on_show_screen)
                 on_show_screen(create_summary_step(demo_mode, info, on_complete,
                     [=]() {
                         if (on_show_screen)
@@ -696,8 +714,7 @@ static shared_ptr<Widget> create_zip_step(
                                 on_back, on_show_screen, on_leave_demo));
                     },
                     on_show_screen, on_leave_demo));
-        },
-        flow_accent(demo_mode));
+        });
     container->add(btn_continue);
 
     return container;
