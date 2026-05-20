@@ -159,12 +159,16 @@ void run_app(int argc, char** argv)
         printf("[NAV] -> TREATMENT (demo=%d)\n", demo); fflush(stdout);
         TreatmentConfig config;
         config.demo_mode = demo;
-        // Demo uses shorter times for quick testing
+        // Demo uses shorter times for quick testing. Warning thresholds
+        // are scaled down too so both alerts are reachable within the
+        // 30 s demo limit (first at 15 s remaining, second at 5 s).
         if (demo) {
             config.warming_seconds   = 5;
             config.position_tip_seconds = 3;
             config.cycle_seconds     = 10;
-            config.total_target_seconds = 30;
+            config.process_limit_seconds   = 30;
+            config.first_warning_remaining  = 15;
+            config.second_warning_remaining = 5;
         }
 
         TreatmentCallbacks cbs;
@@ -174,6 +178,13 @@ void run_app(int argc, char** argv)
         cbs.on_treatment_completed = [&]() { show_home(); };
         cbs.on_treatment_ended_early = [&]() { show_home(); };
         cbs.on_leave_to_home = [&]() { show_home(); };
+        // Hardware alert stubs — log for now, firmware wires these later.
+        cbs.on_alert_tone = [](int count) {
+            printf("[ALERT] play %d tone(s)\n", count); fflush(stdout);
+        };
+        cbs.on_tip_led_flash = [](int count) {
+            printf("[ALERT] flash tip LED x%d\n", count); fflush(stdout);
+        };
 
         start_treatment_flow(config, cbs);
     };

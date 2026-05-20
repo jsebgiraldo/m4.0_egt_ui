@@ -60,6 +60,12 @@ struct TreatmentState {
 
     bool is_paused = false;
 
+    // Process-limit warnings fire once each as cumulative time crosses the
+    // 5-min and 1-min-remaining thresholds. Tracked here so they don't
+    // re-fire when a screen rebuilds between cycles.
+    bool first_warning_fired  = false;
+    bool second_warning_fired = false;
+
     // Timer references (kept alive via shared_ptr)
     shared_ptr<PeriodicTimer> active_timer;
 
@@ -77,17 +83,54 @@ struct TreatmentState {
         return ss.str();
     }
 
-    // How many total cycles to reach target
+    // How many total cycles to reach the process limit
     int total_cycles() const {
         if (config.cycle_seconds <= 0) return 1;
-        return max(1, (config.total_target_seconds + config.cycle_seconds - 1) / config.cycle_seconds);
+        return max(1, (config.process_limit_seconds + config.cycle_seconds - 1) / config.cycle_seconds);
     }
 
-    // Is treatment complete?
+    // Has the process hit its hard time limit?
     bool is_complete() const {
-        return cumulative_seconds >= config.total_target_seconds;
+        return cumulative_seconds >= config.process_limit_seconds;
     }
 };
+
+// Fire the process-limit advance-notice alerts (tone + LED) once each as
+// cumulative time crosses the configured thresholds. Safe to call from any
+// per-second tick — the state flags guarantee single-fire.
+static void check_and_fire_warnings(shared_ptr<TreatmentState> state)
+{
+    const int remaining =
+        state->config.process_limit_seconds - state->cumulative_seconds;
+
+    if (!state->first_warning_fired &&
+        remaining <= state->config.first_warning_remaining) {
+        state->first_warning_fired = true;
+        printf("[PROCESS] First warning — %d s remaining (1 tone, 1 LED flash)\n",
+               remaining); fflush(stdout);
+        if (state->callbacks.on_alert_tone)    state->callbacks.on_alert_tone(1);
+        if (state->callbacks.on_tip_led_flash) state->callbacks.on_tip_led_flash(1);
+    }
+    if (!state->second_warning_fired &&
+        remaining <= state->config.second_warning_remaining) {
+        state->second_warning_fired = true;
+        printf("[PROCESS] Second warning — %d s remaining (2 tones, 2 LED flashes)\n",
+               remaining); fflush(stdout);
+        if (state->callbacks.on_alert_tone)    state->callbacks.on_alert_tone(2);
+        if (state->callbacks.on_tip_led_flash) state->callbacks.on_tip_led_flash(2);
+    }
+}
+
+// Which warning window the current cumulative time falls in.
+enum class WarnWindow { None, FiveMin, OneMin };
+static WarnWindow current_warn_window(const shared_ptr<TreatmentState>& state)
+{
+    const int remaining =
+        state->config.process_limit_seconds - state->cumulative_seconds;
+    if (remaining <= state->config.second_warning_remaining) return WarnWindow::OneMin;
+    if (remaining <= state->config.first_warning_remaining)  return WarnWindow::FiveMin;
+    return WarnWindow::None;
+}
 
 // ── Forward declarations ────────────────────────────────────────────────────
 static void show_warming(shared_ptr<TreatmentState> state);
@@ -592,7 +635,7 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
 
     // Large countdown (Figma: y=60, 64px)
     int cycle_remaining = state->config.cycle_seconds;
-    int remaining_total = state->config.total_target_seconds - state->cumulative_seconds;
+    int remaining_total = state->config.process_limit_seconds - state->cumulative_seconds;
     cycle_remaining = min(cycle_remaining, remaining_total);
 
     auto remaining = make_shared<int>(cycle_remaining);
@@ -612,6 +655,39 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
 
     // Segmented progress dots (Figma: y=154)
     add_segmented_progress(container, state);
+
+    // ── MVP process-limit warning banner ──────────────────────────────
+    // Hidden until cumulative time enters a warning window; amber at the
+    // 5-min mark, red at the 1-min mark, with a live "limit in M:SS"
+    // countdown. Placeholder styling for client review — Figma hasn't
+    // defined these notification screens yet.
+    const int wb_w = 460, wb_h = 40;
+    auto warn_banner = make_shared<Frame>(
+        Rect((dt::SCREEN_W - wb_w) / 2, 336, wb_w, wb_h));
+    warn_banner->fill_flags({Theme::FillFlag::blend});
+    warn_banner->border(0);
+    warn_banner->border_radius(dt::RADIUS_SM);
+    warn_banner->hide();
+    container->add(warn_banner);
+
+    auto warn_lbl = make_shared<Label>("",
+        Rect(0, 0, wb_w, wb_h), AlignFlag::center);
+    warn_lbl->font(Font(18, Font::Weight::bold));
+    warn_lbl->color(Palette::ColorId::label_text, dt::kWhite);
+    warn_banner->add(warn_lbl);
+
+    auto refresh_banner = [state](shared_ptr<Frame> banner,
+                                  shared_ptr<Label> lbl) {
+        const auto win = current_warn_window(state);
+        if (win == WarnWindow::None) { banner->hide(); return; }
+        const int rem = std::max(0,
+            state->config.process_limit_seconds - state->cumulative_seconds);
+        banner->color(Palette::ColorId::bg,
+            win == WarnWindow::OneMin ? dt::kRed : dt::kOrange);
+        lbl->text("Process limit in " + TreatmentState::format_time(rem));
+        banner->show();
+    };
+    refresh_banner(warn_banner, warn_lbl);  // reflect current state on build
 
     // Pause / End buttons (Figma: y=194, left=21, right=290)
     auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
@@ -644,6 +720,8 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
 
     weak_ptr<Label> w_countdown = countdown_label;
     weak_ptr<Label> w_cum_time = cum_time_lbl;
+    weak_ptr<Frame> w_warn_banner = warn_banner;
+    weak_ptr<Label> w_warn_lbl = warn_lbl;
 
     timer->on_timeout([=]() {
         if (!*state->alive) { timer->cancel(); return; }
@@ -656,6 +734,12 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
         // Update cumulative time dynamically
         if (auto ct = w_cum_time.lock())
             ct->text(TreatmentState::format_time(state->cumulative_seconds));
+
+        // Process-limit alerts (tone + LED) + banner refresh
+        check_and_fire_warnings(state);
+        if (auto wb = w_warn_banner.lock())
+            if (auto wl = w_warn_lbl.lock())
+                refresh_banner(wb, wl);
 
         // Transition to green near-end screen at threshold
         if (*remaining <= state->config.nearly_finished_threshold && *remaining > 0) {
@@ -769,6 +853,9 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
                 ? (*remaining * total_dashes) / threshold
                 : 0);
         }
+
+        // Process-limit alerts (tone + LED) can still cross here
+        check_and_fire_warnings(state);
 
         // Treatment target reached?
         if (state->is_complete()) {
