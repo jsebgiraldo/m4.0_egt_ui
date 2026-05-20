@@ -62,15 +62,16 @@ shared_ptr<Widget> create_demo_info_screen(
     warning->color(Palette::ColorId::label_text, dt::kBlack);
     container->add(warning);
 
-    // ── Back button (bottom-left, Figma: bt EXIT 84×33 → ~156×61) ───────────
+    // ── Back button (bottom-left) — lifted off the bottom edge ──────────────
+    const int btn_y = dt::SCREEN_H - 104;
     auto btn_back = ui::create_outlined_button("Back",
-        Rect(30, dt::SCREEN_H - 80, 156, 61),
+        Rect(30, btn_y, 156, 61),
         on_back);
     container->add(btn_back);
 
-    // ── Continue button (bottom-right, Figma: bt continue 117×33 → ~217×61) ─
+    // ── Continue button (bottom-right) ──────────────────────────────────────
     auto btn_continue = ui::create_filled_button("Continue",
-        Rect(dt::SCREEN_W - 247, dt::SCREEN_H - 80, 217, 61),
+        Rect(dt::SCREEN_W - 247, btn_y, 217, 61),
         on_continue);
     container->add(btn_continue);
 

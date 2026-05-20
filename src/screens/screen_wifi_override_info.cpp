@@ -267,7 +267,8 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     card->add(badge);
 
     // ── Bottom row: Back / Retry WiFi / Setting ─────────────────────────────
-    const int row_y = banner_h + 286;
+    // Pulled up from the card's bottom edge so it doesn't hug it.
+    const int row_y = banner_h + 262;
     const int row_h = 60, row_gap = 14;
     const int row_w = (card_w - 30 * 2 - 2 * row_gap) / 3;
     auto back_icon  = load_icon("chev",    kChevronSvg, 22);
