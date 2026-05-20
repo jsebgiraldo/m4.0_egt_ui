@@ -442,21 +442,22 @@ public:
         painter.set(pct_font);
         const auto ps = painter.text_size("%");
 
-        const float total = ns.width() + gap + ps.width();
-        const float sx = b.x() + (b.width()  - total) / 2.0f;
-        // Vertically centre the number; bottom-align the % to the number's
-        // baseline (its bottom).
+        // Centre the NUMBER on the widget; the % floats off to its right as
+        // a unit suffix (doesn't shift the number). This keeps the digits
+        // aligned with the centred "Ready for Treatment" text below — the
+        // value dominates, the unit hangs off (Apple-Watch convention).
+        const float num_x = b.x() + (b.width() - ns.width()) / 2.0f;
         const float num_top = b.y() + (b.height() - ns.height()) / 2.0f;
         const float pct_top = num_top + ns.height() - ps.height();
 
         painter.set(num_font);
         painter.set(m_color);
-        painter.draw(PointF(sx, num_top));
+        painter.draw(PointF(num_x, num_top));
         painter.draw(num);
 
         painter.set(pct_font);
         painter.set(m_color);
-        painter.draw(PointF(sx + ns.width() + gap, pct_top));
+        painter.draw(PointF(num_x + ns.width() + gap, pct_top));
         painter.draw(std::string("%"));
     }
 private:
