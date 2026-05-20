@@ -220,31 +220,49 @@ static TreatmentScreen make_treatment_container(
 
     shared_ptr<Label> cum_time_lbl;
 
-    // Cumulative time in header area (Figma: between logo and badge)
+    // Cumulative time header (ToDo master task 6): a two-line label
+    // "CUMULATIVE / TREATMENT TIME" next to the big time value, the whole
+    // pair centred horizontally on the screen and nudged lower than before
+    // (it used to hug the very top). Layout is a centred group:
+    //   [ right-aligned 2-line label ] gap [ big time value ]
     if (show_cumulative) {
-        // Separator line
-        auto sep = make_shared<Frame>(Rect(CUM_LEFT_X, CUM_SEP_Y, CUM_WIDTH, 1));
+        const int desc_w = 210, time_w = 120, gap = 14;
+        const int group_w = desc_w + gap + time_w;
+        const int group_x = (dt::SCREEN_W - group_w) / 2;  // centred
+        const int hdr_y   = 28;                             // lower than before
+        const int sep_y   = 86;
+
+        // Two-line description, right-aligned so it reads tight against the
+        // time value.
+        auto desc1 = make_shared<Label>("CUMULATIVE",
+            Rect(group_x, hdr_y, desc_w, 24),
+            AlignFlag::right | AlignFlag::center_vertical);
+        desc1->font(Font(15, Font::Weight::normal));
+        desc1->color(Palette::ColorId::label_text, text_color);
+        container->add(desc1);
+
+        auto desc2 = make_shared<Label>("TREATMENT TIME",
+            Rect(group_x, hdr_y + 22, desc_w, 24),
+            AlignFlag::right | AlignFlag::center_vertical);
+        desc2->font(Font(15, Font::Weight::normal));
+        desc2->color(Palette::ColorId::label_text, text_color);
+        container->add(desc2);
+
+        // Big time value, vertically centred against the 2-line label.
+        cum_time_lbl = make_shared<Label>(
+            TreatmentState::format_time(state->cumulative_seconds),
+            Rect(group_x + desc_w + gap, hdr_y, time_w, 46),
+            AlignFlag::left | AlignFlag::center_vertical);
+        cum_time_lbl->font(Font(28, Font::Weight::bold));
+        cum_time_lbl->color(Palette::ColorId::label_text, text_color);
+        container->add(cum_time_lbl);
+
+        // Separator line under the group
+        auto sep = make_shared<Frame>(Rect(CUM_LEFT_X, sep_y, CUM_WIDTH, 1));
         sep->fill_flags({Theme::FillFlag::blend});
         sep->color(Palette::ColorId::bg, sep_color);
         sep->border(0);
         container->add(sep);
-
-        // Time value (right side)
-        cum_time_lbl = make_shared<Label>(
-            TreatmentState::format_time(state->cumulative_seconds),
-            Rect(CUM_LEFT_X + CUM_WIDTH / 2, CUM_TIME_Y, CUM_WIDTH / 2, 35),
-            AlignFlag::right);
-        cum_time_lbl->font(Font(24, Font::Weight::bold));
-        cum_time_lbl->color(Palette::ColorId::label_text, text_color);
-        container->add(cum_time_lbl);
-
-        // Description (left side) — uppercase per Figma 67:578
-        auto desc = make_shared<Label>("CUMULATIVE TREATMENT TIME",
-            Rect(CUM_LEFT_X, CUM_TIME_Y + 3, CUM_WIDTH / 2, 30),
-            AlignFlag::left);
-        desc->font(Font(18, Font::Weight::normal));
-        desc->color(Palette::ColorId::label_text, text_color);
-        container->add(desc);
     }
 
     return {container, cum_time_lbl};
