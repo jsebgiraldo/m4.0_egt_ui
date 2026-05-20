@@ -1,13 +1,33 @@
 #include "treatment_controller.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
+#include <egt/svgimage.h>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <cmath>
+#include <fstream>
 
 using namespace egt;
 using namespace std;
+
+// House glyph for the "Back to Home" button (white fill so it reads on the
+// cyan button). Matches the Figma completed/ended screen.
+static const char* kHomeSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="#FFFFFF"/>
+</svg>)svg";
+
+static Image load_home_icon(int size)
+{
+    try {
+        static bool written = false;
+        const string path = "/tmp/egt-icon-home.svg";
+        if (!written) { ofstream f(path); f << kHomeSvg; written = f.good(); }
+        SvgImage svg("file:" + path, SizeF(size, size));
+        return static_cast<Image>(svg);
+    } catch (...) { return {}; }
+}
 
 // ── Shared state across treatment screens ───────────────────────────────────
 struct TreatmentState {
@@ -1026,20 +1046,24 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
             state->callbacks.on_treatment_completed();
     };
 
-    auto btn_home = ui::create_filled_button("Back to Home",
-        Rect((dt::SCREEN_W - BTN_W) / 2, BTN_Y, BTN_W, BTN_H),
-        go_home);
+    // "Back to Home" button — cyan filled, house icon + label, matching the
+    // Figma. Slightly wider than the default to fit the icon + 2-line text.
+    const int home_w = 240;
+    auto home_icon = load_home_icon(40);
+    auto btn_home = make_shared<ImageButton>(home_icon, "Back to\nHome",
+        Rect((dt::SCREEN_W - home_w) / 2, BTN_Y, home_w, BTN_H),
+        AlignFlag::center);
+    btn_home->image_align(AlignFlag::left | AlignFlag::center_vertical);
+    btn_home->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    btn_home->color(Palette::ColorId::button_bg, dt::kAccentCyan);
+    btn_home->color(Palette::ColorId::button_text, dt::kWhite);
+    btn_home->border(0);
+    btn_home->border_radius(dt::RADIUS_MD);
+    btn_home->on_click([go_home](Event&) { go_home(); });
     container->add(btn_home);
 
     state->callbacks.on_show_screen(container);
 
-    // Auto-return to home after a few seconds (Figma design note)
-    auto auto_timer = make_shared<PeriodicTimer>(chrono::seconds(5));
-    state->active_timer = auto_timer;
-    auto_timer->on_timeout([=]() {
-        auto_timer->cancel();
-        if (!*state->alive) return;   // user already left — don't pop back
-        go_home();
-    });
-    auto_timer->start();
+    // No auto-return: the technician must tap "Back to Home" to leave, so
+    // the completed/ended summary stays on screen until acknowledged.
 }
