@@ -24,12 +24,18 @@ shared_ptr<Widget> create_demo_info_screen(
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
 
-    // ── DEMO MODE badge (top-right, Figma: 79×44 @353,6 → 654,11) ──────────
-    auto demo_label = make_shared<Label>("DEMO MODE",
-        Rect(dt::SCREEN_W - 170, 10, 160, 80), AlignFlag::right);
-    demo_label->font(Font(30, Font::Weight::bold));
-    demo_label->color(Palette::ColorId::label_text, dt::kAccentCyan);
-    container->add(demo_label);
+    // ── DEMO MODE badge (top-right) — 2-line stacked so it never clips ─────
+    auto demo_l1 = make_shared<Label>("DEMO",
+        Rect(dt::SCREEN_W - 140, 14, 124, 30), AlignFlag::center);
+    demo_l1->font(Font(22, Font::Weight::bold));
+    demo_l1->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    container->add(demo_l1);
+
+    auto demo_l2 = make_shared<Label>("MODE",
+        Rect(dt::SCREEN_W - 140, 44, 124, 30), AlignFlag::center);
+    demo_l2->font(Font(22, Font::Weight::bold));
+    demo_l2->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    container->add(demo_l2);
 
     // ── Green progress bar (Figma: Rectangle 32, 432×3 @0,79 → y=146) ──────
     auto green_bar = make_shared<Frame>(Rect(0, 130, dt::SCREEN_W, 6));

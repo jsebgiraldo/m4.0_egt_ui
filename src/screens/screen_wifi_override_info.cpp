@@ -1,6 +1,9 @@
 #include "screen_wifi_override_info.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
+#include "../ui/override_config.h"
+
+#include <string>
 
 using namespace egt;
 using namespace std;
@@ -36,18 +39,30 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     // Main message
     auto msg = make_shared<Label>(
         "Wi-Fi / Network Connection\nremains unavailable",
-        Rect(50, 230, dt::SCREEN_W - 100, 60));
+        Rect(50, 225, dt::SCREEN_W - 100, 60));
     msg->font(Font(dt::FONT_TITLE, Font::Weight::bold));
     msg->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(msg);
 
+    // State-2 message: device keeps operating for the factory-configured
+    // number of days (ToDo master task 1). Value is backend-driven.
+    const int days = ui::get_override_days();
+    auto operate = make_shared<Label>(
+        "The device will continue to operate\n"
+        "normally for " + std::to_string(days) +
+        (days == 1 ? " day." : " days."),
+        Rect(50, 290, dt::SCREEN_W - 100, 56));
+    operate->font(Font(dt::FONT_BODY, Font::Weight::normal));
+    operate->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(operate);
+
     // Info text
     auto info = make_shared<Label>(
-        "To continue without Wi-Fi, enter the\n"
+        "To continue without Wi-Fi now, enter the\n"
         "Override password on the next screen.",
-        Rect(50, 305, dt::SCREEN_W - 100, 60));
+        Rect(50, 348, dt::SCREEN_W - 100, 56));
     info->font(Font(dt::FONT_BODY, Font::Weight::normal));
-    info->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    info->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(info);
 
     // Back button (bottom-left)

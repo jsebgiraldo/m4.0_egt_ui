@@ -88,7 +88,7 @@ void run_app(int argc, char** argv)
         printf("[NAV] -> HOME\n"); fflush(stdout);
         screens.show(create_home_screen(
             [&]() { show_patient_info(false); }, // Begin Treatment -> Patient Info
-            [&]() { show_patient_info(true); },   // Demo Mode -> Patient Info (demo)
+            [&]() { show_demo_info(true); },     // Demo Mode -> TRAINING ONLY screen first
             [&]() { show_settings(); }           // Settings -> Settings menu
         ));
     };
