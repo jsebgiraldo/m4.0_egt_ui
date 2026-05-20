@@ -140,11 +140,18 @@ static constexpr int CONTENT_Y      = 120;  // y for large number/percentage
 static constexpr int CONTENT_H      = 145;  // height of large number area
 static constexpr int STATUS_Y       = 275;  // y for status text below countdown
 static constexpr int DOTS_Y         = 325;  // y for segmented progress dots
-static constexpr int BTN_Y          = 390;  // y for bottom buttons
+// Standard bottom margin for action buttons across screens (≈32 px). All
+// bottom buttons share the same bottom edge (SCREEN_H - BTN_BOTTOM_MARGIN).
+static constexpr int BTN_BOTTOM_MARGIN = 32;
 static constexpr int BTN_W          = 220;  // button width
 static constexpr int BTN_H          = 80;   // button height
+static constexpr int BTN_Y          = 480 - BTN_BOTTOM_MARGIN - BTN_H;  // = 368
 static constexpr int BTN_LEFT_X     = 40;   // left button x
 static constexpr int BTN_RIGHT_X    = 540;  // right button x
+
+// Shared bottom edge so non-treatment screens can align their (shorter)
+// buttons to the same line. (e.g. y = STD_BTN_BOTTOM - height)
+static constexpr int STD_BTN_BOTTOM = 480 - BTN_BOTTOM_MARGIN;  // = 448
 
 // ── Common helpers ──────────────────────────────────────────────────────────
 static TreatmentScreen make_treatment_container(

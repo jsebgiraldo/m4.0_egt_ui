@@ -62,8 +62,8 @@ shared_ptr<Widget> create_demo_info_screen(
     warning->color(Palette::ColorId::label_text, dt::kBlack);
     container->add(warning);
 
-    // ── Back button (bottom-left) — lifted off the bottom edge ──────────────
-    const int btn_y = dt::SCREEN_H - 104;
+    // ── Back button (bottom-left) — standard bottom edge (32 px margin) ─────
+    const int btn_y = dt::SCREEN_H - 32 - 61;  // = 387, shared bottom edge
     auto btn_back = ui::create_outlined_button("Back",
         Rect(30, btn_y, 156, 61),
         on_back);

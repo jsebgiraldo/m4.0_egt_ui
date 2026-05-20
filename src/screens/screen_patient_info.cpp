@@ -377,12 +377,12 @@ static shared_ptr<Widget> create_gender_step(
     // Bottom buttons: Back @(42,400) Skip @(292,400) Continue @(541,400)
     auto btn_back = make_icon_outlined_btn(
         "arrow-back-pi", kArrowBackSvg, "  Back",
-        Rect(42, 380, 156, 61), on_back);
+        Rect(42, 387, 156, 61), on_back);
     container->add(btn_back);
 
     auto btn_skip = make_icon_outlined_btn(
         "skip-next-pi", kSkipNextSvg, "  Skip",
-        Rect(292, 380, 156, 61),
+        Rect(292, 387, 156, 61),
         [=]() {
             info->gender.clear();   // skip => no value collected
             if (on_show_screen)
@@ -394,7 +394,7 @@ static shared_ptr<Widget> create_gender_step(
     // Continue gated on a gender being selected (task 5).
     auto btn_continue = make_continue_btn(
         !info->gender.empty(), demo_mode,
-        Rect(541, 380, 217, 61),
+        Rect(541, 387, 217, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_age_step(demo_mode, info, on_complete,
@@ -555,7 +555,7 @@ static shared_ptr<Widget> create_age_step(
     // Bottom buttons
     auto btn_back = make_icon_outlined_btn(
         "arrow-back-pi", kArrowBackSvg, "  Back",
-        Rect(42, 380, 156, 61),
+        Rect(42, 387, 156, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_gender_step(demo_mode, info, on_complete,
@@ -565,7 +565,7 @@ static shared_ptr<Widget> create_age_step(
 
     auto btn_skip = make_icon_outlined_btn(
         "skip-next-pi", kSkipNextSvg, "  Skip",
-        Rect(292, 380, 156, 61),
+        Rect(292, 387, 156, 61),
         [=]() {
             info->age = 0;  // skip => no value collected
             if (on_show_screen)
@@ -576,7 +576,7 @@ static shared_ptr<Widget> create_age_step(
 
     auto btn_continue = make_icon_filled_btn(
         "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
-        Rect(541, 380, 217, 61),
+        Rect(541, 387, 217, 61),
         [=]() {
             info->age = ranges[*live].low;  // commit the visible selection
             if (on_show_screen)
@@ -675,7 +675,7 @@ static shared_ptr<Widget> create_zip_step(
     // Bottom buttons (Figma Group 233 ZIP step — no Back, blue Continue):
     // Reset @(42,380) text-only, Skip @(292,380) icon, Continue @(541,380) blue
     auto btn_reset = ui::create_outlined_button("Reset",
-        Rect(42, 380, 156, 61),
+        Rect(42, 387, 156, 61),
         [=]() {
             info->zip_code.clear();
             if (on_show_screen)
@@ -687,7 +687,7 @@ static shared_ptr<Widget> create_zip_step(
 
     auto btn_skip = make_icon_outlined_btn(
         "skip-next-pi", kSkipNextSvg, "  Skip",
-        Rect(292, 380, 156, 61),
+        Rect(292, 387, 156, 61),
         [=]() {
             info->zip_code.clear();  // skip => no value collected
             if (on_show_screen)
@@ -704,7 +704,7 @@ static shared_ptr<Widget> create_zip_step(
     // Continue gated on the ZIP field being non-empty (task 5).
     auto btn_continue = make_continue_btn(
         !info->zip_code.empty(), demo_mode,
-        Rect(541, 380, 217, 61),
+        Rect(541, 387, 217, 61),
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_summary_step(demo_mode, info, on_complete,
@@ -787,13 +787,13 @@ static shared_ptr<Widget> create_summary_step(
     // Back button
     auto btn_back = make_icon_outlined_btn(
         "arrow-back-sum", kArrowBackSvg, "  Back",
-        Rect(42, 380, 156, 61),
+        Rect(42, 387, 156, 61),
         [=]() { if (on_back_to_zip) on_back_to_zip(); });
     container->add(btn_back);
 
     // GO button — flow accent (green in real flow, blue in demo)
     const Color go_accent = flow_accent(demo_mode);
-    auto btn_go = make_shared<Button>("GO", Rect(541, 380, 217, 61));
+    auto btn_go = make_shared<Button>("GO", Rect(541, 387, 217, 61));
     btn_go->color(Palette::ColorId::button_bg, go_accent);
     btn_go->color(Palette::ColorId::button_text, dt::kWhite);
     btn_go->color(Palette::ColorId::border, go_accent);

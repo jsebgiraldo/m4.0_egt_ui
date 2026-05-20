@@ -301,6 +301,37 @@ CumulativeTimeFooter create_cumulative_time_footer(int x, int y, int width)
 }
 
 // ── Demo Mode Badge ────────────────────────────────────────────────────────
+// Painter-drawn left "exit/leave" arrow (shaft + arrowhead). Font-independent
+// so it renders on the target, where the ↩ unicode glyph was coming up blank.
+namespace {
+class ExitArrow : public Widget {
+public:
+    ExitArrow(const Rect& rect, const Color& col) : Widget(rect), m_col(col) {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& p, const Rect&) override {
+        auto b = content_area();
+        const float sz = static_cast<float>(std::min(b.width(), b.height()));
+        const float cy = b.y() + b.height() / 2.0f;
+        const float cx = b.x() + b.width()  / 2.0f;
+        const float x0 = cx - sz * 0.30f;   // arrow tip (left)
+        const float x1 = cx + sz * 0.30f;   // shaft end (right)
+        const float head = sz * 0.22f;
+        p.set(m_col);
+        p.line_width(std::max(3.0f, sz * 0.11f));
+        p.draw(Line(PointF(x0, cy), PointF(x1, cy)));       // shaft
+        p.stroke();
+        p.draw(Line(PointF(x0, cy), PointF(x0 + head, cy - head)));  // head ↖
+        p.stroke();
+        p.draw(Line(PointF(x0, cy), PointF(x0 + head, cy + head)));  // head ↙
+        p.stroke();
+    }
+private:
+    Color m_col;
+};
+} // namespace
+
 // Two visual variants — see create_demo_mode_badge docstring in components.h.
 // Treatment uses Card (floating card with border/shadow, prominent Exit so
 // the user can always abort a running cycle). Patient-info uses Compact
@@ -343,11 +374,8 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
         leave_btn->border_radius(dt::RADIUS_SM);
         leave_btn->border(0);
 
-        auto card_arrow = make_shared<Label>("↩",
-            Rect(0, 0, btn_w, btn_h), AlignFlag::center);
-        card_arrow->font(Font(24, Font::Weight::bold));
-        card_arrow->color(Palette::ColorId::label_text, dt::kWhite);
-        leave_btn->add(card_arrow);
+        leave_btn->add(make_shared<ExitArrow>(
+            Rect(0, 0, btn_w, btn_h), dt::kWhite));
 
         if (on_leave) {
             leave_btn->on_event([on_leave](Event& e) {
@@ -392,11 +420,8 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     leave_btn->border_radius(dt::RADIUS_SM);
     leave_btn->border(0);
 
-    auto arrow = make_shared<Label>("↩",
-        Rect(0, 0, btn_w, btn_h), AlignFlag::center);
-    arrow->font(Font(18, Font::Weight::bold));
-    arrow->color(Palette::ColorId::label_text, dt::kWhite);
-    leave_btn->add(arrow);
+    leave_btn->add(make_shared<ExitArrow>(
+        Rect(0, 0, btn_w, btn_h), dt::kWhite));
 
     if (on_leave) {
         leave_btn->on_event([on_leave](Event& e) {
