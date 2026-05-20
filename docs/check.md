@@ -16,14 +16,16 @@ Flujo progresivo cuando el dispositivo no logra conectarse a WiFi:
 - `[ ]` **Estado 2 — "WiFi remains unavailable, device will continue to
   operate normally for N days"**: mensaje de operación temporal con
   countdown de **N días**.
-  - El número N vive en **backend**, fácilmente modificable.
-  - Además debe poder editarse desde un apartado en **Settings**.
-  - ⏳ **Bloqueado**: requiere el diseño de la pantalla (Figma rate-limited).
+  - `[x]` Número N en **backend** (`/etc/m4-egt/override_days`, default 7,
+    `ui::get/set_override_days`). La pantalla override-info ya muestra
+    "operate normally for N days".
+  - `[ ]` Editor en **Settings**: pendiente de un slot de diseño
+    (Settings está pixel-matched, no hay diseño para el control).
 - `[ ]` **Estado 3 — "WiFi remains unavailable, enter override password"**:
   es la **misma pantalla de override** que ya tenemos; solo hay que
-  ajustar el look para que coincida con **Figma 134:1421** (la última
-  pantalla de ingreso de password).
-  - ⏳ **Bloqueado**: Figma 134:1421 no accesible (API rate-limited).
+  ajustar el look para que coincida con **Figma 134:1421**.
+  - `[~]` El flujo funciona end-to-end con el teclado pulido; el match
+    exacto a 134:1421 queda pendiente (API rate-limited).
 
 ---
 
@@ -37,9 +39,10 @@ Flujo progresivo cuando el dispositivo no logra conectarse a WiFi:
 
 ## 3. Demonstration Mode — pantalla "TRAINING ONLY" faltante
 
-- `[ ]` **Falta la pantalla de modo demostración / "TRAINING ONLY".**
-  (Figma 84:608) — hay que construirla.
-  - ⏳ **Bloqueado**: Figma 84:608 no accesible (API rate-limited).
+- `[x]` **Pantalla "TRAINING ONLY" cableada al flujo Demo.** La pantalla
+  ya existía (`screen_demo_info`) pero Demo Mode la saltaba; ahora va
+  Demo Mode → Demonstration Mode/Training Only → patient info. Badge
+  DEMO MODE arreglado (se cortaba). Falta confirmar contra Figma 84:608.
 
 ---
 
