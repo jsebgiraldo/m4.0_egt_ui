@@ -57,6 +57,7 @@ build-native/
 build-docker/
 build-x86/
 build-arm/
+build-cross-deploy/
 cmake-build-*/
 
 # CMake generated files

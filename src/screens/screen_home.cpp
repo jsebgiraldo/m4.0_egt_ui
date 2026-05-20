@@ -128,15 +128,18 @@ private:
     static void draw_rounded_path(Painter& p, float x, float y,
                                   float w, float h, float r)
     {
+        // Use draw(point)/line(point) (not move_to/line_to) so this builds
+        // against both EGT 1.12 (host simulator) and EGT 1.10 (target),
+        // where move_to/line_to aren't public Painter methods.
         const auto PI = static_cast<float>(M_PI);
-        p.move_to(PointF(x + r,         y));
-        p.line_to(PointF(x + w - r,     y));
+        p.draw(PointF(x + r,         y));
+        p.line(PointF(x + w - r,     y));
         p.draw(Arc(PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
-        p.line_to(PointF(x + w,         y + h - r));
+        p.line(PointF(x + w,         y + h - r));
         p.draw(Arc(PointF(x + w - r, y + h - r),   r, 0.0f,   PI / 2));
-        p.line_to(PointF(x + r,         y + h));
+        p.line(PointF(x + r,         y + h));
         p.draw(Arc(PointF(x + r, y + h - r),       r, PI / 2, PI));
-        p.line_to(PointF(x,             y + r));
+        p.line(PointF(x,             y + r));
         p.draw(Arc(PointF(x + r, y + r),           r, PI,    3 * PI / 2));
     }
 };
