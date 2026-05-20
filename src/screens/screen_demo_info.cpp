@@ -51,16 +51,28 @@ shared_ptr<Widget> create_demo_info_screen(
     divider->border(0);
     container->add(divider);
 
-    // ── Warning text block (Figma: 260×92 @92,101 → 170,187) ──────────────
-    auto warning = make_shared<Label>(
-        "Training Only\n\n"
+    // ── "TRAINING ONLY" — large, blue, centred ─────────────────────────────
+    auto training = make_shared<Label>("TRAINING ONLY",
+        Rect(0, 168, dt::SCREEN_W, 50), AlignFlag::center);
+    training->font(Font(36, Font::Weight::bold));
+    training->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    container->add(training);
+
+    // ── Body — dark, normal weight ─────────────────────────────────────────
+    auto body = make_shared<Label>(
         "The Demo Mode has a lower temperature\n"
-        "and a lower fan speed.\n"
-        "Do Not Use For Treatments !",
-        Rect(160, 170, 480, 200));
-    warning->font(Font(dt::FONT_SUBTITLE, Font::Weight::bold));
-    warning->color(Palette::ColorId::label_text, dt::kBlack);
-    container->add(warning);
+        "and a lower fan speed.",
+        Rect(0, 238, dt::SCREEN_W, 60), AlignFlag::center);
+    body->font(Font(dt::FONT_SUBTITLE, Font::Weight::normal));
+    body->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(body);
+
+    // ── "Do Not Use For Treatments !" — blue, bold, lower ──────────────────
+    auto warn = make_shared<Label>("Do Not Use For Treatments !",
+        Rect(0, 312, dt::SCREEN_W, 36), AlignFlag::center);
+    warn->font(Font(dt::FONT_SUBTITLE, Font::Weight::bold));
+    warn->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    container->add(warn);
 
     // ── Back button (bottom-left) — standard bottom edge (32 px margin) ─────
     const int btn_y = dt::SCREEN_H - 32 - 61;  // = 387, shared bottom edge
