@@ -228,7 +228,8 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     num->color(Palette::ColorId::label_text, dt::kGreen);
     card->add(num);
 
-    auto unit = make_shared<Label>("additional calendar\n" + day_word,
+    // Single line (no wrap) per request.
+    auto unit = make_shared<Label>("additional calendar " + day_word,
         Rect(232, banner_h + 24, card_w - 232 - 20, 76),
         AlignFlag::left | AlignFlag::center_vertical);
     unit->font(Font(18, Font::Weight::bold));
@@ -239,15 +240,16 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     auto save = make_shared<Label>(
         "It will still save all treatment information on device\n"
         "& transmit once Connection is established.",
-        Rect(20, banner_h + 116, card_w - 40, 50), AlignFlag::center);
+        Rect(20, banner_h + 100, card_w - 40, 46), AlignFlag::center);
     save->font(Font(14, Font::Weight::normal));
     save->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(save);
 
     // ── Continue button (blue) + (!) info badge ─────────────────────────────
-    const int cont_w = 300, cont_h = 60;
+    // Lifted up with a clear gap above the Back/Retry/Setting row.
+    const int cont_w = 300, cont_h = 58;
     const int cont_x = (card_w - cont_w) / 2 - 20;
-    const int cont_y = banner_h + 188;
+    const int cont_y = banner_h + 158;
     auto btn_continue = ui::create_filled_button("Continue",
         Rect(cont_x, cont_y, cont_w, cont_h), on_continue);
     card->add(btn_continue);
