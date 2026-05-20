@@ -9,46 +9,6 @@
 using namespace egt;
 using namespace std;
 
-// Dashed progress bar used on the nearly-finished screen. Renders as a
-// row of N small green dashes with the trailing M dashes greyed out to
-// indicate remaining time. Matches the Figma styling (5 groups of small
-// rectangles, last group fading).
-class DashedProgressBar : public Widget {
-public:
-    DashedProgressBar(const Rect& rect, int total_dashes, int filled_dashes)
-        : Widget(rect), m_total(total_dashes), m_filled(filled_dashes)
-    {
-        fill_flags({Theme::FillFlag::blend});
-        border(0);
-    }
-
-    void set_filled(int n) {
-        n = std::max(0, std::min(m_total, n));
-        if (n != m_filled) { m_filled = n; damage(); }
-    }
-
-    void draw(Painter& painter, const Rect& /*rect*/) override
-    {
-        auto b = content_area();
-        const int dash_w = 12;
-        const int dash_h = 6;
-        const int small_gap = 3;
-        const int total_w = m_total * dash_w + (m_total - 1) * small_gap;
-        const int start_x = b.x() + (b.width() - total_w) / 2;
-        const int dash_y  = b.y() + (b.height() - dash_h) / 2;
-        for (int i = 0; i < m_total; i++) {
-            int x = start_x + i * (dash_w + small_gap);
-            Color c = (i < m_filled) ? dt::kGreen : Color(210, 210, 210);
-            painter.set(c);
-            painter.draw(Rect(x, dash_y, dash_w, dash_h));
-            painter.fill();
-        }
-    }
-
-private:
-    int m_total, m_filled;
-};
-
 // ── Shared state across treatment screens ───────────────────────────────────
 struct TreatmentState {
     TreatmentConfig config;
@@ -808,10 +768,11 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
 }
 
 // ── TREATMENT NEARLY DONE SCREEN ───────────────────────────────────────────
-// Figma 67:578: white interior framed by a green border band. Same dark
-// text and layout as the normal cycle screen — the only "urgency" cue is
-// the green frame + dashed bar in place of segmented dots. Transitions to
-// completed (if treatment done) or position_tip (if next cycle).
+// Figma 67:578: the last few seconds of a cycle are signalled purely as an
+// ALERT — a green border band around the otherwise-normal cycle screen.
+// The overall progress dots keep filling (they are NOT replaced by a
+// draining bar): the green frame is the alert, the progress stays
+// consistent so the user never sees the indicator run backwards.
 static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int remaining_seconds)
 {
     auto [container, cum_time_lbl] = make_treatment_container(state, true, true);
@@ -833,20 +794,9 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
     status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status);
 
-    // Dashed progress bar replaces the round dots. Green dashes represent
-    // time REMAINING in this final stretch — full at the start, draining
-    // from right to left as the seconds tick down.
-    const int total_dashes = 30;
-    const int threshold    = state->config.nearly_finished_threshold;
-    int filled = (threshold > 0)
-        ? (*remaining * total_dashes) / threshold
-        : 0;
-    if (filled < 0) filled = 0;
-    if (filled > total_dashes) filled = total_dashes;
-    auto dash_bar = make_shared<DashedProgressBar>(
-        Rect(60, DOTS_Y - 6, dt::SCREEN_W - 120, 16),
-        total_dashes, filled);
-    container->add(dash_bar);
+    // Same overall progress dots as the active screen — they keep advancing
+    // with cumulative time so the indicator never reverses during the alert.
+    auto seg_bar = add_segmented_progress(container, state);
 
     // Buttons — standard outlined (dark text on white bg)
     auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
@@ -875,9 +825,9 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
     *timer_ref = timer;
     state->active_timer = timer;
 
-    weak_ptr<Label>             w_countdown = countdown_label;
-    weak_ptr<Label>             w_cum_time  = cum_time_lbl;
-    weak_ptr<DashedProgressBar> w_dash      = dash_bar;
+    weak_ptr<Label> w_countdown = countdown_label;
+    weak_ptr<Label> w_cum_time  = cum_time_lbl;
+    weak_ptr<Frame> w_seg_bar   = seg_bar;
 
     timer->on_timeout([=]() {
         if (!*state->alive) { timer->cancel(); return; }
@@ -888,11 +838,9 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
             lb->text(to_string(*remaining));
         if (auto ct = w_cum_time.lock())
             ct->text(TreatmentState::format_time(state->cumulative_seconds));
-        if (auto db = w_dash.lock()) {
-            db->set_filled((threshold > 0)
-                ? (*remaining * total_dashes) / threshold
-                : 0);
-        }
+        // Progress dots keep filling with cumulative time (no reversal)
+        if (auto sb = w_seg_bar.lock())
+            ui::update_segmented_progress_fraction(sb, treatment_progress(state));
 
         // Process-limit alerts (tone + LED) can still cross here
         check_and_fire_warnings(state);
