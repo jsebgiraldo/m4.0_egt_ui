@@ -326,25 +326,30 @@ static shared_ptr<Frame> make_action_button(
     return frame;
 }
 
-// Helper: add segmented progress dots at standard y position
-static void add_segmented_progress(
+// Overall treatment progress as a 0..1 fraction of the process time limit.
+static float treatment_progress(const shared_ptr<TreatmentState>& state)
+{
+    if (state->config.process_limit_seconds <= 0) return 0.0f;
+    return static_cast<float>(state->cumulative_seconds) /
+           static_cast<float>(state->config.process_limit_seconds);
+}
+
+// Add the segmented progress dots and return the bar so callers can update
+// it live. The fill tracks cumulative time vs the process limit (not the
+// cycle count) so it advances smoothly throughout the session instead of
+// staying empty for many short cycles.
+static shared_ptr<Frame> add_segmented_progress(
     shared_ptr<Frame> container,
     shared_ptr<TreatmentState> state)
 {
-    int seg_total = state->total_cycles();
-    int seg_filled = state->cycles_completed;
-    int seg_display = min(seg_total, dt::SEGMENT_COUNT);
-    int filled_display = 0;
-    if (seg_total > 0)
-        filled_display = min(seg_display,
-            (int)round((double)seg_filled / seg_total * seg_display));
-
+    const int seg_display = dt::SEGMENT_COUNT;
     auto seg_bar = ui::create_segmented_progress(
         (dt::SCREEN_W - (seg_display * (dt::SEGMENT_W + dt::SEGMENT_GAP) - dt::SEGMENT_GAP)) / 2,
         DOTS_Y,
         seg_display);
-    ui::update_segmented_progress(seg_bar, filled_display, seg_display);
+    ui::update_segmented_progress_fraction(seg_bar, treatment_progress(state));
     container->add(seg_bar);
+    return seg_bar;
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────
@@ -683,8 +688,8 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status);
 
-    // Segmented progress dots (Figma: y=154)
-    add_segmented_progress(container, state);
+    // Segmented progress dots (Figma: y=154) — tracks cumulative time
+    auto seg_bar = add_segmented_progress(container, state);
 
     // ── MVP process-limit warning banner ──────────────────────────────
     // Hidden until cumulative time enters a warning window; amber at the
@@ -752,6 +757,7 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     weak_ptr<Label> w_cum_time = cum_time_lbl;
     weak_ptr<Frame> w_warn_banner = warn_banner;
     weak_ptr<Label> w_warn_lbl = warn_lbl;
+    weak_ptr<Frame> w_seg_bar = seg_bar;
 
     timer->on_timeout([=]() {
         if (!*state->alive) { timer->cancel(); return; }
@@ -764,6 +770,10 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
         // Update cumulative time dynamically
         if (auto ct = w_cum_time.lock())
             ct->text(TreatmentState::format_time(state->cumulative_seconds));
+
+        // Update overall progress dots (cumulative vs process limit)
+        if (auto sb = w_seg_bar.lock())
+            ui::update_segmented_progress_fraction(sb, treatment_progress(state));
 
         // Process-limit alerts (tone + LED) + banner refresh
         check_and_fire_warnings(state);

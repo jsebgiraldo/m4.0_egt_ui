@@ -45,6 +45,12 @@ void update_segmented_progress(
     int filled_segments,
     int total_segments = 6);
 
+/// Fill the segmented bar by a 0..1 fraction at individual-dot granularity
+/// (smoother than whole-segment stepping). Greens up round(fraction*N) dots.
+void update_segmented_progress_fraction(
+    std::shared_ptr<egt::Frame> bar,
+    float fraction);
+
 // ── Linear Progress Bar ────────────────────────────────────────────────────
 /// Horizontal progress bar (green fill on gray track).
 std::shared_ptr<egt::Frame> create_linear_progress_bar(

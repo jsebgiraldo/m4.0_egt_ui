@@ -210,6 +210,24 @@ void update_segmented_progress(
     }
 }
 
+void update_segmented_progress_fraction(shared_ptr<Frame> bar, float fraction)
+{
+    if (!bar) return;
+    if (fraction < 0.0f) fraction = 0.0f;
+    if (fraction > 1.0f) fraction = 1.0f;
+
+    const int total = static_cast<int>(bar->children().size());
+    const int filled = static_cast<int>(std::lround(fraction * total));
+    int i = 0;
+    for (auto& child : bar->children()) {
+        auto* frame = dynamic_cast<Frame*>(child.get());
+        if (frame)
+            frame->color(Palette::ColorId::bg,
+                         (i < filled) ? dt::kGreen : dt::kGrayLight);
+        i++;
+    }
+}
+
 // ── Linear Progress Bar ────────────────────────────────────────────────────
 shared_ptr<Frame> create_linear_progress_bar(int x, int y, int width, int height)
 {
