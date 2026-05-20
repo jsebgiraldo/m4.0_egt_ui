@@ -512,6 +512,7 @@ static void show_ready(shared_ptr<TreatmentState> state)
     const int W_PCT_Y      = W_NUM_Y + W_NUM_H - W_PCT_H;  // bottom-aligned
     const int W_STATUS1_Y  = 285;
     const int W_STATUS2_Y  = 313;
+    const int W_BAR_Y      = 360;
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
@@ -543,12 +544,23 @@ static void show_ready(shared_ptr<TreatmentState> state)
     status2->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status2);
 
-    // ── "Begin Treatment" button (centered, green filled) ─────────────────
+    // ── Full green progress bar (100%) — carried over from Warming so the
+    //    "ready" state still reads as fully warmed (ToDo master task 8).
+    const int bar_w = 700;
+    auto progress_bar = ui::create_linear_progress_bar(
+        (dt::SCREEN_W - bar_w) / 2, W_BAR_Y, bar_w, 10);
+    container->add(progress_bar);
+    ui::update_linear_progress(progress_bar, 100.0f);
+
+    // ── "Begin Treatment" button — flow accent (green real, blue demo) ────
+    const Color accent = state->config.demo_mode ? dt::kAccentCyan : dt::kGreen;
     auto btn_begin = ui::create_filled_button("Begin\nTreatment",
         Rect((dt::SCREEN_W - 260) / 2, BTN_Y, 260, BTN_H),
         [=]() {
             show_position_tip(state);
         });
+    btn_begin->color(Palette::ColorId::button_bg, accent);
+    btn_begin->color(Palette::ColorId::border, accent);
     container->add(btn_begin);
 
     state->callbacks.on_show_screen(container);

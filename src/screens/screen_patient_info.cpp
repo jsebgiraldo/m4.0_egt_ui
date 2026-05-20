@@ -30,6 +30,13 @@ static Image load_svg_icon(const char* name, const char* svg_data, int size)
     }
 }
 
+// Flow-dependent accent colour (ToDo master task 4): blue/cyan for Demo
+// Mode, green for the real (START) treatment flow. Applied to the primary
+// action buttons (Continue / GO) so the colour signals which flow you're in.
+static egt::Color flow_accent(bool demo) {
+    return demo ? dt::kAccentCyan : dt::kGreen;
+}
+
 // Male / Female silhouettes — disc + glyph composition.
 // Source SVGs live in assets/icons/{male,female}.svg; these inlined copies
 // keep the binary self-contained.
@@ -375,7 +382,7 @@ static shared_ptr<Widget> create_gender_step(
                 on_show_screen(create_age_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
         },
-        dt::kAccentCyan);
+        flow_accent(demo_mode));
     container->add(btn_continue);
 
     return container;
@@ -559,7 +566,7 @@ static shared_ptr<Widget> create_age_step(
                 on_show_screen(create_zip_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
         },
-        dt::kAccentCyan);
+        flow_accent(demo_mode));
     container->add(btn_continue);
 
     return container;
@@ -690,7 +697,7 @@ static shared_ptr<Widget> create_zip_step(
                     },
                     on_show_screen, on_leave_demo));
         },
-        dt::kAccentCyan);
+        flow_accent(demo_mode));
     container->add(btn_continue);
 
     return container;
@@ -767,11 +774,12 @@ static shared_ptr<Widget> create_summary_step(
         [=]() { if (on_back_to_zip) on_back_to_zip(); });
     container->add(btn_back);
 
-    // GO button (green, bold, no icon)
+    // GO button — flow accent (green in real flow, blue in demo)
+    const Color go_accent = flow_accent(demo_mode);
     auto btn_go = make_shared<Button>("GO", Rect(541, 380, 217, 61));
-    btn_go->color(Palette::ColorId::button_bg, dt::kGreen);
+    btn_go->color(Palette::ColorId::button_bg, go_accent);
     btn_go->color(Palette::ColorId::button_text, dt::kWhite);
-    btn_go->color(Palette::ColorId::border, dt::kGreen);
+    btn_go->color(Palette::ColorId::border, go_accent);
     btn_go->border(0);
     btn_go->border_radius(dt::RADIUS_XS);
     btn_go->font(Font(dt::FONT_BUTTON + 4, Font::Weight::bold));

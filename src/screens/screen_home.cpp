@@ -61,24 +61,25 @@ namespace {
 // dead-centre. Pressed state darkens both gradient stops.
 class StartButton : public Widget {
 public:
-    StartButton(const Rect& rect, function<void()> on_click)
-        : Widget(rect), m_on_click(std::move(on_click))
+    StartButton(const Rect& rect, const string& label, function<void()> on_click)
+        : Widget(rect), m_label(label), m_on_click(std::move(on_click))
     {
         fill_flags({Theme::FillFlag::blend});
         border(0);
 
+        // Single handler covering press feedback + click. The "Start" text
+        // is painted by this widget (see draw) rather than overlaid as a
+        // separate Label — a Label on top would sit above the button in the
+        // z-order and swallow the pointer_click, which is exactly why Start
+        // used to do nothing while Demo Mode worked.
         on_event([this](Event& e) {
-            if (e.id() == EventId::raw_pointer_down) {
-                m_pressed = true;
-                damage();
-            } else if (e.id() == EventId::raw_pointer_up) {
-                m_pressed = false;
-                damage();
+            switch (e.id()) {
+                case EventId::raw_pointer_down: m_pressed = true;  damage(); break;
+                case EventId::raw_pointer_up:   m_pressed = false; damage(); break;
+                case EventId::pointer_click:    if (m_on_click) m_on_click(); break;
+                default: break;
             }
         });
-        on_event([this](Event&) {
-            if (m_on_click) m_on_click();
-        }, {EventId::pointer_click});
     }
 
     void draw(Painter& painter, const Rect&) override
@@ -105,10 +106,20 @@ public:
         draw_rounded_path(painter, x, y, w, h, r);
         painter.set(grad);
         painter.fill();
+
+        // Centred white label, painted in-widget so it never intercepts the
+        // click.
+        painter.set(Color(255, 255, 255));
+        painter.set(Font(40, Font::Weight::bold));
+        const auto ts = painter.text_size(m_label);
+        painter.draw(PointF(x + (w - ts.width()) / 2.0f,
+                            y + (h - ts.height()) / 2.0f));
+        painter.draw(m_label);
     }
 
 private:
     bool m_pressed{false};
+    string m_label;
     function<void()> m_on_click;
 
     // Build a rounded-rectangle path: top edge → top-right corner arc →
@@ -224,16 +235,8 @@ shared_ptr<Widget> create_home_screen(
     const int btn_x = (dt::SCREEN_W - btn_w) / 2;
     const int btn_y = 162;
     auto btn = make_shared<StartButton>(
-        Rect(btn_x, btn_y, btn_w, btn_h), on_begin_treatment);
+        Rect(btn_x, btn_y, btn_w, btn_h), "Start", on_begin_treatment);
     container->add(btn);
-
-    // "Start" label centred over the gradient
-    auto lbl_start = make_shared<Label>("Start",
-        Rect(btn_x, btn_y, btn_w, btn_h));
-    lbl_start->font(Font(40, Font::Weight::bold));
-    lbl_start->color(Palette::ColorId::label_text, dt::kWhite);
-    lbl_start->text_align(AlignFlag::center);
-    container->add(lbl_start);
 
     // ── Bottom cards (Demo Mode + Setting) ────────────────────────────────
     // Figma cards: ~165×40 pt → ~306×74 px each; bottom strip y≈193 → 357.
