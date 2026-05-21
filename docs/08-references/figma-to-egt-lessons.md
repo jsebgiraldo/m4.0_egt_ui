@@ -30,7 +30,7 @@ For every non-text element that has a distinct visual (chevrons, checkmarks, gea
 Workflow per icon:
 
 ```bash
-./scripts/figma-fetch.sh image <fileKey> <nodeId> assets/image/<icon-name>.png 4
+./scripts/figma-fetch.sh image <fileKey> <nodeId> assets/figma/images/<icon-name>.png 4
 ```
 
 Then in code, **always** pre-scale the `Image` so its natural size matches the target rect — this is what disarms the autoresize trap (next section):
@@ -40,7 +40,7 @@ constexpr int target_w = 22;        // Figma 12 px * dt::SCALE
 constexpr int target_h = 39;        // Figma 21 px * dt::SCALE
 const float hscale = static_cast<float>(target_w) / png_natural_w;
 const float vscale = static_cast<float>(target_h) / png_natural_h;
-auto img = Image("file:assets/image/<icon-name>.png", hscale, vscale);
+auto img = Image("file:assets/figma/images/<icon-name>.png", hscale, vscale);
 auto widget = std::make_shared<ImageLabel>(img);
 widget->autoresize(false);
 widget->image_align(AlignFlag::center);

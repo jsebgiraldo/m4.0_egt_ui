@@ -25,7 +25,7 @@ std::shared_ptr<Widget> example_screen()
     //
     // Figma 90x56 at (4,9) -> 167x104 at (7,17).
     auto logo = std::make_shared<ImageLabel>(
-        Image("file:assets/image/logo.png"));
+        Image("file:assets/figma/images/logo.png"));
     logo->box(Rect(7, 17, 167, 104));
     logo->image_align(AlignFlag::center | AlignFlag::expand);
     logo->autoresize(false);   // belt-and-suspenders, see egt-widget-reference.md

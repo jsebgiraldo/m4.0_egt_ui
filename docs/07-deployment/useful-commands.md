@@ -121,10 +121,10 @@ Cuando se agrega un nuevo asset (ej: nuevo PNG):
 
 ```bash
 # Generar header con datos embebidos
-xxd -i assets/image/NuevoAsset.png >> src/generated/embedded_assets.h
+xxd -i assets/figma/images/NuevoAsset.png >> src/generated/embedded_assets.h
 
 # Agregar #pragma once y const manualmente si se regenera todo el archivo
-xxd -i assets/image/Lice-logo.png > src/generated/embedded_assets.h
+xxd -i assets/figma/images/Lice-logo.png > src/generated/embedded_assets.h
 # Editar: agregar #pragma once al inicio, cambiar a static const
 
 # Usar en código:

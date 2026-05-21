@@ -41,7 +41,7 @@ std::shared_ptr<Widget> button_with_chevron()
     // image_align(expand) path entirely.
     const float hscale = static_cast<float>(chev_w) / 35.0f;  // PNG src 35x52
     const float vscale = static_cast<float>(chev_h) / 52.0f;
-    auto img = Image("file:assets/image/chevron-right.png", hscale, vscale);
+    auto img = Image("file:assets/figma/images/chevron-right.png", hscale, vscale);
 
     auto chevron = std::make_shared<ImageLabel>(img);
     chevron->fill_flags({Theme::FillFlag::blend});

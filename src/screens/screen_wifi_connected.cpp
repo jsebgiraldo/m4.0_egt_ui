@@ -128,7 +128,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     try {
         const float hscale = static_cast<float>(chev_w) / 35.0f;  // PNG src 35x52
         const float vscale = static_cast<float>(chev_h) / 52.0f;
-        auto chev_img = Image("file:assets/image/chevron-right.png", hscale, vscale);
+        auto chev_img = Image("file:assets/figma/images/chevron-right.png", hscale, vscale);
         auto chevron = make_shared<ImageLabel>(chev_img);
         chevron->autoresize(false);
         chevron->fill_flags({Theme::FillFlag::blend});

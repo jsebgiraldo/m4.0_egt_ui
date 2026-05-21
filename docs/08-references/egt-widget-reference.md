@@ -123,7 +123,7 @@ When there is no text (empty string in the constructor or `show_label(false)`), 
 ```cpp
 const float hscale = static_cast<float>(target_w) / src_w;
 const float vscale = static_cast<float>(target_h) / src_h;
-Image img("file:assets/image/x.png", hscale, vscale);
+Image img("file:assets/figma/images/x.png", hscale, vscale);
 ```
 
 After this, `img.size() == (target_w, target_h)`. Using `image_align(AlignFlag::center)` (no `expand`) then draws the image at native size centred in the widget's content area - no further scaling happens at draw time, and `min_size_hint()` reflects the scaled size.
@@ -212,7 +212,7 @@ wrap->add(btn);
 // Pre-scale image so its natural size matches target — no expand needed.
 const float hscale = static_cast<float>(chev_w) / 35.0f;
 const float vscale = static_cast<float>(chev_h) / 52.0f;
-auto img = Image("file:assets/image/chevron-right.png", hscale, vscale);
+auto img = Image("file:assets/figma/images/chevron-right.png", hscale, vscale);
 
 auto chevron = std::make_shared<ImageLabel>(img);
 chevron->image_align(AlignFlag::center);
@@ -241,7 +241,7 @@ Other valid options for special cases:
 auto btn = std::make_shared<Button>("Continue", Rect(302, 355, 204, 61));
 container->add(btn);
 
-auto chev_img = Image("file:assets/image/chevron-right.png");   // NOT pre-scaled
+auto chev_img = Image("file:assets/figma/images/chevron-right.png");   // NOT pre-scaled
 auto chevron = std::make_shared<ImageLabel>(chev_img);
 chevron->box(Rect(462, 372, 22, 39));
 container->add(chevron);

@@ -18,11 +18,11 @@ static string get_logo_path()
     if (!written)
     {
         ofstream f(path, ios::binary);
-        f.write(reinterpret_cast<const char*>(assets_image_Lice_logo_png),
-                assets_image_Lice_logo_png_len);
+        f.write(reinterpret_cast<const char*>(assets_figma_images_Lice_logo_png),
+                assets_figma_images_Lice_logo_png_len);
         written = f.good();
         printf("[LOGO] wrote %u bytes to %s: %s\n",
-               assets_image_Lice_logo_png_len, path.c_str(),
+               assets_figma_images_Lice_logo_png_len, path.c_str(),
                written ? "OK" : "FAIL");
         fflush(stdout);
     }

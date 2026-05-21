@@ -71,8 +71,8 @@ screenshots/
 screenshot_egt.png
 *.png
 
-# But: real app assets and Figma-exported icons in assets/image/ ARE tracked.
-!assets/image/*.png
+# But: Figma-exported icons under assets/figma/images/ ARE tracked.
+!assets/figma/images/*.png
 
 # Figma parsing scripts (local dev tools, reference local paths)
 dump_demo.py
