@@ -60,17 +60,18 @@ void run_app(int argc, char** argv)
     std::function<void(bool demo)> show_patient_info;
     std::function<void(bool demo)> show_demo_info;
     std::function<void(bool demo)> launch_treatment;
-    std::function<void()> show_settings;
+    std::function<void(std::function<void()> on_back)> show_settings;
     std::function<void()> show_setup;
 
     // ── SETUP landing (Figma 151:861) ────────────────────────────────
-    // Logo + a "Setup" affordance. This is where Back from the boot-flow
+    // Logo + a "Settings" affordance. This is where Back from the boot-flow
     // WiFi list lands (instead of jumping to Home and skipping login).
-    // Tapping Setup re-opens the WiFi list.
+    // Tapping Settings opens the device Settings menu; Back there returns
+    // to this landing (so we never skip Technician Login).
     show_setup = [&]() {
         printf("[NAV] -> SETUP\n"); fflush(stdout);
         screens.show(create_setup_screen(
-            [&]() { show_wifi_setup(nullptr, [&]() { show_setup(); }); }
+            [&]() { show_settings([&]() { show_setup(); }); }
         ));
     };
 
@@ -102,16 +103,19 @@ void run_app(int argc, char** argv)
         screens.show(create_home_screen(
             [&]() { show_patient_info(false); }, // Begin Treatment -> Patient Info
             [&]() { show_demo_info(true); },     // Demo Mode -> TRAINING ONLY screen first
-            [&]() { show_settings(); }           // Settings -> Settings menu
+            [&]() { show_settings([&]() { show_home(); }); }  // Settings -> Settings menu (Back -> Home)
         ));
     };
 
     // ── SETTINGS (menu with WiFi + Brightness) ──────────────────────
-    show_settings = [&]() {
+    // on_back lets the caller decide where Back returns (Home, the Setup
+    // landing, the WiFi-unavailable screen, …) so Settings never skips steps.
+    show_settings = [&](std::function<void()> on_back) {
         printf("[NAV] -> SETTINGS\n"); fflush(stdout);
+        auto back = on_back ? on_back : std::function<void()>([&]() { show_home(); });
         screens.show(create_settings_screen(
-            [&]() { show_home(); },                                  // Back -> Home
-            [&]() { show_wifi_setup(nullptr, [&](){ show_settings(); }); }  // WiFi -> WiFi Settings, Back returns here
+            back,                                                          // Back -> caller-chosen
+            [&, back]() { show_wifi_setup(nullptr, [&, back](){ show_settings(back); }); }  // WiFi -> WiFi Settings, Back returns here
         ));
     };
 
@@ -261,8 +265,8 @@ void run_app(int argc, char** argv)
         screens.show(create_wifi_unavailable_screen(
             // Retry WiFi → go back to the network list (will re-scan)
             [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); },
-            // Setting → open device Settings
-            [&]() { show_settings(); },
+            // Setting → open device Settings (Back returns here)
+            [&]() { show_settings([&]() { show_wifi_unavailable(); }); },
             // Override → existing override-info flow (7-day countdown / password)
             [&]() { show_wifi_override_info(); },
             // Back → previous screen (the WiFi list)
@@ -277,7 +281,7 @@ void run_app(int argc, char** argv)
             [&]() { show_override_prompt(); },                              // Continue -> Override Password
             [&]() { show_wifi_unavailable(); },                            // Back -> WiFi Unavailable
             [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); },    // Retry WiFi -> rescan
-            [&]() { show_settings(); }                                     // Setting -> Settings menu
+            [&]() { show_settings([&]() { show_wifi_override_info(); }); } // Setting -> Settings menu (Back returns here)
         ));
     };
 
@@ -286,7 +290,7 @@ void run_app(int argc, char** argv)
     // lets the simulator skip the normal boot flow when iterating on a single
     // screen.
     const char* start = std::getenv("EGT_START_SCREEN");
-    if      (start && std::string(start) == "settings")          show_settings();
+    if      (start && std::string(start) == "settings")          show_settings([&]() { show_home(); });
     else if (start && std::string(start) == "home")              show_home();
     else if (start && std::string(start) == "wifi-settings")     show_wifi_setup(nullptr, [&]() { show_home(); });
     else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable();

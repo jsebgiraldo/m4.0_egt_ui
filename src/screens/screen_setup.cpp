@@ -31,7 +31,7 @@ static Image load_gear(int size) {
 
 } // namespace
 
-shared_ptr<Widget> create_setup_screen(function<void()> on_setup)
+shared_ptr<Widget> create_setup_screen(function<void()> on_settings)
 {
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -43,7 +43,7 @@ shared_ptr<Widget> create_setup_screen(function<void()> on_setup)
         (dt::SCREEN_W - logo_w) / 2, 110, logo_w, logo_h);
     container->add(logo);
 
-    // ── "Setup" affordance (bottom-left): gray circle + gear + label ───────
+    // ── "Settings" affordance (bottom-left): gray circle + gear + label ────
     const int circle_d = 46;
     const int circle_x = 27;
     const int circle_y = dt::SCREEN_H - 66;   // canonical bottom-left position
@@ -67,21 +67,21 @@ shared_ptr<Widget> create_setup_screen(function<void()> on_setup)
         container->add(gl);
     }
 
-    auto label = make_shared<Label>("Setup",
+    auto label = make_shared<Label>("Settings",
         Rect(circle_x + circle_d + 12, circle_y, 160, circle_d),
         AlignFlag::left | AlignFlag::center_vertical);
     label->font(Font(18, Font::Weight::bold));
     label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(label);
 
-    // Tapping anywhere on the circle/label hit-zone enters setup.
+    // Tapping anywhere on the circle/label hit-zone opens Settings.
     auto hit = make_shared<Frame>(
         Rect(circle_x, circle_y, circle_d + 12 + 160, circle_d));
     hit->fill_flags({});
     hit->color(Palette::ColorId::bg, dt::kTransparent);
     hit->border(0);
-    if (on_setup)
-        hit->on_event([on_setup](Event&) { on_setup(); }, {EventId::pointer_click});
+    if (on_settings)
+        hit->on_event([on_settings](Event&) { on_settings(); }, {EventId::pointer_click});
     container->add(hit);
 
     return container;
