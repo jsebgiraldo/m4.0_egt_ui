@@ -51,7 +51,8 @@ public:
         // ~75/255 (~30 %), fading to ~6/255 at the 8 px outer extent.
         constexpr int     shadow_steps    = 16;
         constexpr float   shadow_extent   = 8.0f;
-        constexpr uint8_t per_layer_alpha = 3;   // 1-(1-3/255)^16 ~= 17 % cumulative
+        constexpr uint8_t per_layer_alpha = 2;   // 1-(1-2/255)^16 ~= 12 % cumulative,
+                                                 // matches Figma's 10 % spec closely
         for (int i = shadow_steps; i >= 1; --i)
         {
             float grow = static_cast<float>(i) *
