@@ -1,4 +1,5 @@
 #include <egt/ui>
+#include <egt/svgimage.h>
 #include "screen_settings.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
@@ -9,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <array>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <algorithm>
@@ -223,6 +225,24 @@ shared_ptr<Frame> make_section_card(int x, int y, int w, int h)
     return card;
 }
 
+// ── Person / account glyph (SVG) ───────────────────────────────────────────
+// Rendered as an SVG (like the Setup gear) rather than a font glyph so it is
+// crisp at any scale and never depends on the device font. Ink #646469 matches
+// dt::kTextPrimary, so it reads the same as the Wi-Fi / Ethernet glyphs.
+static const char* kPersonSvg = R"svg(
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" fill="#646469"/>
+</svg>)svg";
+
+static Image load_person(int size) {
+    try {
+        const string path = "/tmp/egt-icon-settings-person.svg";
+        ofstream f(path); f << kPersonSvg; f.close();
+        SvgImage svg("file:" + path, SizeF(size, size));
+        return static_cast<Image>(svg);
+    } catch (...) { return {}; }
+}
+
 // ── Brightness bar — composite slider matching Figma exactly ───────────────
 // Figma: 409×20 fat-pill track, green fill from the start, 28 px green handle
 // at the fill's right edge. The default egt::Slider draws a thin track and a
@@ -341,6 +361,17 @@ shared_ptr<Widget> create_settings_screen(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
+    // The sections live inside a vertically-scrolling content frame so we can
+    // append the "Account" section without crowding the fixed Back button.
+    // The viewport stops just above Back (y=414); content taller than that
+    // scrolls. With everything visible up front, the scrollbar only appears
+    // once the Account card pushes past the fold.
+    const int CONTENT_H = 540;             // tall enough for all sections
+    auto content = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, CONTENT_H));
+    content->fill_flags({Theme::FillFlag::blend});
+    content->color(Palette::ColorId::bg, dt::kBgWhite);
+    content->border(0);
+
     // Common section X (matches Figma left margin ≈ 81 px)
     const int section_x = 80;
 
@@ -351,7 +382,7 @@ shared_ptr<Widget> create_settings_screen(
     bright_title->font(Font(15, Font::Weight::bold));
     bright_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     bright_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    container->add(bright_title);
+    content->add(bright_title);
 
     // Card "Rectangle 68" — Figma (78, 70) 628×87
     const int brt_card_x = 78;
@@ -359,7 +390,7 @@ shared_ptr<Widget> create_settings_screen(
     const int brt_card_w = 628;
     const int brt_card_h = 87;
     auto brt_card = make_section_card(brt_card_x, brt_card_y, brt_card_w, brt_card_h);
-    container->add(brt_card);
+    content->add(brt_card);
 
     // Sun icons — same geometry, different ink: pale-thin on the "low" side
     // and dark-bold on the "high" side to read as a brightness ramp.
@@ -383,7 +414,7 @@ shared_ptr<Widget> create_settings_screen(
     inet_title->font(Font(15, Font::Weight::bold));
     inet_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     inet_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    container->add(inet_title);
+    content->add(inet_title);
 
     // Cards: Wi-Fi at (81, 206) 306×113, Ethernet at (400, 206) 306×113
     const int chip_y = 206;
@@ -394,7 +425,7 @@ shared_ptr<Widget> create_settings_screen(
 
     auto add_internet_card = [&](int card_x, const string& title_text, bool is_wifi) {
         auto card = make_section_card(card_x, chip_y, chip_w, chip_h);
-        container->add(card);
+        content->add(card);
 
         // Gray ellipse background — Figma "Ellipse 8" 72×72 at card-relative (56, 20)
         const int circle_d = 72;
@@ -445,7 +476,7 @@ shared_ptr<Widget> create_settings_screen(
     about_title->font(Font(15, Font::Weight::bold));
     about_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     about_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    container->add(about_title);
+    content->add(about_title);
 
     // Body — Figma (81, 361) 522×28  Gothic A1 Regular 12pt
     const string about_text =
@@ -457,23 +488,77 @@ shared_ptr<Widget> create_settings_screen(
     about_body->font(Font(12, Font::Weight::normal));
     about_body->color(Palette::ColorId::label_text, palette::kGray600);
     about_body->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    container->add(about_body);
+    content->add(about_body);
+
+    // ── 4) Account ──────────────────────────────────────────────────────────
+    // Same visual language as the Internet cards (gray circle + glyph + bold
+    // label, full tap target), so it reads as part of the Settings grid rather
+    // than a stray button. Tapping it returns to the Technician Login screen.
+    // Sits below "About this device", which is why the page now scrolls.
+    if (on_login) {
+        const int acc_title_y = 405;
+        auto acc_title = make_shared<Label>("Account",
+            Rect(section_x, acc_title_y, 320, 33));
+        acc_title->font(Font(15, Font::Weight::bold));
+        acc_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        acc_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
+        content->add(acc_title);
+
+        // Full-width card (matches the brightness card geometry: x=78, w=628).
+        const int acc_card_x = 78, acc_card_y = 444, acc_card_w = 628, acc_card_h = 84;
+        auto acc_card = make_section_card(acc_card_x, acc_card_y, acc_card_w, acc_card_h);
+        content->add(acc_card);
+
+        // Gray circle + person glyph, vertically centred (mirrors Wi-Fi card).
+        const int circle_d = 56;
+        const int circle_x = 24;
+        const int circle_y = (acc_card_h - circle_d) / 2;
+        auto circle_bg = make_shared<Frame>(Rect(circle_x, circle_y, circle_d, circle_d));
+        circle_bg->fill_flags({Theme::FillFlag::blend});
+        circle_bg->color(Palette::ColorId::bg, palette::kGray200);
+        circle_bg->border(0);
+        circle_bg->border_radius(circle_d / 2);
+        acc_card->add(circle_bg);
+
+        auto person = load_person(34);
+        if (!person.empty()) {
+            const int isz = 34;
+            auto pl = make_shared<ImageLabel>(person);
+            pl->fill_flags({});
+            pl->color(Palette::ColorId::bg, palette::kGray200);
+            pl->image_align(AlignFlag::center);
+            pl->move(Point(circle_x + (circle_d - isz) / 2,
+                           circle_y + (circle_d - isz) / 2));
+            pl->resize(Size(isz, isz));
+            acc_card->add(pl);
+        }
+
+        auto acc_lbl = make_shared<Label>("Technician Login",
+            Rect(circle_x + circle_d + 20, 0, acc_card_w - (circle_x + circle_d + 20) - 16, acc_card_h));
+        acc_lbl->font(Font(15, Font::Weight::bold));
+        acc_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        acc_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+        acc_card->add(acc_lbl);
+
+        acc_card->on_event([on_login](Event&) { on_login(); }, {EventId::pointer_click});
+    }
+
+    // ── Scrollable viewport (vertical only) ────────────────────────────────
+    // Stops just above the fixed Back button so Back stays put while the
+    // sections scroll underneath. Horizontal scrolling is disabled so the
+    // brightness slider's horizontal drag never gets hijacked by panning.
+    auto scroll = make_shared<ScrolledView>(
+        Rect(0, 0, dt::SCREEN_W, 410),
+        ScrolledView::Policy::never,        // horizontal
+        ScrolledView::Policy::as_needed);   // vertical
+    scroll->add(content);
+    scroll->offset(Point(0, 0));   // always open at the top (Screen Brightness)
+    container->add(scroll);
 
     // ── Back button — shared layout via ui::add_back_button ────────────────
     // Same chevron-in-circle + label at the canonical bottom-left position
-    // (Figma 2073:1996, 27,414). Any screen that needs Back uses the same
-    // helper so the button never drifts between screens.
+    // (Figma 2073:1996, 27,414). Fixed (outside the scroll) so it never drifts.
     ui::add_back_button(*container, on_back);
-
-    // ── Technician Login button (bottom-right) ─────────────────────────────
-    // Lets the operator jump (back) to the Technician Login screen from
-    // Settings. Hidden when no handler is supplied.
-    if (on_login) {
-        auto btn_login = ui::create_outlined_button("Technician Login",
-            Rect(dt::SCREEN_W - 247, 412, 217, 56),
-            on_login);
-        container->add(btn_login);
-    }
 
     return container;
 }
