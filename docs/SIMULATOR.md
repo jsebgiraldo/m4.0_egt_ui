@@ -15,6 +15,8 @@ The simulator is a normal X11 window at the target resolution (800×480). All UI
 
 ### Install host EGT once
 
+> **Order matters.** Several EGT features (SVG support, Lua bindings, plplot, etc.) are conditional on optional dev libs being present at the time `cmake` runs. Install the apt deps **first**, then build EGT. If you skip a dep and rebuild later, the relevant headers (e.g. `egt/svgimage.h`) won't be in `/usr/local/include/egt/` — see Troubleshooting.
+
 ```bash
 sudo apt update
 sudo apt install -y cmake g++ pkg-config \
@@ -144,6 +146,7 @@ WIFI_INIT (spinner) → if mock=1 → no saved nets → scan → WIFI_SETTINGS (
 | Symptom | Fix |
 |---|---|
 | `error while loading shared libraries: libegt.so.X` | Run `sudo ldconfig` after installing EGT. |
+| `fatal error: egt/svgimage.h: No such file or directory` | EGT was built before `librsvg2-dev` was installed, so SVG support was disabled and the header wasn't installed. Install `librsvg2-dev`, then rebuild EGT: `sudo bash -c "rm -rf /opt/egt/build && mkdir /opt/egt/build && cd /opt/egt/build && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local && make -j\$(nproc) && make install && ldconfig"`. Verify with `ls /usr/local/include/egt/svgimage.h`. The same trap applies to other optional EGT features (`WITH_LIBRSVG`, `WITH_LUA_BINDINGS`, etc.) — install all apt deps **before** building EGT. |
 | `CMake Error: source "/app" does not exist` | Stale CMakeCache from a previous Docker build. `rm -rf build-x86 && ./scripts/run-simulator.sh --clean`. |
 | Window opens then immediately closes | Inspect terminal output. Common: missing asset (`assets/image/lice-temp-logo.png`) — make sure you ran from the repo root. |
 | Fontconfig warnings about missing Lato | Non-fatal; app falls back to the system font (handled by a `try/catch` in `app.cpp`). |
