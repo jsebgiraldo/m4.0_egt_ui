@@ -95,7 +95,42 @@ btn_wrap->add(chevron);
 
 `expand` makes the image scale to fill the widget's content area while preserving ratio, which then anchors the visible image to the top-left of the box (not centred). Result: the icon visually drifts upward and leftward. Use plain `center`.
 
-### 8. The 3-up `comparison.png` is the deliverable
+### 8. For exact Figma-driven button content: Button = card, Label = text, ImageLabel = icon
+
+`egt::Button`'s built-in text rendering uses the widget's font metrics, theme padding, and `text_align()` — none of which know anything about Figma's `absoluteBoundingBox`. Even with `text_align(AlignFlag::left | AlignFlag::center_vertical)` the text starts at the border offset and ends wherever the font's intrinsic glyph width takes it. With a 26 pt Bold font in a 204 px-wide button the text ended ~30 px short of where Figma's bbox put it, so the chevron to the right looked spread out instead of "balanced".
+
+The pattern that gets you Figma-1:1 spacing every time:
+
+1. Use the `Button` as **just the outlined card + click handler** — pass an empty string and no font.
+2. Add a separate `Label` for the visible text, positioned at the exact Figma button-local rect.
+3. Add `ImageLabel`s for any icons, also at exact Figma button-local rects.
+
+```cpp
+// Outlined card + click handling (no text)
+auto btn = std::make_shared<Button>("", Rect(0, 0, 204, 61));
+btn->autoresize(false);
+btn->color(Palette::ColorId::button_bg, dt::kWhite);
+btn->color(Palette::ColorId::border,    dt::kGrayLight);
+btn->border(2);
+btn->border_radius(dt::RADIUS_MD);
+btn->on_click([cb = std::move(on_continue)](Event&) { cb(); });
+btn_wrap->add(btn);
+
+// "Continue" label at the Figma TEXT node's rect (button-local)
+auto lbl = std::make_shared<Label>("Continue", Rect(7, 17, 154, 33));
+lbl->autoresize(false);
+lbl->font(Font(26, Font::Weight::bold));
+lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+btn_wrap->add(lbl);
+
+// Chevron at the Figma icon node's rect (button-local)
+btn_wrap->add(chevron);   // configured above
+```
+
+Every position is now Figma-derived, not font-metric-derived. If the design changes, you change the rects; nothing in the rendering pipeline reaches for "default" behaviour.
+
+### 9. The 3-up `comparison.png` is the deliverable
 
 Before / Target / After horizontally, with 1 px gray dividers (per `figma-vs-sim-workflow.md` step 9). Only this image goes into the client report and the Jira comment — never the raw intermediates.
 
