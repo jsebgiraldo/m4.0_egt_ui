@@ -47,15 +47,19 @@ void run_app(int argc, char** argv)
     // ── Forward declarations for navigation ──────────────────────────
     std::function<void()> show_wifi_init;
     std::function<void()> show_wifi_connected;
-    std::function<void()> show_wifi_unavailable;
-    std::function<void()> show_wifi_override_info;
+    // The "Not Connected" / override subtree carries an `on_exit` callback:
+    // where to land when the user fully backs out of the WiFi list. During
+    // boot that is the Setup landing (NOT Home — Home is past Technician
+    // Login). When opened from Settings it is Home.
+    std::function<void(std::function<void()> on_exit)> show_wifi_unavailable;
+    std::function<void(std::function<void()> on_exit)> show_wifi_override_info;
     std::function<void()> show_home;
     // The WiFi list takes a `back` callback so it can return to whichever
     // screen opened it (Home, Settings, …). Self-refreshes inside the screen
     // re-use the same callback.
     std::function<void(std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>>,
                        std::function<void()> /*on_back*/)> show_wifi_setup;
-    std::function<void()> show_override_prompt;
+    std::function<void(std::function<void()> on_exit)> show_override_prompt;
     std::function<void(bool demo)> show_login;
     std::function<void(bool demo)> show_patient_info;
     std::function<void(bool demo)> show_demo_info;
@@ -233,7 +237,7 @@ void run_app(int argc, char** argv)
                         }
                     ));
                 } else {
-                    show_wifi_unavailable();
+                    show_wifi_unavailable(back);
                 }
             },
             [&](const egt_wifi::WiFiNetwork& net) { (void)net; },
@@ -243,45 +247,46 @@ void run_app(int argc, char** argv)
     };
 
     // ── OVERRIDE PROMPT (existing, kept as-is) ──────────────────────
-    show_override_prompt = [&]() {
+    // on_exit = where the WiFi-list parent returns to (boot: Setup landing).
+    show_override_prompt = [&](std::function<void()> on_exit) {
         printf("[NAV] -> OVERRIDE_PROMPT\n"); fflush(stdout);
         screens.show(create_password_prompt_screen(
             "Override Mode",
             "Enter override password to continue offline",
             "Join", "Back",
-            [&](const std::string& pass) {
+            [&, on_exit](const std::string& pass) {
                 if (pass == "9999")
-                    show_login(false);
+                    show_login(false);          // success → Technician Login (never skipped)
                 else
-                    show_override_prompt();
+                    show_override_prompt(on_exit);
             },
-            [&]() { show_wifi_override_info(); }
+            [&, on_exit]() { show_wifi_override_info(on_exit); }
         ));
     };
 
     // ── WIFI UNAVAILABLE — "Not Connected" screen (Figma) ────────────
-    show_wifi_unavailable = [&]() {
+    show_wifi_unavailable = [&](std::function<void()> on_exit) {
         printf("[NAV] -> WIFI_UNAVAILABLE\n"); fflush(stdout);
         screens.show(create_wifi_unavailable_screen(
-            // Retry WiFi → go back to the network list (will re-scan)
-            [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); },
+            // Retry WiFi → back to the network list, keeping the exit target
+            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },
             // Setting → open device Settings (Back returns here)
-            [&]() { show_settings([&]() { show_wifi_unavailable(); }); },
+            [&, on_exit]() { show_settings([&, on_exit]() { show_wifi_unavailable(on_exit); }); },
             // Override → existing override-info flow (7-day countdown / password)
-            [&]() { show_wifi_override_info(); },
-            // Back → previous screen (the WiFi list)
-            [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); }
+            [&, on_exit]() { show_wifi_override_info(on_exit); },
+            // Back → previous screen (the WiFi list), keeping the exit target
+            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); }
         ));
     };
 
     // ── WIFI OVERRIDE INFO (Figma: WIFI_OVERRIDE_INFO) ──────────────
-    show_wifi_override_info = [&]() {
+    show_wifi_override_info = [&](std::function<void()> on_exit) {
         printf("[NAV] -> WIFI_OVERRIDE_INFO\n"); fflush(stdout);
         screens.show(create_wifi_override_info_screen(
-            [&]() { show_override_prompt(); },                              // Continue -> Override Password
-            [&]() { show_wifi_unavailable(); },                            // Back -> WiFi Unavailable
-            [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); },    // Retry WiFi -> rescan
-            [&]() { show_settings([&]() { show_wifi_override_info(); }); } // Setting -> Settings menu (Back returns here)
+            [&, on_exit]() { show_override_prompt(on_exit); },             // Continue -> Override Password
+            [&, on_exit]() { show_wifi_unavailable(on_exit); },            // Back -> WiFi Unavailable
+            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },         // Retry WiFi -> rescan
+            [&, on_exit]() { show_settings([&, on_exit]() { show_wifi_override_info(on_exit); }); } // Setting -> Settings (Back returns here)
         ));
     };
 
@@ -293,7 +298,7 @@ void run_app(int argc, char** argv)
     if      (start && std::string(start) == "settings")          show_settings([&]() { show_home(); });
     else if (start && std::string(start) == "home")              show_home();
     else if (start && std::string(start) == "wifi-settings")     show_wifi_setup(nullptr, [&]() { show_home(); });
-    else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable();
+    else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable([&]() { show_home(); });
     else if (start && std::string(start) == "login")             show_login(false);
     else if (start && std::string(start) == "setup")             show_setup();
     else                                                         show_wifi_init();
