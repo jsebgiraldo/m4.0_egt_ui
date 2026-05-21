@@ -31,6 +31,7 @@ Embedded UI for the Suntek M4 treatment device. This folder is the documentation
 
 ### 04 — IDE setup
 - [simulator.md](04-ide-setup/simulator.md) — Host simulator walkthrough (build, flags, WSL2 setup, troubleshooting)
+- [figma-vs-sim-workflow.md](04-ide-setup/figma-vs-sim-workflow.md) — Iteration loop that produces a before/target/after comparison for every UI change
 
 ### 05 — Hardware
 *(No documents yet)*
