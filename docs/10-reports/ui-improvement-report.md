@@ -26,6 +26,16 @@ The success card shown once the device joins the network. Re-laid out per Figma 
 
 ---
 
+### Home (`HOME` — Figma node `81:1507`, "S7-begin T")
+
+The main menu of the device — three actions: a large blue gradient Start button to begin a treatment, plus Demo Mode and Setting cards at the bottom. Re-laid out per Figma v5: Lice Clinics logo at exact top-centre, Start button sized and positioned per spec, the two bottom cards shrunk and repositioned to Figma's `(20, 365)` and `(496, 365)`. Both card icons (person and gear) now load from real Figma PNG exports — including the gray circle backgrounds — instead of being drawn from inline SVG strings. Cards now show the Figma drop shadow via the shared `ShadowedCard` widget.
+
+![HOME Before / Target / After](home-figma-match/comparison.png)
+
+*AFTER matches the Figma target on layout, icon style, card sizing, and drop shadow. Same `Gothic A1 Bold` font as the rest of the design, same `dt::kTextPrimary` for label colour.*
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY — copy, fill in, and slot above this comment.
 

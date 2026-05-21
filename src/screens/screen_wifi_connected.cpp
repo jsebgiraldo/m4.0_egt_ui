@@ -1,95 +1,10 @@
 #include "screen_wifi_connected.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
-#include <cmath>
 
 using namespace egt;
 using namespace std;
-
-// Drop-shadow card: white rounded rectangle with a soft blurred shadow
-// behind it. Models the Figma Group 7 effect on the Continue button:
-// DROP_SHADOW offset (0,0), radius 10, color rgba(0,0,0,0.10).
-//
-// CRITICAL: EGT clips Painter drawing to the widget's box(). The shadow
-// extends OUTSIDE the card, so the widget must be larger than the card
-// by SHADOW_PAD on every side, with the card drawn centred inside. The
-// constructor accepts the card rect; it enlarges the widget itself.
-class ShadowedCard : public Widget {
-public:
-    static constexpr int SHADOW_PAD = 12;
-
-    ShadowedCard(const Rect& card_rect,
-                 float corner_radius,
-                 std::function<void()> on_click)
-        : Widget(Rect(card_rect.x() - SHADOW_PAD,
-                      card_rect.y() - SHADOW_PAD,
-                      card_rect.width()  + 2 * SHADOW_PAD,
-                      card_rect.height() + 2 * SHADOW_PAD))
-        , m_radius(corner_radius)
-        , m_card_rect(card_rect)
-        , m_on_click(std::move(on_click))
-    {
-        fill_flags({Theme::FillFlag::blend});
-        border(0);
-        if (m_on_click) {
-            on_event([this](Event& e) {
-                if (e.id() == EventId::pointer_click) m_on_click();
-            });
-        }
-    }
-
-    void draw(Painter& painter, const Rect& /*rect*/) override
-    {
-        const float r = m_radius;
-        const float x = static_cast<float>(m_card_rect.x());
-        const float y = static_cast<float>(m_card_rect.y());
-        const float w = static_cast<float>(m_card_rect.width());
-        const float h = static_cast<float>(m_card_rect.height());
-
-        // Soft shadow: 16 concentric rounded rects, 0.5 px grow each,
-        // alpha 6 per layer. Cumulative alpha at the inner edge reaches
-        // ~75/255 (~30 %), fading to ~6/255 at the 8 px outer extent.
-        constexpr int     shadow_steps    = 16;
-        constexpr float   shadow_extent   = 8.0f;
-        constexpr uint8_t per_layer_alpha = 2;   // 1-(1-2/255)^16 ~= 12 % cumulative,
-                                                 // matches Figma's 10 % spec closely
-        for (int i = shadow_steps; i >= 1; --i)
-        {
-            float grow = static_cast<float>(i) *
-                         (shadow_extent / shadow_steps);
-            draw_rounded_path(painter, x - grow, y - grow,
-                              w + 2.0f * grow, h + 2.0f * grow,
-                              r + grow * 0.5f);
-            painter.set(Color(0, 0, 0, per_layer_alpha));
-            painter.fill();
-        }
-
-        // White card on top.
-        draw_rounded_path(painter, x, y, w, h, r);
-        painter.set(dt::kWhite);
-        painter.fill();
-    }
-
-private:
-    static void draw_rounded_path(Painter& p, float x, float y,
-                                  float w, float h, float r)
-    {
-        const float PI = static_cast<float>(M_PI);
-        p.draw(PointF(x + r,         y));
-        p.line(PointF(x + w - r,     y));
-        p.draw(Arc(PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
-        p.line(PointF(x + w,         y + h - r));
-        p.draw(Arc(PointF(x + w - r, y + h - r),   r, 0.0f,    PI / 2));
-        p.line(PointF(x + r,         y + h));
-        p.draw(Arc(PointF(x + r,     y + h - r),   r, PI / 2,  PI));
-        p.line(PointF(x,             y + r));
-        p.draw(Arc(PointF(x + r,     y + r),       r, PI,    3 * PI / 2));
-    }
-
-    float m_radius;
-    Rect  m_card_rect;
-    std::function<void()> m_on_click;
-};
+using ui::ShadowedCard;
 
 shared_ptr<Widget> create_wifi_connected_screen(
     function<void()> on_continue)

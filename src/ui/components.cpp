@@ -10,6 +10,73 @@ using namespace std;
 
 namespace ui {
 
+// ── ShadowedCard ────────────────────────────────────────────────────────────
+namespace {
+void draw_rounded_path(Painter& p, float x, float y, float w, float h, float r)
+{
+    const float PI = static_cast<float>(M_PI);
+    p.draw(PointF(x + r,         y));
+    p.line(PointF(x + w - r,     y));
+    p.draw(Arc(PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
+    p.line(PointF(x + w,         y + h - r));
+    p.draw(Arc(PointF(x + w - r, y + h - r),   r, 0.0f,    PI / 2));
+    p.line(PointF(x + r,         y + h));
+    p.draw(Arc(PointF(x + r,     y + h - r),   r, PI / 2,  PI));
+    p.line(PointF(x,             y + r));
+    p.draw(Arc(PointF(x + r,     y + r),       r, PI,    3 * PI / 2));
+}
+} // namespace
+
+ShadowedCard::ShadowedCard(const Rect& card_rect,
+                           float corner_radius,
+                           std::function<void()> on_click)
+    : Widget(Rect(card_rect.x() - SHADOW_PAD,
+                  card_rect.y() - SHADOW_PAD,
+                  card_rect.width()  + 2 * SHADOW_PAD,
+                  card_rect.height() + 2 * SHADOW_PAD))
+    , m_radius(corner_radius)
+    , m_card_rect(card_rect)
+    , m_on_click(std::move(on_click))
+{
+    fill_flags({Theme::FillFlag::blend});
+    border(0);
+    if (m_on_click) {
+        on_event([this](Event& e) {
+            if (e.id() == EventId::pointer_click) m_on_click();
+        });
+    }
+}
+
+void ShadowedCard::draw(Painter& painter, const Rect& /*clip*/)
+{
+    const float r = m_radius;
+    const float x = static_cast<float>(m_card_rect.x());
+    const float y = static_cast<float>(m_card_rect.y());
+    const float w = static_cast<float>(m_card_rect.width());
+    const float h = static_cast<float>(m_card_rect.height());
+
+    // Figma DROP_SHADOW offset (0,0), radius 10, rgba(0,0,0,0.10):
+    // 16 concentric rounded rects, 0.5 px grow each, alpha 2 per layer.
+    // Cumulative inner-edge alpha ~30/255 (12 %), tapering to 2/255.
+    constexpr int     shadow_steps    = 16;
+    constexpr float   shadow_extent   = 8.0f;
+    constexpr uint8_t per_layer_alpha = 2;
+    for (int i = shadow_steps; i >= 1; --i)
+    {
+        float grow = static_cast<float>(i) * (shadow_extent / shadow_steps);
+        draw_rounded_path(painter, x - grow, y - grow,
+                          w + 2.0f * grow, h + 2.0f * grow,
+                          r + grow * 0.5f);
+        painter.set(Color(0, 0, 0, per_layer_alpha));
+        painter.fill();
+    }
+
+    // White card on top.
+    draw_rounded_path(painter, x, y, w, h, r);
+    painter.set(dt::kWhite);
+    painter.fill();
+}
+
 // Write embedded PNG to temp file once, return path
 static string get_logo_path()
 {

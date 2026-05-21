@@ -15,6 +15,34 @@ std::shared_ptr<egt::Frame> create_header_bar(
     const std::string& title,
     bool demo_mode = false);
 
+// ── Shadowed card ───────────────────────────────────────────────────────────
+/// White rounded-rectangle card with a soft drop shadow on every side.
+/// Matches Figma's DROP_SHADOW(offset 0,0, radius 10, rgba(0,0,0,0.10)).
+///
+/// EGT clips Painter drawing to the widget's box(), so the widget needs room
+/// outside the visible card for the shadow to render. The constructor takes
+/// the visible CARD rect and grows the widget by SHADOW_PAD on every side
+/// internally. Parent Frames must also be enlarged by SHADOW_PAD if they
+/// contain a ShadowedCard, and child widget positions get +SHADOW_PAD biased.
+class ShadowedCard : public egt::Widget {
+public:
+    static constexpr int SHADOW_PAD = 12;
+
+    ShadowedCard(const egt::Rect& card_rect,
+                 float corner_radius,
+                 std::function<void()> on_click);
+
+    /// Visible card rect (the white area). Use this for placing children.
+    egt::Rect card_rect() const { return m_card_rect; }
+
+    void draw(egt::Painter& painter, const egt::Rect& clip) override;
+
+private:
+    float m_radius;
+    egt::Rect m_card_rect;
+    std::function<void()> m_on_click;
+};
+
 // ── Buttons ─────────────────────────────────────────────────────────────────
 /// Outlined button (white bg, gray text) — like Figma "bt new".
 std::shared_ptr<egt::Button> create_outlined_button(
