@@ -39,22 +39,23 @@ public:
         const float w = static_cast<float>(b.width());
         const float h = static_cast<float>(b.height());
 
-        // Soft shadow: 4 layered rounded rects, each 2 px wider, alpha tapers
-        // from 25/255 (innermost, ~10 %) down to 6/255 (outermost). With
-        // SHADOW_OFF == 0 and rect-grow on each side we get a centred glow.
-        constexpr int   layers       = 4;
-        constexpr float alpha_inner  = 25.0f;
-        constexpr float alpha_outer  = 6.0f;
-        for (int i = layers; i >= 1; --i)
+        // Soft shadow approximating Figma DROP_SHADOW(offset 0,0,
+        // radius 10, rgba(0,0,0,0.10)). Cairo has no real gaussian blur.
+        // Use many overlapping low-alpha rounded rects (sub-pixel grow
+        // step), each painted at alpha 2/255. Cumulative compositing
+        // produces a gradient that fades smoothly to zero at the outer
+        // edge without visible banding from individual layers.
+        constexpr int   shadow_extent = 12;     // px outside the rect
+        constexpr int   shadow_steps  = 24;     // 0.5 px per step
+        constexpr float per_layer_alpha = 2.0f;
+        for (int i = shadow_steps; i >= 1; --i)
         {
-            float grow  = static_cast<float>(i) * 2.0f;
-            float alpha = alpha_outer +
-                          (alpha_inner - alpha_outer) *
-                          (1.0f - static_cast<float>(i - 1) / (layers - 1));
+            float grow = static_cast<float>(i) *
+                         (static_cast<float>(shadow_extent) / shadow_steps);
             draw_rounded_path(painter, x - grow, y - grow,
                               w + 2.0f * grow, h + 2.0f * grow,
                               r + grow * 0.5f);
-            painter.set(Color(0, 0, 0, static_cast<uint8_t>(alpha)));
+            painter.set(Color(0, 0, 0, static_cast<uint8_t>(per_layer_alpha)));
             painter.fill();
         }
 
