@@ -61,8 +61,12 @@ shared_ptr<Widget> create_wifi_connected_screen(
     // same local coordinate system. This sidesteps the ~30 px y-offset that
     // appears when an ImageLabel is positioned directly inside the screen
     // container alongside a Button at the same absolute coords.
-    constexpr int chev_w = 22;
-    constexpr int chev_h = 39;
+    // Figma node 2065:1063 is a BOOLEAN_OPERATION "Subtract" whose visible
+    // bounding box is 8.68 x 12.99, NOT the 13 x 21 of the two source
+    // polygons (2065:1064/1065). Using the polygon size made the chevron
+    // ~30 % too big. Scale the actual visible chevron: 9*1.852 x 13*1.852.
+    constexpr int chev_w = 17;
+    constexpr int chev_h = 24;
     const Rect btn_rect(302, 355, 204, 61);
 
     auto btn_wrap = make_shared<Frame>(btn_rect);
@@ -105,9 +109,10 @@ shared_ptr<Widget> create_wifi_connected_screen(
         chevron->fill_flags({Theme::FillFlag::blend});
         chevron->image_align(AlignFlag::center);  // no `expand`
         // Wrap-local coords (parent Frame is at btn_rect, so 0,0 is its origin).
-        chevron->box(Rect(btn_rect.width() - chev_w - 22,
-                          (btn_rect.height() - chev_h) / 2,
-                          chev_w, chev_h));
+        // Position in WRAP-LOCAL coords. Figma node 2065:1063 sits at
+        // (85.86, 10.64) inside the 110 x 33 Continue button -> (159, 20)
+        // inside our 204 x 61 wrap, exactly per dt::SCALE.
+        chevron->box(Rect(159, 20, chev_w, chev_h));
         btn_wrap->add(chevron);
     } catch (const std::exception& e) {
         printf("[CONTINUE] chevron asset missing: %s\n", e.what());

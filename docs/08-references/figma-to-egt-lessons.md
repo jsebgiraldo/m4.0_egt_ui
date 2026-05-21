@@ -111,6 +111,18 @@ Drew the chevron as two stroked line segments inside a custom `Widget`. Looked t
 
 Tried using `"\xe2\x9d\xaf"` (U+276F HEAVY RIGHT-POINTING ANGLE QUOTATION MARK) inside the button text. The runtime font (NotoSans on the target, system font on the host) does not have the glyph -> renders as a tofu box. Only a handful of arrows are guaranteed across the installed fonts, and none of them match the visual weight of the Figma chevron. **Do not rely on Unicode arrows.** Use the PNG.
 
+### Sizing an icon from the source polygons instead of the rendered shape
+
+When the icon you exported is a Figma `BOOLEAN_OPERATION` (for example a chevron built as `polygon A minus polygon B`), Figma's spec lists three nodes for it: the two source polygons (e.g. 13 x 21 each) and the boolean result itself (e.g. 9 x 13). The PNG you export is the boolean RESULT — so its real visible content is the 9 x 13 shape, not the 13 x 21 polygons.
+
+If you size the widget from the polygon dimensions you get an icon ~30 % bigger than Figma's. **Always pull the bounding box of the `absoluteBoundingBox` field on the node you actually exported**, not the source shapes:
+
+```bash
+jq -r '.. | objects | select(.id?=="<node-id>") | "\(.id) \(.absoluteBoundingBox)"' /tmp/spec.json
+```
+
+For node 2065:1063 the answer was `width: 8.68, height: 12.99` -> widget 17 x 24, not 22 x 39.
+
 ### `+30 px` magic offset to "fix" the position
 
 Symptom: chevron rendered ~30 px above where the rect spec said. First instinct was to nudge `y` by +30. That hid the symptom but the box was still growing to the image's natural size (52 px) — the icon just happened to look centred after the hack. Root cause was autoresize, fix is `autoresize(false)`. **If a widget is N px off, find out why before reaching for a magic offset.**
