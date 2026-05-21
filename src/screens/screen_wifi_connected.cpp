@@ -174,13 +174,19 @@ shared_ptr<Widget> create_wifi_connected_screen(
         std::move(on_continue));
     btn_wrap->add(btn);
 
-    // "Continue" label: Figma TEXT 2065:1061 at button-local (4,9), 83x18,
-    // Gothic A1 Bold 14pt -> (7,17), 154x33, 26pt scaled.
-    auto cont_lbl = make_shared<Label>("Continue", Rect(7, 17, 154, 33));
+    // "Continue" label: Figma TEXT 2065:1061. Per the Figma node:
+    //   characters       = "Continue "   (note trailing space)
+    //   textAlignHorizontal = CENTER     (NOT left)
+    //   bbox 83x18 at button-local (4,9) -> 154x33 at (7,17) scaled
+    //   font Gothic A1 Bold 14pt -> 26pt scaled
+    // Centring the trailing-space literal in the 154 bbox is what gives
+    // Figma's visible "Continue" its small left bias and matches the gap
+    // to the chevron.
+    auto cont_lbl = make_shared<Label>("Continue ", Rect(7, 17, 154, 33));
     cont_lbl->border(0); cont_lbl->padding(0); cont_lbl->margin(0);
     cont_lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     cont_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    cont_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+    cont_lbl->text_align(AlignFlag::center);
     btn_wrap->add(cont_lbl);
 
     // ImageHolder::do_set_image() auto-resizes the widget to the image's

@@ -35,14 +35,16 @@ fc-match "<font name>:weight=700"                  # font installed?
 ./scripts/figma-fetch.sh node <key> <id> /tmp/spec.json   # spec on disk
 ```
 
-Extract the spec card per child node (one-line each: id, type, bbox, fill, text/font):
+Extract the spec card per child node (one-line each: id, type, bbox, characters string verbatim, text alignment, font family + weight + size):
 
 ```bash
 jq -r '.nodes."<rootId>".document | .. | objects
   | select(.type? // empty | test("RECTANGLE|TEXT|VECTOR|BOOLEAN_OPERATION|GROUP|FRAME"))
-  | "\(.id)\t[\(.type)]\t\(.name)\tbb=(\(.absoluteBoundingBox.x|floor),\(.absoluteBoundingBox.y|floor) \(.absoluteBoundingBox.width|floor)x\(.absoluteBoundingBox.height|floor))\t\(.characters // "")"' \
+  | "\(.id)\t[\(.type)]\t\(.name)\tbb=(\(.absoluteBoundingBox.x|floor),\(.absoluteBoundingBox.y|floor) \(.absoluteBoundingBox.width|floor)x\(.absoluteBoundingBox.height|floor))\tchars=\"\(.characters // "")\"\talign=\(.style.textAlignHorizontal // "-")\tfont=\(.style.fontFamily // "-") \(.style.fontWeight // "-") \(.style.fontSize // "-")pt"' \
   /tmp/spec.json
 ```
+
+**Critical for TEXT nodes**: pull the literal `characters` string with whitespace preserved (Figma often stores `"Continue "` with a trailing space to balance layout against an adjacent icon) and the `style.textAlignHorizontal` value (`LEFT`, `CENTER`, `RIGHT`, `JUSTIFY`). Map those into the EGT `Label` directly — using the wrong alignment or trimming the space shifts the visible glyphs and breaks the icon spacing.
 
 Then every widget in the code maps one-to-one to a row in that spec, with the F1:1 invariants applied.
 
