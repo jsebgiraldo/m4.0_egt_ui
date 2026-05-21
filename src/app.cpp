@@ -9,6 +9,7 @@
 
 // ── New Figma-aligned screens ──
 #include "screens/screen_wifi_init.h"
+#include "screens/screen_setup.h"
 #include "screens/screen_wifi_connected.h"
 #include "screens/screen_wifi_connecting.h"
 #include "screens/screen_wifi_unavailable.h"
@@ -60,6 +61,18 @@ void run_app(int argc, char** argv)
     std::function<void(bool demo)> show_demo_info;
     std::function<void(bool demo)> launch_treatment;
     std::function<void()> show_settings;
+    std::function<void()> show_setup;
+
+    // ── SETUP landing (Figma 151:861) ────────────────────────────────
+    // Logo + a "Setup" affordance. This is where Back from the boot-flow
+    // WiFi list lands (instead of jumping to Home and skipping login).
+    // Tapping Setup re-opens the WiFi list.
+    show_setup = [&]() {
+        printf("[NAV] -> SETUP\n"); fflush(stdout);
+        screens.show(create_setup_screen(
+            [&]() { show_wifi_setup(nullptr, [&]() { show_setup(); }); }
+        ));
+    };
 
     // ── WIFI INIT (first boot screen) ────────────────────────────────
     show_wifi_init = [&]() {
@@ -67,9 +80,9 @@ void run_app(int argc, char** argv)
         screens.show(create_wifi_init_screen(
             [&]() { show_wifi_connected(); },  // on_connected -> Connected gate (manual Continue)
             [&](std::shared_ptr<std::vector<egt_wifi::WiFiNetwork>> nets) {
-                // on_failed -> WiFi Settings (with pre-scanned nets).
-                // Coming from the boot flow → Back should go to Home.
-                show_wifi_setup(nets, [&]() { show_home(); });
+                // on_failed -> WiFi list. Back goes to the Setup landing
+                // (151:861), NOT Home — so we don't skip Technician Login.
+                show_wifi_setup(nets, [&]() { show_setup(); });
             },
             [&]() { show_login(false); }   // on_skip -> bypass WiFi, go to Login
         ));
@@ -278,6 +291,7 @@ void run_app(int argc, char** argv)
     else if (start && std::string(start) == "wifi-settings")     show_wifi_setup(nullptr, [&]() { show_home(); });
     else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable();
     else if (start && std::string(start) == "login")             show_login(false);
+    else if (start && std::string(start) == "setup")             show_setup();
     else                                                         show_wifi_init();
 
     win.show();
