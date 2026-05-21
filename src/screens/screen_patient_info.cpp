@@ -626,11 +626,11 @@ static shared_ptr<Widget> create_zip_step(
     zip_display->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(zip_display);
 
-    // Keypad: 5 cols × 2 rows, keys 74×74
-    // Row 1: 0,1,2,3,4 @y=176  Row 2: 5,6,7,8,9 @y=265
+    // Keypad: 5 cols × 2 rows, keys 74×74. Row gap (≈34 px) is now a little
+    // wider than the column gap (≈22 px) so the two rows don't look cramped.
     const int key_sz = 74;
     const int key_xs[] = {178, 274, 370, 467, 561};
-    const int row_ys[] = {176, 265};
+    const int row_ys[] = {172, 280};
 
     for (int digit = 0; digit <= 9; digit++) {
         int col = digit % 5;
@@ -701,9 +701,9 @@ static shared_ptr<Widget> create_zip_step(
         });
     container->add(btn_skip);
 
-    // Continue gated on the ZIP field being non-empty (task 5).
+    // Continue gated on all 5 ZIP digits being entered (task 5).
     auto btn_continue = make_continue_btn(
-        !info->zip_code.empty(), demo_mode,
+        info->zip_code.length() == 5, demo_mode,
         Rect(541, 387, 217, 61),
         [=]() {
             if (on_show_screen)
