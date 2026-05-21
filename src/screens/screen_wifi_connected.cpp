@@ -107,6 +107,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
                                check_scale, check_scale);
         auto check = make_shared<ImageLabel>(check_img);
         check->autoresize(false);
+        check->border(0); check->padding(0); check->margin(0);
         check->fill_flags({Theme::FillFlag::blend});
         check->image_align(AlignFlag::center);
         check->box(Rect(235, 159, check_sz, check_sz));
@@ -116,13 +117,21 @@ shared_ptr<Widget> create_wifi_connected_screen(
         fflush(stdout);
     }
 
+    // F1:1 invariant 2: every Label gets border(0) + padding(0) + margin(0)
+    // so its content_area equals its box exactly. EGT's theme default border
+    // is 2 px, which silently offsets the visible text inward.
+
     // Title "Wi-Fi Connected": Figma 162x25 at (172,96) -> 300x46 at (319,178),
-    // Gothic A1 Bold 20pt -> 37pt scaled.
+    // Gothic A1 Bold 20pt -> 37pt scaled. F1:1 invariant 2 (border 0, etc.)
+    // applied so the visible glyphs start at exactly x=319. Autoresize stays
+    // ON for text labels so the box can grow rightward if cairo renders the
+    // text slightly wider than Figma's engine - prevents clipping.
     auto title = make_shared<Label>("Wi-Fi Connected",
         Rect(319, 178, 300, 46));
+    title->border(0); title->padding(0); title->margin(0);
     title->font(Font("Gothic A1", 37, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kGreen);
-    title->text_align(AlignFlag::left);
+    title->text_align(AlignFlag::left | AlignFlag::center_vertical);
     container->add(title);
 
     // Subtitle (two lines): Figma 267x36 at (90,140) -> 494x67 at (167,259),
@@ -130,6 +139,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     auto sub = make_shared<Label>(
         "WiFi connection established successfully.\nThe device is ready to use.",
         Rect(167, 259, 494, 67));
+    sub->border(0); sub->padding(0); sub->margin(0);
     sub->font(Font("Gothic A1", 26, Font::Weight::normal));
     sub->color(Palette::ColorId::label_text, dt::kTextPrimary);
     sub->text_align(AlignFlag::center);
@@ -167,7 +177,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     // "Continue" label: Figma TEXT 2065:1061 at button-local (4,9), 83x18,
     // Gothic A1 Bold 14pt -> (7,17), 154x33, 26pt scaled.
     auto cont_lbl = make_shared<Label>("Continue", Rect(7, 17, 154, 33));
-    cont_lbl->autoresize(false);
+    cont_lbl->border(0); cont_lbl->padding(0); cont_lbl->margin(0);
     cont_lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     cont_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     cont_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
@@ -186,6 +196,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
         auto chev_img = Image("file:assets/figma/images/chevron-right.png", hscale, vscale);
         auto chevron = make_shared<ImageLabel>(chev_img);
         chevron->autoresize(false);
+        chevron->border(0); chevron->padding(0); chevron->margin(0);
         chevron->fill_flags({Theme::FillFlag::blend});
         chevron->image_align(AlignFlag::center);  // no `expand`
         // Wrap-local coords (parent Frame is at btn_rect, so 0,0 is its origin).

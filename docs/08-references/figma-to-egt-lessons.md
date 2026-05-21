@@ -11,6 +11,43 @@ Companion docs:
 
 ## What worked (do this every time)
 
+## The Figma-1:1 rule (F1:1)
+
+This is the canonical construction rule for any widget that must match Figma exactly. **Every screen iteration MUST follow it before any visual tweaking.** If something looks off, the answer is "we broke one of these invariants", not "let's nudge a pixel".
+
+| # | Invariant | Why it matters |
+|---|---|---|
+| 1 | **Geometry from Figma `absoluteBoundingBox` × `dt::SCALE`** | Anything else is guesswork. |
+| 2 | **Zero moat on every widget**: `w->border(0); w->padding(0); w->margin(0);` | EGT's default theme adds a 2 px border to every widget. With a 2 px moat your visible content is offset 2 px from the box you set. |
+| 3 | **`autoresize(false)` on widgets where the BOX is the visual** (`Button`, `ImageLabel`, custom shapes). **Leave `autoresize(true)` on `Label` (text) widgets** | Buttons grow to fit text, ImageLabels grow to image natural size — both bad, lock them. Labels need to be able to grow if our cairo + the Figma font render glyphs slightly wider than Figma's engine — locking the box clips the last letter. Position the Label at Figma's top-left and let the box grow rightward / downward as needed; the *anchor* matches Figma, the *trailing edge* tolerates rendering drift. |
+| 4 | **Explicit font family in every `Font(...)`**: `Font("<family>", size * dt::SCALE, weight)` | `Font(size, weight)` uses the theme default family. fontconfig silently falls back to NotoSans when the Figma family is missing. Different glyph widths = different layout. |
+| 5 | **Colours from `dt::` tokens** | If Figma introduces a new hex, add to `palette.h` first, never inline. |
+| 6 | **Icons via PNG**: export from Figma at 4× and use `ImageLabel` with `Image(uri, hscale, vscale)` pre-scaled. Never draw shapes with Painter primitives. | Painter strokes will not match Figma's render at the first try. PNG + pre-scaled load disarms the auto-resize trap and gives pixel parity. |
+| 7 | **Effects via custom Painter widget**: drop shadows, gradients, conic patterns | EGT has no native blur or conic gradient. Approximate with layered rounded rects (shadows) or arc segments (gradients). Wrap that drawing in a tiny widget so it composes cleanly. |
+| 8 | **One wrapper `Frame` per Figma `GROUP`** at the group's bbox, with `fill_flags({})` (transparent) and the same zero-moat treatment. Children of the group use group-local coords. | Keeps coordinate systems consistent and isolates layout effects so one widget cannot shove another. |
+| 9 | **Button = `ShadowedCard` or empty `Button` + `Label` overlay + `ImageLabel` overlay** | `Button`'s built-in text uses font metrics, not Figma coordinates. Separate widgets at Figma rects always wins. |
+
+Pre-flight check (run before writing any code for a screen):
+
+```bash
+fc-match "<font name>:weight=700"                  # font installed?
+./scripts/figma-fetch.sh search "<screen text>"    # node id confirmed?
+./scripts/figma-fetch.sh node <key> <id> /tmp/spec.json   # spec on disk
+```
+
+Extract the spec card per child node (one-line each: id, type, bbox, fill, text/font):
+
+```bash
+jq -r '.nodes."<rootId>".document | .. | objects
+  | select(.type? // empty | test("RECTANGLE|TEXT|VECTOR|BOOLEAN_OPERATION|GROUP|FRAME"))
+  | "\(.id)\t[\(.type)]\t\(.name)\tbb=(\(.absoluteBoundingBox.x|floor),\(.absoluteBoundingBox.y|floor) \(.absoluteBoundingBox.width|floor)x\(.absoluteBoundingBox.height|floor))\t\(.characters // "")"' \
+  /tmp/spec.json
+```
+
+Then every widget in the code maps one-to-one to a row in that spec, with the F1:1 invariants applied.
+
+---
+
 ### 0. Install Figma's font on the host FIRST
 
 **Read this before doing anything else on a new screen.** Figma's text rendering uses the font the designer picked (this project: Gothic A1). The host simulator's `fontconfig` falls back to whatever is installed when the requested font is missing — usually NotoSans on Ubuntu / WSL. Two different fonts means two different glyph widths means "Continue" ends in two different places means every downstream positioning iteration is chasing a font mismatch, not a layout mismatch.
