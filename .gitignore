@@ -82,3 +82,13 @@ src/screens/_legacy/
 
 # VSCode MCP config (contains API tokens)
 .vscode/mcp.json
+
+# Local API tokens (Jira, Figma, etc.)
+api_key.json
+*.api_key.json
+figma_token.json
+*_token.json
+
+# Claude Code local state and personal notes
+.claude/
+CLAUDE.md
