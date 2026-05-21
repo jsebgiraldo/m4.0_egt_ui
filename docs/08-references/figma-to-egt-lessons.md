@@ -35,18 +35,112 @@ fc-match "<font name>:weight=700"                  # font installed?
 ./scripts/figma-fetch.sh node <key> <id> /tmp/spec.json   # spec on disk
 ```
 
-Extract the spec card per child node (one-line each: id, type, bbox, characters string verbatim, text alignment, font family + weight + size):
+Extract the spec card per child node (one line each: id, type, bbox, characters verbatim, text alignment H+V, font family + weight + size, any effects):
 
 ```bash
 jq -r '.nodes."<rootId>".document | .. | objects
   | select(.type? // empty | test("RECTANGLE|TEXT|VECTOR|BOOLEAN_OPERATION|GROUP|FRAME"))
-  | "\(.id)\t[\(.type)]\t\(.name)\tbb=(\(.absoluteBoundingBox.x|floor),\(.absoluteBoundingBox.y|floor) \(.absoluteBoundingBox.width|floor)x\(.absoluteBoundingBox.height|floor))\tchars=\"\(.characters // "")\"\talign=\(.style.textAlignHorizontal // "-")\tfont=\(.style.fontFamily // "-") \(.style.fontWeight // "-") \(.style.fontSize // "-")pt"' \
+  | "\(.id)\t[\(.type)]\t\(.name)\tbb=(\(.absoluteBoundingBox.x|floor),\(.absoluteBoundingBox.y|floor) \(.absoluteBoundingBox.width|floor)x\(.absoluteBoundingBox.height|floor))\tchars=\"\(.characters // "")\"\talign=\(.style.textAlignHorizontal // "-")/\(.style.textAlignVertical // "-")\tfont=\(.style.fontFamily // "-") \(.style.fontWeight // "-") \(.style.fontSize // "-")pt\teffects=\([.effects[]? | .type] | join(\",\") // \"-\")"' \
   /tmp/spec.json
 ```
 
-**Critical for TEXT nodes**: pull the literal `characters` string with whitespace preserved (Figma often stores `"Continue "` with a trailing space to balance layout against an adjacent icon) and the `style.textAlignHorizontal` value (`LEFT`, `CENTER`, `RIGHT`, `JUSTIFY`). Map those into the EGT `Label` directly — using the wrong alignment or trimming the space shifts the visible glyphs and breaks the icon spacing.
+**Critical for TEXT nodes**: pull the literal `characters` string with whitespace preserved (Figma often stores `"Continue "` with a trailing space to balance layout against an adjacent icon) and BOTH alignment fields (`textAlignHorizontal` and `textAlignVertical`). Map those into the EGT `Label` directly. Note: Figma's TEXT bbox is tightly fit to the line-height of the actual glyphs (e.g. 18 px for 14 pt); when you scale that bbox up by `dt::SCALE` the glyphs no longer fill it. With `textAlignVertical=TOP` in code, the scaled glyphs sit at the top of the scaled bbox and look raised above centre. The fix is in the Button recipe below — span the label across the FULL parent height and use `center_vertical`, not the scaled bbox height with TOP.
+
+**Critical for GROUP / FRAME nodes**: pull the `effects` array. A `DROP_SHADOW` effect means the group needs a `ShadowedCard`-style widget; an `INNER_SHADOW` or `LAYER_BLUR` means custom drawing. Plain groups with no effects are just wrapper `Frame`s.
 
 Then every widget in the code maps one-to-one to a row in that spec, with the F1:1 invariants applied.
+
+---
+
+## Button construction recipe
+
+This is the proven, working pattern for any "outlined card with text + icon" button in the design (the Continue button on WIFI_CONNECTED is the canonical example). Follow it step by step on the next button.
+
+### Step 1 — gather the spec from Figma
+
+A Figma button is usually a `GROUP` containing four kinds of children:
+
+| Figma child type | Maps to |
+|---|---|
+| `RECTANGLE` (the background) | dimensions of the card |
+| `TEXT` (the label) | a `Label` widget |
+| `VECTOR` / `BOOLEAN_OPERATION` / `IMAGE-SVG` (the icon) | a `ImageLabel` widget loading a PNG exported from Figma at 4× |
+| (parent `GROUP`'s `effects`) | `ShadowedCard` if `DROP_SHADOW`, plain `Frame` otherwise |
+
+Extract once with the jq one-liner above. Note the parent `GROUP`'s `effects` separately (jq filter for the root group id) — that's where the drop shadow spec lives.
+
+### Step 2 — coordinate system
+
+The parent `GROUP` defines the button-local coordinate system. All child Figma coordinates are RELATIVE to the GROUP origin once you compute `child.absoluteBoundingBox - group.absoluteBoundingBox`. Multiply by `dt::SCALE` to get our panel coordinates.
+
+If the button has a drop shadow, the wrapper Frame in code is enlarged by `SHADOW_PAD` (12 px) on every side to give the shadow room to render. All child positions inside the wrap are then biased by `+SHADOW_PAD`.
+
+### Step 3 — code template
+
+```cpp
+// Figma <group-id>: outlined button with drop shadow.
+constexpr int   PAD          = ShadowedCard::SHADOW_PAD;
+constexpr float card_radius  = 7.0f;                    // Figma cornerRadius * SCALE
+const Rect card_rect(<x>, <y>, <w>, <h>);               // RECTANGLE child bbox * SCALE
+const Rect wrap_rect(card_rect.x() - PAD, card_rect.y() - PAD,
+                     card_rect.width()  + 2 * PAD,
+                     card_rect.height() + 2 * PAD);
+
+// Wrapper frame (transparent), enlarged by PAD on every side.
+auto btn_wrap = make_shared<Frame>(wrap_rect);
+btn_wrap->fill_flags({});
+container->add(btn_wrap);
+
+// White card + drop shadow + click handling, drawn in wrap-local coords.
+auto btn = make_shared<ShadowedCard>(
+    Rect(PAD, PAD, card_rect.width(), card_rect.height()),
+    card_radius,
+    std::move(on_click));
+btn_wrap->add(btn);
+
+// Text label: span the full button height, center both ways. Do NOT use
+// the scaled TEXT bbox height directly with vertical=TOP - the scaled
+// glyphs leave empty space at the bottom of the bbox and the text
+// renders above the button centre.
+auto lbl = make_shared<Label>("<characters-verbatim>",
+    Rect(PAD + <text_x>, PAD, <text_w>, card_rect.height()));
+lbl->border(0); lbl->padding(0); lbl->margin(0);
+lbl->font(Font("<family-from-Figma>", <pt * SCALE>, Font::Weight::<weight>));
+lbl->color(Palette::ColorId::label_text, dt::<colour-token>);
+lbl->text_align(AlignFlag::center_horizontal | AlignFlag::center_vertical);
+btn_wrap->add(lbl);
+
+// Icon: PNG exported from Figma at 4×, sized to the visible bbox of the
+// node you exported (NOT the source polygons). autoresize(false) and
+// pre-scale Image at load.
+constexpr int icon_w = <visible-bbox-w * SCALE>;
+constexpr int icon_h = <visible-bbox-h * SCALE>;
+constexpr int icon_src_w = <png-natural-w>;
+constexpr int icon_src_h = <png-natural-h>;
+const float hscale = static_cast<float>(icon_w) / icon_src_w;
+const float vscale = static_cast<float>(icon_h) / icon_src_h;
+auto icon_img = Image("file:assets/figma/images/<name>.png", hscale, vscale);
+auto icon = make_shared<ImageLabel>(icon_img);
+icon->autoresize(false);
+icon->border(0); icon->padding(0); icon->margin(0);
+icon->fill_flags({Theme::FillFlag::blend});
+icon->image_align(AlignFlag::center);
+icon->box(Rect(PAD + <icon_x>, PAD + <icon_y>, icon_w, icon_h));
+btn_wrap->add(icon);
+```
+
+### Step 4 — debug border (optional)
+
+When something looks off, temporarily uncomment a 1 px black `painter.stroke()` on the card path inside `ShadowedCard::draw()` to see the card bounds exactly. Remove before committing.
+
+### Step 5 — verify
+
+- Visible button outline (shadow halo) matches Figma's intensity (~10 % alpha cumulative).
+- Text glyph centre lines up with button centre vertically.
+- Text + icon spacing matches Figma — if they're spread too far apart, you trimmed the trailing whitespace in the `characters` string. Restore it.
+- Icon is `~17 % too big`? You used the source-polygon dimensions instead of the visible `BOOLEAN_OPERATION` bbox. Re-pull from the right node.
+
+The `ShadowedCard` widget itself currently lives inline at the top of `src/screens/screen_wifi_connected.cpp`. When the second screen needs it, move both `ShadowedCard` and `draw_rounded_path` into `src/ui/components.h` / `components.cpp` and include from there.
 
 ---
 
