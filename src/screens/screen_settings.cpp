@@ -334,7 +334,8 @@ BrightnessBar make_brightness_bar(int x, int y, int width, int initial_value)
 // ── Public entry point ─────────────────────────────────────────────────────
 shared_ptr<Widget> create_settings_screen(
     function<void()> on_back,
-    function<void()> on_wifi_settings)
+    function<void()> on_wifi_settings,
+    function<void()> on_login)
 {
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -463,6 +464,16 @@ shared_ptr<Widget> create_settings_screen(
     // (Figma 2073:1996, 27,414). Any screen that needs Back uses the same
     // helper so the button never drifts between screens.
     ui::add_back_button(*container, on_back);
+
+    // ── Technician Login button (bottom-right) ─────────────────────────────
+    // Lets the operator jump (back) to the Technician Login screen from
+    // Settings. Hidden when no handler is supplied.
+    if (on_login) {
+        auto btn_login = ui::create_outlined_button("Technician Login",
+            Rect(dt::SCREEN_W - 247, 412, 217, 56),
+            on_login);
+        container->add(btn_login);
+    }
 
     return container;
 }

@@ -119,7 +119,8 @@ void run_app(int argc, char** argv)
         auto back = on_back ? on_back : std::function<void()>([&]() { show_home(); });
         screens.show(create_settings_screen(
             back,                                                          // Back -> caller-chosen
-            [&, back]() { show_wifi_setup(nullptr, [&, back](){ show_settings(back); }); }  // WiFi -> WiFi Settings, Back returns here
+            [&, back]() { show_wifi_setup(nullptr, [&, back](){ show_settings(back); }); }, // WiFi -> WiFi Settings, Back returns here
+            [&]() { show_login(false); }                                   // Technician Login -> Login screen
         ));
     };
 
@@ -141,7 +142,9 @@ void run_app(int argc, char** argv)
                 printf("Logged in as: %s\n", user.c_str());
                 show_home();
             },
-            [&]() { show_home(); }, // on_back
+            // on_back -> Setup landing (logo + Settings), NOT Home.
+            // Backing out of Login must never skip past it into Home.
+            [&]() { show_setup(); },
             [&](std::shared_ptr<egt::Widget> scr) { // on_show_screen
                 screens.show(scr);
             }
