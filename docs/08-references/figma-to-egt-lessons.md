@@ -11,6 +11,33 @@ Companion docs:
 
 ## What worked (do this every time)
 
+## Figma canvas vs device panel aspect ratio
+
+The Figma canvas and the device panel do not share an aspect ratio:
+
+|  | Width | Height | Aspect |
+|---|---|---|---|
+| Figma canvas | 432 pt | **261.47** pt | **1.6522** |
+| Device panel | 800 px | 480 px | **1.6667** |
+
+The X axis maps exactly: `800 / 432 = 1.8519`. The Y axis does not: `480 / 261.47 = 1.8358`.
+
+Per-axis scales (defined in `src/ui/design_tokens.h`):
+
+```cpp
+dt::SCALE_X = 1.8519   // 800 / 432
+dt::SCALE_Y = 1.8358   // 480 / 261.47
+dt::SCALE   = SCALE_X  // canonical uniform scale used by every screen
+```
+
+**Project convention: use `dt::SCALE` (= 1.852) uniformly for both axes.** This keeps X exact and accepts a ~1 % vertical drift. Practically, the bottom 3-4 px of Figma canvas (y > ~258 in design coords) gets clipped at the device, but no design element reaches that low today so it has been invisible in every iteration.
+
+If a future layout has an element that genuinely must hit the device's bottom edge, pass `dt::SCALE_Y` explicitly for the Y math while keeping `dt::SCALE` for the X math. **Do not retrofit `SCALE_Y` across the existing screens** -- their layout numbers were chosen against `SCALE_X`, and switching axes mid-codebase would shift everything up by a few pixels.
+
+The comparison images had a different but related problem: `convert -resize 500x -gravity north` preserved aspect ratio, so the Figma render came out 3 px taller than the sim screenshots and looked "raised." Fixed by forcing `-resize "500x300!"` on every panel before composition (see `figma-vs-sim-workflow.md` step 9).
+
+---
+
 ## The Figma-1:1 rule (F1:1)
 
 This is the canonical construction rule for any widget that must match Figma exactly. **Every screen iteration MUST follow it before any visual tweaking.** If something looks off, the answer is "we broke one of these invariants", not "let's nudge a pixel".
