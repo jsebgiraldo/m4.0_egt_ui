@@ -2,6 +2,8 @@
 
 How we close the gap between a Figma design frame and the EGT UI rendered by the host simulator. The loop produces a 3-up before-vs-target-vs-after image for every change, so progress is visually evident and reviewable.
 
+> **Before starting a new screen, read [../08-references/figma-to-egt-lessons.md](../08-references/figma-to-egt-lessons.md).** It captures the autoresize trap, the "fetch icons, do not draw them" rule, and the pre-flight checklist that saves an iteration or two on every screen.
+
 ## Overview
 
 The work is mechanical once you know the tools. Three inputs (a Figma node ID, the matching code file, and a stable mock mode), three outputs (`figma-target.png`, `before.png`, `after.png`), one composed report (`comparison.png`). Every code edit is driven by a Figma measurement scaled by `dt::SCALE = 1.852` and tokens from `src/ui/design_tokens.h` - no raw hex.
@@ -94,7 +96,7 @@ When you need a screenshot of a screen that does not have a hold mode, add one. 
 
 ```bash
 ./scripts/run-simulator.sh --wifi-init &       # window opens
-./scripts/screenshot-sim.sh docs/09-issues/<task>-figma-match/before.png
+./scripts/screenshot-sim.sh docs/10-reports/<task>-figma-match/before.png
 ```
 
 The screenshot script searches X11 for windows named exactly `EGT` and picks the one whose geometry matches `EGT_SCREEN_SIZE` (default 800x480), so it captures the inner content area without the window manager title bar. VSCode users can use the **Screenshot Simulator** status-bar button instead and type the output path at the prompt.
@@ -134,7 +136,7 @@ That comment lets the next reader trace any pixel back to a Figma node without o
 ```bash
 cmake --build build-x86 -j      # ~5-10 s incremental
 ./scripts/run-simulator.sh --wifi-init &
-./scripts/screenshot-sim.sh docs/09-issues/<task>-figma-match/after.png
+./scripts/screenshot-sim.sh docs/10-reports/<task>-figma-match/after.png
 ```
 
 VSCode: **Build & Run** button then **Screenshot Simulator** with the `after.png` filename.
@@ -144,7 +146,7 @@ VSCode: **Build & Run** button then **Screenshot Simulator** with the `after.png
 Horizontal layout, left-to-right: **Before | Target | After**. Reading the change as a sentence (was, should be, is) makes regressions easier to spot than a stack would.
 
 ```bash
-cd docs/09-issues/<task>-figma-match
+cd docs/10-reports/<task>-figma-match
 W=500
 LABEL_OPTS=( -resize ${W}x -gravity north -background white -splice 0x30
              -fill "#333" -pointsize 18 )
@@ -174,10 +176,10 @@ Use the `/git-commit` skill (semantic firmware format). The change usually fits 
 
 ## Folder layout
 
-Each task lives under `docs/09-issues/<task>-figma-match/`:
+Each task lives under `docs/10-reports/<task>-figma-match/`:
 
 ```
-docs/09-issues/m4-18-wifi-init-figma-match/
+docs/10-reports/m4-18-wifi-init-figma-match/
 ├── figma-target.png   <- pulled via Figma MCP
 ├── before.png         <- pre-change simulator capture
 ├── after.png          <- post-change simulator capture

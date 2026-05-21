@@ -115,7 +115,7 @@
             ],
             "group": "none",
             "problemMatcher": [],
-            "detail": "Capture the running simulator window into the chosen file (default: docs/09-issues/m4-18-wifi-init-figma-match/<name>.png).",
+            "detail": "Capture the running simulator window into the chosen file (default: docs/10-reports/m4-18-wifi-init-figma-match/<name>.png).",
             "options": {
                 "statusbar": {
                     "label": "$(device-camera) Screenshot",
@@ -147,8 +147,8 @@
         {
             "id": "simShotPath",
             "type": "promptString",
-            "description": "Screenshot output path (relative to repo root). Examples: docs/09-issues/m4-18-wifi-init-figma-match/before.png, docs/09-issues/m4-18-wifi-init-figma-match/after.png",
-            "default": "docs/09-issues/m4-18-wifi-init-figma-match/screenshot.png"
+            "description": "Screenshot output path (relative to repo root). Examples: docs/10-reports/m4-18-wifi-init-figma-match/before.png, docs/10-reports/m4-18-wifi-init-figma-match/after.png",
+            "default": "docs/10-reports/m4-18-wifi-init-figma-match/screenshot.png"
         }
     ]
 }

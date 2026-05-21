@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ./scripts/screenshot-sim.sh <output-path>
-#   ./scripts/screenshot-sim.sh docs/09-issues/m4-18-wifi-init-figma-match/before.png
+#   ./scripts/screenshot-sim.sh docs/10-reports/m4-18-wifi-init-figma-match/before.png
 #
 # Finds the egt-app process, gets its X11 window via xdotool, and uses
 # ImageMagick `import` to capture just that window (no manual click).

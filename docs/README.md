@@ -16,7 +16,8 @@ Embedded UI for the Suntek M4 treatment device. This folder is the documentation
 | 06 | [testing](06-testing/) | Visual checkpoints, manual test scripts, on-target verification |
 | 07 | [deployment](07-deployment/) | Cross-compile, Yocto image, deploy-to-target, service management |
 | 08 | [references](08-references/) | External docs, datasheets, EGT framework links, Figma exports |
-| 09 | [issues](09-issues/) | Bug tracker, Figma-vs-code gap analysis, iteration reports |
+| 09 | [issues](09-issues/) | Bug tracker, open questions, TODO lists |
+| 10 | [reports](10-reports/) | Living UI improvement report + per-screen Figma-vs-sim comparison folders |
 
 ## Index
 
@@ -43,11 +44,19 @@ Embedded UI for the Suntek M4 treatment device. This folder is the documentation
 - [useful-commands.md](07-deployment/useful-commands.md) — Yocto cross-compile + scp deploy commands
 
 ### 08 — References
-*(No documents yet)*
+- [egt-widget-reference.md](08-references/egt-widget-reference.md) — EGT widget reference: coordinate model, autoresize trap, ImageLabel/Frame/Button semantics
+- [figma-to-egt-lessons.md](08-references/figma-to-egt-lessons.md) — Lessons learned from each Figma -> EGT iteration; read before starting a new screen
+- [upstream/](08-references/upstream/) — Saved summaries of upstream EGT docs
+- [code-snippets/](08-references/code-snippets/) — Reference code patterns (icon-over-button, absolute positioning, custom draw)
+- `figma-v5-snapshot.json` — Cached flat index of every node in the v5 Figma file (rebuild via `./scripts/figma-fetch.sh index`)
 
 ### 09 — Issues
 - [check.md](09-issues/check.md) — Live UI/UX TODO list (Spanish, Figma node references)
-- [m4-18-wifi-init-figma-match/](09-issues/m4-18-wifi-init-figma-match/) — Figma-vs-code iteration report for WIFI_INIT screen (Jira M4-18)
+
+### 10 — Reports
+- [ui-improvement-report.md](10-reports/ui-improvement-report.md) — Living client-facing report of UI improvements; one section per screen with comparison image
+- [m4-18-wifi-init-figma-match/](10-reports/m4-18-wifi-init-figma-match/) — Figma-vs-code iteration report for WIFI_INIT screen (Jira M4-18)
+- [m4-18-wifi-connected-figma-match/](10-reports/m4-18-wifi-connected-figma-match/) — Figma-vs-code iteration report for WIFI_CONNECTED screen (Jira M4-18)
 
 ## Conventions
 
