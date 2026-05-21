@@ -32,7 +32,7 @@ fi
 
 # EGT doesn't set _NET_WM_PID. Two windows are typically named "EGT":
 # the outer window-manager frame (with title bar / borders) and the inner
-# content window EGT actually draws into. We want the inner one — it has
+# content window EGT actually draws into. We want the inner one - it has
 # dimensions exactly matching EGT_SCREEN_SIZE (default 800x480).
 SIZE="${EGT_SCREEN_SIZE:-800x480}"
 EGT_W="${SIZE%x*}"

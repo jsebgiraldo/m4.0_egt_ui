@@ -36,7 +36,7 @@ private:
     egt::ImageButton m_button;
 };
 
-// From /opt/egt/examples/widgets/widgets.cpp — image_align used to put the
+// From /opt/egt/examples/widgets/widgets.cpp - image_align used to put the
 // image to the right of the button label.
 //
 //   auto imagebutton4 = std::make_shared<egt::ImageButton>(image, "Calculator");

@@ -44,13 +44,13 @@ private:
 };
 
 // ── Buttons ─────────────────────────────────────────────────────────────────
-/// Outlined button (white bg, gray text) — like Figma "bt new".
+/// Outlined button (white bg, gray text) - like Figma "bt new".
 std::shared_ptr<egt::Button> create_outlined_button(
     const std::string& text,
     const egt::Rect& rect,
     std::function<void()> on_click);
 
-/// Filled button (cyan bg, white text) — like Figma "bt new over".
+/// Filled button (cyan bg, white text) - like Figma "bt new over".
 std::shared_ptr<egt::Button> create_filled_button(
     const std::string& text,
     const egt::Rect& rect,
@@ -104,7 +104,7 @@ CumulativeTimeFooter create_cumulative_time_footer(
 ///                        used during treatment so Exit reads as a
 ///                        prominent affordance.
 ///   - Compact:           clean stacked text + small button, no card
-///                        chrome — used on patient-info where the badge
+///                        chrome - used on patient-info where the badge
 ///                        should sit quietly in the corner.
 enum class DemoBadgeStyle { Card, Compact };
 
@@ -134,13 +134,13 @@ std::shared_ptr<egt::Widget> create_logo(int x, int y, int w, int h);
 // ── Back button (chevron-in-circle + "Back" label) ─────────────────────────
 /// Adds a Back affordance at the standard bottom-left position used across
 /// screens (Figma 2073:1996). The position is hard-coded so every screen
-/// renders the button at the same coordinates — no per-screen drift.
+/// renders the button at the same coordinates - no per-screen drift.
 ///
 /// Layout: 46-px gray circle at (27, 414) + chevron glyph centred inside +
 /// "Back" label to the right + a transparent hit-zone covering both. Tapping
 /// either the circle or the label invokes on_click.
 ///
-/// Returns the wrapper Frame holding all back widgets — call `->visible(false)`
+/// Returns the wrapper Frame holding all back widgets - call `->visible(false)`
 /// on it to hide the whole thing (and disable the hit zone) when an overlay
 /// or modal is showing.
 std::shared_ptr<egt::Frame> add_back_button(

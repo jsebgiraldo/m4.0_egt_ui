@@ -4,8 +4,8 @@ Practical patterns and traps discovered while bringing screens into pixel parity
 
 Companion docs:
 
-- [egt-widget-reference.md](egt-widget-reference.md) — deep reference on EGT widget semantics (the "why").
-- [../04-ide-setup/figma-vs-sim-workflow.md](../04-ide-setup/figma-vs-sim-workflow.md) — the iteration loop itself (the "how").
+- [egt-widget-reference.md](egt-widget-reference.md) - deep reference on EGT widget semantics (the "why").
+- [../04-ide-setup/figma-vs-sim-workflow.md](../04-ide-setup/figma-vs-sim-workflow.md) - the iteration loop itself (the "how").
 
 ---
 
@@ -46,11 +46,11 @@ This is the canonical construction rule for any widget that must match Figma exa
 |---|---|---|
 | 1 | **Geometry from Figma `absoluteBoundingBox` × `dt::SCALE`** | Anything else is guesswork. |
 | 2 | **Zero moat on every widget**: `w->border(0); w->padding(0); w->margin(0);` | EGT's default theme adds a 2 px border to every widget. With a 2 px moat your visible content is offset 2 px from the box you set. |
-| 3 | **`autoresize(false)` on widgets where the BOX is the visual** (`Button`, `ImageLabel`, custom shapes). **Leave `autoresize(true)` on `Label` (text) widgets** | Buttons grow to fit text, ImageLabels grow to image natural size — both bad, lock them. Labels need to be able to grow if our cairo + the Figma font render glyphs slightly wider than Figma's engine — locking the box clips the last letter. Position the Label at Figma's top-left and let the box grow rightward / downward as needed; the *anchor* matches Figma, the *trailing edge* tolerates rendering drift. |
+| 3 | **`autoresize(false)` on widgets where the BOX is the visual** (`Button`, `ImageLabel`, custom shapes). **Leave `autoresize(true)` on `Label` (text) widgets** | Buttons grow to fit text, ImageLabels grow to image natural size - both bad, lock them. Labels need to be able to grow if our cairo + the Figma font render glyphs slightly wider than Figma's engine - locking the box clips the last letter. Position the Label at Figma's top-left and let the box grow rightward / downward as needed; the *anchor* matches Figma, the *trailing edge* tolerates rendering drift. |
 | 4 | **Explicit font family in every `Font(...)`**: `Font("<family>", size * dt::SCALE, weight)` | `Font(size, weight)` uses the theme default family. fontconfig silently falls back to NotoSans when the Figma family is missing. Different glyph widths = different layout. |
 | 5 | **Colours from `dt::` tokens** | If Figma introduces a new hex, add to `palette.h` first, never inline. |
 | 6 | **Icons via PNG**: export from Figma at 4× and use `ImageLabel` with `Image(uri, hscale, vscale)` pre-scaled. Never draw shapes with Painter primitives. | Painter strokes will not match Figma's render at the first try. PNG + pre-scaled load disarms the auto-resize trap and gives pixel parity. |
-| 7 | **Effects via custom Painter widget**: drop shadows, gradients, conic patterns. **EGT clips Painter to the widget's `box()` — the widget must be larger than the visible artwork.** For a drop shadow with N px spread, the widget grows by N on every side and the visible shape is drawn centred inside. | EGT has no native blur or conic gradient. Approximate with layered rounded rects (shadows) or arc segments (gradients). Wrap that drawing in a tiny widget so it composes cleanly. The clipping rule cost an hour of debugging the first time — the shadow was visible only at the rounded corners (where painting happened to fall inside the box) and looked like four dotted marks instead of a halo. |
+| 7 | **Effects via custom Painter widget**: drop shadows, gradients, conic patterns. **EGT clips Painter to the widget's `box()` - the widget must be larger than the visible artwork.** For a drop shadow with N px spread, the widget grows by N on every side and the visible shape is drawn centred inside. | EGT has no native blur or conic gradient. Approximate with layered rounded rects (shadows) or arc segments (gradients). Wrap that drawing in a tiny widget so it composes cleanly. The clipping rule cost an hour of debugging the first time - the shadow was visible only at the rounded corners (where painting happened to fall inside the box) and looked like four dotted marks instead of a halo. |
 | 8 | **One wrapper `Frame` per Figma `GROUP`** at the group's bbox, with `fill_flags({})` (transparent) and the same zero-moat treatment. Children of the group use group-local coords. | Keeps coordinate systems consistent and isolates layout effects so one widget cannot shove another. |
 | 9 | **Button = `ShadowedCard` or empty `Button` + `Label` overlay + `ImageLabel` overlay** | `Button`'s built-in text uses font metrics, not Figma coordinates. Separate widgets at Figma rects always wins. |
 
@@ -71,7 +71,7 @@ jq -r '.nodes."<rootId>".document | .. | objects
   /tmp/spec.json
 ```
 
-**Critical for TEXT nodes**: pull the literal `characters` string with whitespace preserved (Figma often stores `"Continue "` with a trailing space to balance layout against an adjacent icon) and BOTH alignment fields (`textAlignHorizontal` and `textAlignVertical`). Map those into the EGT `Label` directly. Note: Figma's TEXT bbox is tightly fit to the line-height of the actual glyphs (e.g. 18 px for 14 pt); when you scale that bbox up by `dt::SCALE` the glyphs no longer fill it. With `textAlignVertical=TOP` in code, the scaled glyphs sit at the top of the scaled bbox and look raised above centre. The fix is in the Button recipe below — span the label across the FULL parent height and use `center_vertical`, not the scaled bbox height with TOP.
+**Critical for TEXT nodes**: pull the literal `characters` string with whitespace preserved (Figma often stores `"Continue "` with a trailing space to balance layout against an adjacent icon) and BOTH alignment fields (`textAlignHorizontal` and `textAlignVertical`). Map those into the EGT `Label` directly. Note: Figma's TEXT bbox is tightly fit to the line-height of the actual glyphs (e.g. 18 px for 14 pt); when you scale that bbox up by `dt::SCALE` the glyphs no longer fill it. With `textAlignVertical=TOP` in code, the scaled glyphs sit at the top of the scaled bbox and look raised above centre. The fix is in the Button recipe below - span the label across the FULL parent height and use `center_vertical`, not the scaled bbox height with TOP.
 
 **Critical for GROUP / FRAME nodes**: pull the `effects` array. A `DROP_SHADOW` effect means the group needs a `ShadowedCard`-style widget; an `INNER_SHADOW` or `LAYER_BLUR` means custom drawing. Plain groups with no effects are just wrapper `Frame`s.
 
@@ -83,7 +83,7 @@ Then every widget in the code maps one-to-one to a row in that spec, with the F1
 
 This is the proven, working pattern for any "outlined card with text + icon" button in the design (the Continue button on WIFI_CONNECTED is the canonical example). Follow it step by step on the next button.
 
-### Step 1 — gather the spec from Figma
+### Step 1 - gather the spec from Figma
 
 A Figma button is usually a `GROUP` containing four kinds of children:
 
@@ -94,15 +94,15 @@ A Figma button is usually a `GROUP` containing four kinds of children:
 | `VECTOR` / `BOOLEAN_OPERATION` / `IMAGE-SVG` (the icon) | a `ImageLabel` widget loading a PNG exported from Figma at 4× |
 | (parent `GROUP`'s `effects`) | `ShadowedCard` if `DROP_SHADOW`, plain `Frame` otherwise |
 
-Extract once with the jq one-liner above. Note the parent `GROUP`'s `effects` separately (jq filter for the root group id) — that's where the drop shadow spec lives.
+Extract once with the jq one-liner above. Note the parent `GROUP`'s `effects` separately (jq filter for the root group id) - that's where the drop shadow spec lives.
 
-### Step 2 — coordinate system
+### Step 2 - coordinate system
 
 The parent `GROUP` defines the button-local coordinate system. All child Figma coordinates are RELATIVE to the GROUP origin once you compute `child.absoluteBoundingBox - group.absoluteBoundingBox`. Multiply by `dt::SCALE` to get our panel coordinates.
 
 If the button has a drop shadow, the wrapper Frame in code is enlarged by `SHADOW_PAD` (12 px) on every side to give the shadow room to render. All child positions inside the wrap are then biased by `+SHADOW_PAD`.
 
-### Step 3 — code template
+### Step 3 - code template
 
 ```cpp
 // Figma <group-id>: outlined button with drop shadow.
@@ -156,15 +156,15 @@ icon->box(Rect(PAD + <icon_x>, PAD + <icon_y>, icon_w, icon_h));
 btn_wrap->add(icon);
 ```
 
-### Step 4 — debug border (optional)
+### Step 4 - debug border (optional)
 
 When something looks off, temporarily uncomment a 1 px black `painter.stroke()` on the card path inside `ShadowedCard::draw()` to see the card bounds exactly. Remove before committing.
 
-### Step 5 — verify
+### Step 5 - verify
 
 - Visible button outline (shadow halo) matches Figma's intensity (~10 % alpha cumulative).
 - Text glyph centre lines up with button centre vertically.
-- Text + icon spacing matches Figma — if they're spread too far apart, you trimmed the trailing whitespace in the `characters` string. Restore it.
+- Text + icon spacing matches Figma - if they're spread too far apart, you trimmed the trailing whitespace in the `characters` string. Restore it.
 - Icon is `~17 % too big`? You used the source-polygon dimensions instead of the visible `BOOLEAN_OPERATION` bbox. Re-pull from the right node.
 
 The `ShadowedCard` widget itself currently lives inline at the top of `src/screens/screen_wifi_connected.cpp`. When the second screen needs it, move both `ShadowedCard` and `draw_rounded_path` into `src/ui/components.h` / `components.cpp` and include from there.
@@ -173,7 +173,7 @@ The `ShadowedCard` widget itself currently lives inline at the top of `src/scree
 
 ### 0. Install Figma's font on the host FIRST
 
-**Read this before doing anything else on a new screen.** Figma's text rendering uses the font the designer picked (this project: Gothic A1). The host simulator's `fontconfig` falls back to whatever is installed when the requested font is missing — usually NotoSans on Ubuntu / WSL. Two different fonts means two different glyph widths means "Continue" ends in two different places means every downstream positioning iteration is chasing a font mismatch, not a layout mismatch.
+**Read this before doing anything else on a new screen.** Figma's text rendering uses the font the designer picked (this project: Gothic A1). The host simulator's `fontconfig` falls back to whatever is installed when the requested font is missing - usually NotoSans on Ubuntu / WSL. Two different fonts means two different glyph widths means "Continue" ends in two different places means every downstream positioning iteration is chasing a font mismatch, not a layout mismatch.
 
 Check before iterating:
 
@@ -199,7 +199,7 @@ Then in code, **always pass the family name to `Font(...)` explicitly**:
 
 ```cpp
 label->font(Font("Gothic A1", 26, Font::Weight::bold));
-// not Font(26, Font::Weight::bold) — that uses the theme default.
+// not Font(26, Font::Weight::bold) - that uses the theme default.
 ```
 
 For any other font the designer introduces, repeat: install it on the host, request it by name in the code.
@@ -228,7 +228,7 @@ Workflow per icon:
 ./scripts/figma-fetch.sh image <fileKey> <nodeId> assets/figma/images/<icon-name>.png 4
 ```
 
-Then in code, **always** pre-scale the `Image` so its natural size matches the target rect — this is what disarms the autoresize trap (next section):
+Then in code, **always** pre-scale the `Image` so its natural size matches the target rect - this is what disarms the autoresize trap (next section):
 
 ```cpp
 constexpr int target_w = 22;        // Figma 12 px * dt::SCALE
@@ -248,7 +248,7 @@ This is the single most important lesson. Both `Button` and `ImageLabel` (anythi
 
 ```cpp
 auto btn = std::make_shared<Button>("Continue", Rect(0, 0, 204, 61));
-btn->autoresize(false);          // FIRST — locks the rect
+btn->autoresize(false);          // FIRST - locks the rect
 btn->font(Font(26, Font::Weight::bold));   // these no longer grow the box
 btn->text_align(AlignFlag::left | AlignFlag::center_vertical);
 // ...
@@ -286,17 +286,17 @@ btn_wrap->add(chevron);
 
 `move()` then `resize()` is two layout-triggering ops. `box(Rect)` is one. With `autoresize(true)` (the default) either pattern can trip the grow-back behaviour; with `autoresize(false)` they are functionally equivalent. Prefer `box(Rect)` for clarity.
 
-### 7. `image_align(AlignFlag::center)` only — no `expand`
+### 7. `image_align(AlignFlag::center)` only - no `expand`
 
 `expand` makes the image scale to fill the widget's content area while preserving ratio, which then anchors the visible image to the top-left of the box (not centred). Result: the icon visually drifts upward and leftward. Use plain `center`.
 
 ### 8. For exact Figma-driven button content: Button = card, Label = text, ImageLabel = icon
 
-`egt::Button`'s built-in text rendering uses the widget's font metrics, theme padding, and `text_align()` — none of which know anything about Figma's `absoluteBoundingBox`. Even with `text_align(AlignFlag::left | AlignFlag::center_vertical)` the text starts at the border offset and ends wherever the font's intrinsic glyph width takes it. With a 26 pt Bold font in a 204 px-wide button the text ended ~30 px short of where Figma's bbox put it, so the chevron to the right looked spread out instead of "balanced".
+`egt::Button`'s built-in text rendering uses the widget's font metrics, theme padding, and `text_align()` - none of which know anything about Figma's `absoluteBoundingBox`. Even with `text_align(AlignFlag::left | AlignFlag::center_vertical)` the text starts at the border offset and ends wherever the font's intrinsic glyph width takes it. With a 26 pt Bold font in a 204 px-wide button the text ended ~30 px short of where Figma's bbox put it, so the chevron to the right looked spread out instead of "balanced".
 
 The pattern that gets you Figma-1:1 spacing every time:
 
-1. Use the `Button` as **just the outlined card + click handler** — pass an empty string and no font.
+1. Use the `Button` as **just the outlined card + click handler** - pass an empty string and no font.
 2. Add a separate `Label` for the visible text, positioned at the exact Figma button-local rect.
 3. Add `ImageLabel`s for any icons, also at exact Figma button-local rects.
 
@@ -327,7 +327,7 @@ Every position is now Figma-derived, not font-metric-derived. If the design chan
 
 ### 9. The 3-up `comparison.png` is the deliverable
 
-Before / Target / After horizontally, with 1 px gray dividers (per `figma-vs-sim-workflow.md` step 9). Only this image goes into the client report and the Jira comment — never the raw intermediates.
+Before / Target / After horizontally, with 1 px gray dividers (per `figma-vs-sim-workflow.md` step 9). Only this image goes into the client report and the Jira comment - never the raw intermediates.
 
 ---
 
@@ -343,7 +343,7 @@ Tried using `"\xe2\x9d\xaf"` (U+276F HEAVY RIGHT-POINTING ANGLE QUOTATION MARK) 
 
 ### Sizing an icon from the source polygons instead of the rendered shape
 
-When the icon you exported is a Figma `BOOLEAN_OPERATION` (for example a chevron built as `polygon A minus polygon B`), Figma's spec lists three nodes for it: the two source polygons (e.g. 13 x 21 each) and the boolean result itself (e.g. 9 x 13). The PNG you export is the boolean RESULT — so its real visible content is the 9 x 13 shape, not the 13 x 21 polygons.
+When the icon you exported is a Figma `BOOLEAN_OPERATION` (for example a chevron built as `polygon A minus polygon B`), Figma's spec lists three nodes for it: the two source polygons (e.g. 13 x 21 each) and the boolean result itself (e.g. 9 x 13). The PNG you export is the boolean RESULT - so its real visible content is the 9 x 13 shape, not the 13 x 21 polygons.
 
 If you size the widget from the polygon dimensions you get an icon ~30 % bigger than Figma's. **Always pull the bounding box of the `absoluteBoundingBox` field on the node you actually exported**, not the source shapes:
 
@@ -355,7 +355,7 @@ For node 2065:1063 the answer was `width: 8.68, height: 12.99` -> widget 17 x 24
 
 ### `+30 px` magic offset to "fix" the position
 
-Symptom: chevron rendered ~30 px above where the rect spec said. First instinct was to nudge `y` by +30. That hid the symptom but the box was still growing to the image's natural size (52 px) — the icon just happened to look centred after the hack. Root cause was autoresize, fix is `autoresize(false)`. **If a widget is N px off, find out why before reaching for a magic offset.**
+Symptom: chevron rendered ~30 px above where the rect spec said. First instinct was to nudge `y` by +30. That hid the symptom but the box was still growing to the image's natural size (52 px) - the icon just happened to look centred after the hack. Root cause was autoresize, fix is `autoresize(false)`. **If a widget is N px off, find out why before reaching for a magic offset.**
 
 ### Using `ui::create_outlined_button` then calling `autoresize(false)`
 
@@ -367,7 +367,7 @@ Padding contributes to `min_size_hint()`. With `autoresize(true)`, adding paddin
 
 ### `move()` then `resize()` inside a screen-sized container
 
-Pattern: place an ImageLabel at `move(Point(462, 372))` then `resize(Size(22, 39))`. Worked for the logo widget elsewhere in the codebase, did not work here. Cause was the autoresize trap, not the calls themselves — but the codepath obscured what was happening. **Use `box(Rect)` so the diff between intent and behaviour is in one line of code.**
+Pattern: place an ImageLabel at `move(Point(462, 372))` then `resize(Size(22, 39))`. Worked for the logo widget elsewhere in the codebase, did not work here. Cause was the autoresize trap, not the calls themselves - but the codepath obscured what was happening. **Use `box(Rect)` so the diff between intent and behaviour is in one line of code.**
 
 ---
 
@@ -385,11 +385,11 @@ Before writing any code:
 
 When writing the code:
 
-- [ ] Every `Label` / `Button` text request: `Font("<family>", <scaled-pt>, weight)` with the family name from Figma. Never `Font(<scaled-pt>, weight)` alone — that uses the theme default and silently uses the wrong font.
+- [ ] Every `Label` / `Button` text request: `Font("<family>", <scaled-pt>, weight)` with the family name from Figma. Never `Font(<scaled-pt>, weight)` alone - that uses the theme default and silently uses the wrong font.
 - [ ] Every `Button` / `ImageLabel` placed at a Figma rect: `autoresize(false)` immediately after construction.
 - [ ] Every icon: `Image(uri, hscale, vscale)` so the natural size matches the target, plus `image_align(AlignFlag::center)`.
 - [ ] Group icon + button (or any two widgets sharing a region) in a wrapper `Frame`.
-- [ ] No raw `egt::Color(r, g, b)` — use a `dt::` token. Add to `palette.h` only if Figma genuinely introduces a new value.
+- [ ] No raw `egt::Color(r, g, b)` - use a `dt::` token. Add to `palette.h` only if Figma genuinely introduces a new value.
 - [ ] No Unicode arrows / chevrons / icon glyphs inside text labels.
 
 Before declaring done:

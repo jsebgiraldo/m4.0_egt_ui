@@ -239,7 +239,7 @@ shared_ptr<Widget> create_wifi_init_screen(
                 }
             }
 
-            // Phase 2: NM up — check connectivity
+            // Phase 2: NM up - check connectivity
             if (*nm_ready) {
                 if (!r->ssid.empty()) {
                     printf("[WIFI_INIT] connected to '%s'\n", r->ssid.c_str());

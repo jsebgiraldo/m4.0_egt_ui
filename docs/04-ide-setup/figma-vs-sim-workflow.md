@@ -164,7 +164,7 @@ rm -f labeled-before.png labeled-target.png labeled-after.png
 
 The 1 px gray border around each labeled panel becomes a 2 px gray vertical line between panels after `+append`. That makes panel edges obvious so misalignment of centered elements is easy to see.
 
-**Why the `!` in `-resize "${W}x${H}!"`** — sim screenshots are 800x480 (aspect 1.667) but Figma renders are 864x523 (aspect 1.652, because the design canvas is 432x261 and the device adds a tiny y-overhead). Resizing to a single fixed width with aspect preserved produces panels with slightly different heights, and the Figma panel ends up 2-3 px taller, which makes the design appear "raised" relative to the sim. Forcing the same `WxH!` for every panel removes that drift at the cost of a sub-1 % vertical squish on the Figma render — invisible to the eye and necessary for honest comparison.
+**Why the `!` in `-resize "${W}x${H}!"`** - sim screenshots are 800x480 (aspect 1.667) but Figma renders are 864x523 (aspect 1.652, because the design canvas is 432x261 and the device adds a tiny y-overhead). Resizing to a single fixed width with aspect preserved produces panels with slightly different heights, and the Figma panel ends up 2-3 px taller, which makes the design appear "raised" relative to the sim. Forcing the same `WxH!` for every panel removes that drift at the cost of a sub-1 % vertical squish on the Figma render - invisible to the eye and necessary for honest comparison.
 
 `comparison.png` is the shareable artifact for the iteration. Drop it in a PR description, Slack, or Jira comment.
 

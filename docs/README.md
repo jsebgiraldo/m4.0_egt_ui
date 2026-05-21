@@ -1,6 +1,6 @@
-# Suntek M4 EGT UI — Documentation
+# Suntek M4 EGT UI - Documentation
 
-Embedded UI for the Suntek M4 treatment device. This folder is the documentation hub. Each topic lives in its own numbered subfolder. To add a new doc, use the `new-doc` Claude skill (see `.claude/skills/new-doc/SKILL.md`) — it places the file in the right folder and updates this index.
+Embedded UI for the Suntek M4 treatment device. This folder is the documentation hub. Each topic lives in its own numbered subfolder. To add a new doc, use the `new-doc` Claude skill (see `.claude/skills/new-doc/SKILL.md`) - it places the file in the right folder and updates this index.
 
 > See the repository [README.md](../README.md) for build instructions and the [Figma design source](../README.md#design-source).
 
@@ -21,42 +21,42 @@ Embedded UI for the Suntek M4 treatment device. This folder is the documentation
 
 ## Index
 
-### 01 — Requirements
+### 01 - Requirements
 *(No documents yet)*
 
-### 02 — Architecture
+### 02 - Architecture
 *(No documents yet)*
 
-### 03 — Features
+### 03 - Features
 *(No documents yet)*
 
-### 04 — IDE setup
-- [simulator.md](04-ide-setup/simulator.md) — Host simulator walkthrough (build, flags, WSL2 setup, troubleshooting)
-- [figma-vs-sim-workflow.md](04-ide-setup/figma-vs-sim-workflow.md) — Iteration loop that produces a before/target/after comparison for every UI change
+### 04 - IDE setup
+- [simulator.md](04-ide-setup/simulator.md) - Host simulator walkthrough (build, flags, WSL2 setup, troubleshooting)
+- [figma-vs-sim-workflow.md](04-ide-setup/figma-vs-sim-workflow.md) - Iteration loop that produces a before/target/after comparison for every UI change
 
-### 05 — Hardware
+### 05 - Hardware
 *(No documents yet)*
 
-### 06 — Testing
+### 06 - Testing
 *(No documents yet)*
 
-### 07 — Deployment
-- [useful-commands.md](07-deployment/useful-commands.md) — Yocto cross-compile + scp deploy commands
+### 07 - Deployment
+- [useful-commands.md](07-deployment/useful-commands.md) - Yocto cross-compile + scp deploy commands
 
-### 08 — References
-- [egt-widget-reference.md](08-references/egt-widget-reference.md) — EGT widget reference: coordinate model, autoresize trap, ImageLabel/Frame/Button semantics
-- [figma-to-egt-lessons.md](08-references/figma-to-egt-lessons.md) — Lessons learned from each Figma -> EGT iteration; read before starting a new screen
-- [upstream/](08-references/upstream/) — Saved summaries of upstream EGT docs
-- [code-snippets/](08-references/code-snippets/) — Reference code patterns (icon-over-button, absolute positioning, custom draw)
-- `figma-v5-snapshot.json` — Cached flat index of every node in the v5 Figma file (rebuild via `./scripts/figma-fetch.sh index`)
+### 08 - References
+- [egt-widget-reference.md](08-references/egt-widget-reference.md) - EGT widget reference: coordinate model, autoresize trap, ImageLabel/Frame/Button semantics
+- [figma-to-egt-lessons.md](08-references/figma-to-egt-lessons.md) - Lessons learned from each Figma -> EGT iteration; read before starting a new screen
+- [upstream/](08-references/upstream/) - Saved summaries of upstream EGT docs
+- [code-snippets/](08-references/code-snippets/) - Reference code patterns (icon-over-button, absolute positioning, custom draw)
+- `figma-v5-snapshot.json` - Cached flat index of every node in the v5 Figma file (rebuild via `./scripts/figma-fetch.sh index`)
 
-### 09 — Issues
-- [check.md](09-issues/check.md) — Live UI/UX TODO list (Spanish, Figma node references)
+### 09 - Issues
+- [check.md](09-issues/check.md) - Live UI/UX TODO list (Spanish, Figma node references)
 
-### 10 — Reports
-- [ui-improvement-report.md](10-reports/ui-improvement-report.md) — Living client-facing report of UI improvements; one section per screen with comparison image
-- [m4-18-wifi-init-figma-match/](10-reports/m4-18-wifi-init-figma-match/) — Figma-vs-code iteration report for WIFI_INIT screen (Jira M4-18)
-- [m4-18-wifi-connected-figma-match/](10-reports/m4-18-wifi-connected-figma-match/) — Figma-vs-code iteration report for WIFI_CONNECTED screen (Jira M4-18)
+### 10 - Reports
+- [ui-improvement-report.md](10-reports/ui-improvement-report.md) - Living client-facing report of UI improvements; one section per screen with comparison image
+- [m4-18-wifi-init-figma-match/](10-reports/m4-18-wifi-init-figma-match/) - Figma-vs-code iteration report for WIFI_INIT screen (Jira M4-18)
+- [m4-18-wifi-connected-figma-match/](10-reports/m4-18-wifi-connected-figma-match/) - Figma-vs-code iteration report for WIFI_CONNECTED screen (Jira M4-18)
 
 ## Conventions
 

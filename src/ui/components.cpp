@@ -399,7 +399,7 @@ private:
 };
 } // namespace
 
-// Two visual variants — see create_demo_mode_badge docstring in components.h.
+// Two visual variants - see create_demo_mode_badge docstring in components.h.
 // Treatment uses Card (floating card with border/shadow, prominent Exit so
 // the user can always abort a running cycle). Patient-info uses Compact
 // (clean labels + small button, no card chrome) so the badge doesn't
@@ -430,7 +430,7 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
         mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
         frame->add(mode);
 
-        // Frame + centered Label, click handler — same approach as
+        // Frame + centered Label, click handler - same approach as
         // Compact to avoid egt::Button's notch artifact at small sizes.
         const int btn_w = 84, btn_h = 42;
         const int btn_x = (badge_w - btn_w) / 2;
@@ -473,7 +473,7 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
     frame->add(mode);
 
-    // Exit button — built from a Frame (full radius/fill control) with
+    // Exit button - built from a Frame (full radius/fill control) with
     // a Label glyph on top, instead of egt::Button. The Button widget
     // draws extra theme passes (focus ring + active overlay) that don't
     // respect border_radius at small sizes, producing a "bite" in the
@@ -497,7 +497,7 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     }
     frame->add(leave_btn);
 
-    // Compact returns the Frame in the leave_btn slot — caller treats it
+    // Compact returns the Frame in the leave_btn slot - caller treats it
     // as an opaque handle, doesn't care it's not a Button anymore.
     return {frame, nullptr};
 }
@@ -549,7 +549,7 @@ shared_ptr<Frame> create_error_overlay(
     banner->fill_flags({Theme::FillFlag::blend});
     banner->color(Palette::ColorId::bg, banner_color);
     banner->border(0);
-    // Note: top-only border_radius not directly supported — use full radius on banner
+    // Note: top-only border_radius not directly supported - use full radius on banner
     card->add(banner);
 
     auto sev_label = make_shared<Label>(severity_text,
@@ -662,7 +662,7 @@ shared_ptr<Frame> add_back_button(Frame& container, function<void()> on_click)
     lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
     wrap->add(lbl);
 
-    // Hit zone — transparent overlay covering the whole wrap.
+    // Hit zone - transparent overlay covering the whole wrap.
     auto hit = make_shared<Frame>(
         Rect(0, 0, wrap->width(), wrap->height()));
     hit->fill_flags({Theme::FillFlag::blend});

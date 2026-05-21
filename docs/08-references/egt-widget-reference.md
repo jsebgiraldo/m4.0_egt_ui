@@ -209,7 +209,7 @@ auto btn = std::make_shared<Button>("Continue",
                                     Rect(0, 0, btn_rect.width(), btn_rect.height()));
 wrap->add(btn);
 
-// Pre-scale image so its natural size matches target — no expand needed.
+// Pre-scale image so its natural size matches target - no expand needed.
 const float hscale = static_cast<float>(chev_w) / 35.0f;
 const float vscale = static_cast<float>(chev_h) / 52.0f;
 auto img = Image("file:assets/figma/images/chevron-right.png", hscale, vscale);

@@ -55,7 +55,7 @@ static Image load_svg_icon(const char* name, const char* svg_data, int size)
 namespace {
 
 // ── Start button: rounded rectangle with diagonal cyan→blue gradient ──────
-// Matches Figma node 140:852 — the gradient runs top-left (light cyan) to
+// Matches Figma node 140:852 - the gradient runs top-left (light cyan) to
 // bottom-right (deeper blue), with a soft drop shadow approximated by a
 // slightly larger shadow Frame drawn behind. White bold "Start" label sits
 // dead-centre. Pressed state darkens both gradient stops.
@@ -69,7 +69,7 @@ public:
 
         // Single handler covering press feedback + click. The "Start" text
         // is painted by this widget (see draw) rather than overlaid as a
-        // separate Label — a Label on top would sit above the button in the
+        // separate Label - a Label on top would sit above the button in the
         // z-order and swallow the pointer_click, which is exactly why Start
         // used to do nothing while Demo Mode worked.
         on_event([this](Event& e) {
@@ -91,7 +91,7 @@ public:
         const float h = static_cast<float>(b.height());
         const float r = 14.0f;  // corner radius
 
-        // Drop shadow — a faint dark rectangle offset 4 px down/right
+        // Drop shadow - a faint dark rectangle offset 4 px down/right
         const float shadow_off = 4.0f;
         draw_rounded_path(painter, x + shadow_off, y + shadow_off, w, h, r);
         painter.set(Color(0, 0, 0, 40));
@@ -148,7 +148,7 @@ private:
 // Figma v5 HOME "Group 7" pattern (Demo Mode + Setting):
 //   - DROP_SHADOW (offset 0,0, radius 10, rgba(0,0,0,0.10)) -> ShadowedCard
 //   - card_rect 272x96, corner radius 7 (Figma 4 * SCALE)
-//   - icon at card-local (13, 13), 72x72 (Figma 39 * SCALE) — pre-rendered
+//   - icon at card-local (13, 13), 72x72 (Figma 39 * SCALE) - pre-rendered
 //     PNG already includes the gray circle background
 //   - label at card-local (91, 33), 163x33 (Figma 88x18 * SCALE), Gothic A1
 //     Bold 14 pt -> 26 pt, textAlignHorizontal=CENTER, textAlignVertical=TOP
@@ -196,7 +196,7 @@ shared_ptr<Frame> make_card_button(
         fflush(stdout);
     }
 
-    // Label — span the full card height with center_vertical, like the
+    // Label - span the full card height with center_vertical, like the
     // Continue button on WIFI_CONNECTED (matches the F1:1 recipe).
     auto lbl = make_shared<Label>(text,
         Rect(PAD + 91, PAD, 163, card_rect.height()));
@@ -212,7 +212,7 @@ shared_ptr<Frame> make_card_button(
 } // namespace
 
 // ── HOME / Begin Treatment screen ──────────────────────────────────────────
-// Figma node 140:852 (Jason-M4.0 v5 — "Begin treatment"):
+// Figma node 140:852 (Jason-M4.0 v5 - "Begin treatment"):
 //   - Lice Clinics logo centred near the top
 //   - Large "Start" button with a cyan→blue gradient in the middle
 //   - Two cards at the bottom: "Demo Mode" (left) and "Setting" (right),
@@ -241,7 +241,7 @@ shared_ptr<Widget> create_home_screen(
         Rect(btn_x, btn_y, btn_w, btn_h), "Start", on_begin_treatment);
     container->add(btn);
 
-    // ── Bottom cards (Demo Mode + Setting) — F1:1 mapped ──────────────────
+    // ── Bottom cards (Demo Mode + Setting) - F1:1 mapped ──────────────────
     // Demo Mode card (Figma 102,377 147x52)  -> (20, 365)  272x96 scaled.
     // Setting card  (Figma 359,377 147x52)  -> (496, 365) 272x96 scaled.
     auto btn_demo = make_card_button(
