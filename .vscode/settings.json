@@ -1,3 +1,10 @@
 {
-	"idf.pythonInstallPath": "/opt/homebrew/opt/python/libexec/bin/python"
+    "idf.pythonInstallPath": "/opt/homebrew/opt/python/libexec/bin/python",
+    "tasks.statusbar.default.hide": false,
+    "cmake.buildDirectory": "${workspaceFolder}/build-x86",
+    "cmake.configureOnOpen": false,
+    "files.associations": {
+        "*.h": "cpp",
+        "*.cpp": "cpp"
+    }
 }
