@@ -38,9 +38,9 @@ shared_ptr<Widget> create_setup_screen(function<void()> on_setup)
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
     // ── Logo, centred (upper-middle) ───────────────────────────────────────
-    const int logo_w = 200, logo_h = 125;
+    const int logo_w = 288, logo_h = 180;
     auto logo = ui::create_logo(
-        (dt::SCREEN_W - logo_w) / 2, 130, logo_w, logo_h);
+        (dt::SCREEN_W - logo_w) / 2, 110, logo_w, logo_h);
     container->add(logo);
 
     // ── "Setup" affordance (bottom-left): gray circle + gear + label ───────
