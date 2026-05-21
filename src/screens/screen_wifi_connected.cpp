@@ -73,17 +73,14 @@ shared_ptr<Widget> create_wifi_connected_screen(
     btn_wrap->fill_flags({});                                   // transparent
     container->add(btn_wrap);
 
-    // Build the button inline rather than using ui::create_outlined_button:
-    // the helper calls btn->font() before we can disable autoresize, which
-    // grows the box past 204x61. Doing it here lets us flip the autoresize
-    // flag immediately after construction.
-    auto btn = make_shared<Button>("Continue",
+    // Empty-text Button = just the outlined card + click handling. The
+    // actual "Continue" label and chevron are overlaid as separate widgets
+    // so they land at the exact Figma button-local positions, not wherever
+    // egt::Button's internal text layout decides.
+    auto btn = make_shared<Button>("",
         Rect(0, 0, btn_rect.width(), btn_rect.height()));
-    btn->autoresize(false);                              // FIRST, locks size
-    btn->font(Font(26, Font::Weight::bold));
-    btn->text_align(AlignFlag::left | AlignFlag::center_vertical);
+    btn->autoresize(false);
     btn->color(Palette::ColorId::button_bg, dt::kWhite);
-    btn->color(Palette::ColorId::button_text, dt::kTextPrimary);
     btn->color(Palette::ColorId::border, dt::kGrayLight);
     btn->border(2);
     btn->border_radius(dt::RADIUS_MD);
@@ -92,6 +89,15 @@ shared_ptr<Widget> create_wifi_connected_screen(
         btn->on_click([cb](Event&) { cb(); });
     }
     btn_wrap->add(btn);
+
+    // "Continue" label: Figma TEXT 2065:1061 at button-local (4,9), 83x18,
+    // Gothic A1 Bold 14pt -> (7,17), 154x33, 26pt scaled.
+    auto cont_lbl = make_shared<Label>("Continue", Rect(7, 17, 154, 33));
+    cont_lbl->autoresize(false);
+    cont_lbl->font(Font(26, Font::Weight::bold));
+    cont_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    cont_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+    btn_wrap->add(cont_lbl);
 
     // ImageHolder::do_set_image() auto-resizes the widget to the image's
     // natural pixel size and Widget::autoresize defaults to true, which can
