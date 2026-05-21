@@ -9,16 +9,24 @@ using namespace std;
 // Drop-shadow card: white rounded rectangle with a soft blurred shadow
 // behind it. Models the Figma Group 7 effect on the Continue button:
 // DROP_SHADOW offset (0,0), radius 10, color rgba(0,0,0,0.10).
-// Cairo / EGT has no native gaussian blur, so we fake the blur with a
-// stack of concentric rounded rectangles at progressively lower alpha,
-// then draw the white filled rect on top.
+//
+// CRITICAL: EGT clips Painter drawing to the widget's box(). The shadow
+// extends OUTSIDE the card, so the widget must be larger than the card
+// by SHADOW_PAD on every side, with the card drawn centred inside. The
+// constructor accepts the card rect; it enlarges the widget itself.
 class ShadowedCard : public Widget {
 public:
-    ShadowedCard(const Rect& rect,
+    static constexpr int SHADOW_PAD = 12;
+
+    ShadowedCard(const Rect& card_rect,
                  float corner_radius,
                  std::function<void()> on_click)
-        : Widget(rect)
+        : Widget(Rect(card_rect.x() - SHADOW_PAD,
+                      card_rect.y() - SHADOW_PAD,
+                      card_rect.width()  + 2 * SHADOW_PAD,
+                      card_rect.height() + 2 * SHADOW_PAD))
         , m_radius(corner_radius)
+        , m_card_rect(card_rect)
         , m_on_click(std::move(on_click))
     {
         fill_flags({Theme::FillFlag::blend});
@@ -32,30 +40,26 @@ public:
 
     void draw(Painter& painter, const Rect& /*rect*/) override
     {
-        auto b = box();
         const float r = m_radius;
-        const float x = static_cast<float>(b.x());
-        const float y = static_cast<float>(b.y());
-        const float w = static_cast<float>(b.width());
-        const float h = static_cast<float>(b.height());
+        const float x = static_cast<float>(m_card_rect.x());
+        const float y = static_cast<float>(m_card_rect.y());
+        const float w = static_cast<float>(m_card_rect.width());
+        const float h = static_cast<float>(m_card_rect.height());
 
-        // Soft shadow approximating Figma DROP_SHADOW(offset 0,0,
-        // radius 10, rgba(0,0,0,0.10)). Cairo has no real gaussian blur.
-        // Use many overlapping low-alpha rounded rects (sub-pixel grow
-        // step), each painted at alpha 2/255. Cumulative compositing
-        // produces a gradient that fades smoothly to zero at the outer
-        // edge without visible banding from individual layers.
-        constexpr int   shadow_extent = 12;     // px outside the rect
-        constexpr int   shadow_steps  = 24;     // 0.5 px per step
-        constexpr float per_layer_alpha = 2.0f;
+        // Soft shadow: 16 concentric rounded rects, 0.5 px grow each,
+        // alpha 6 per layer. Cumulative alpha at the inner edge reaches
+        // ~75/255 (~30 %), fading to ~6/255 at the 8 px outer extent.
+        constexpr int     shadow_steps    = 16;
+        constexpr float   shadow_extent   = 8.0f;
+        constexpr uint8_t per_layer_alpha = 6;
         for (int i = shadow_steps; i >= 1; --i)
         {
             float grow = static_cast<float>(i) *
-                         (static_cast<float>(shadow_extent) / shadow_steps);
+                         (shadow_extent / shadow_steps);
             draw_rounded_path(painter, x - grow, y - grow,
                               w + 2.0f * grow, h + 2.0f * grow,
                               r + grow * 0.5f);
-            painter.set(Color(0, 0, 0, static_cast<uint8_t>(per_layer_alpha)));
+            painter.set(Color(0, 0, 0, per_layer_alpha));
             painter.fill();
         }
 
@@ -82,6 +86,7 @@ private:
     }
 
     float m_radius;
+    Rect  m_card_rect;
     std::function<void()> m_on_click;
 };
 
@@ -157,33 +162,37 @@ shared_ptr<Widget> create_wifi_connected_screen(
     // ~30 % too big. Scale the actual visible chevron: 9*1.852 x 13*1.852.
     constexpr int chev_w = 17;
     constexpr int chev_h = 24;
-    const Rect btn_rect(302, 355, 204, 61);
+    // Figma button card position in screen coords. The card itself is
+    // 204 x 61 at (302, 355), but the shadow extends SHADOW_PAD px outside
+    // it, so the wrapper Frame is enlarged by that pad on every side.
+    // All child positions inside the wrap are biased by +SHADOW_PAD so the
+    // visible card is at wrap-local (PAD, PAD).
+    constexpr float card_radius = 7.0f;
+    constexpr int   PAD         = ShadowedCard::SHADOW_PAD;
+    const Rect card_rect(302, 355, 204, 61);
+    const Rect wrap_rect(card_rect.x() - PAD, card_rect.y() - PAD,
+                         card_rect.width()  + 2 * PAD,
+                         card_rect.height() + 2 * PAD);
 
-    auto btn_wrap = make_shared<Frame>(btn_rect);
+    auto btn_wrap = make_shared<Frame>(wrap_rect);
     btn_wrap->fill_flags({});                                   // transparent
     container->add(btn_wrap);
 
     // Figma Group 7 has NO stroke - the button outline visual is a soft
-    // drop shadow with offset (0,0), radius 10, rgba(0,0,0,0.10). Build a
-    // ShadowedCard that draws shadow + white rounded rect together so we
-    // match Figma instead of the harsh 2 px gray border the default
-    // outlined-button helper used. Corner radius 4 in Figma -> 7 scaled.
-    constexpr float card_radius = 7.0f;
+    // drop shadow with offset (0,0), radius 10, rgba(0,0,0,0.10).
     auto btn = make_shared<ShadowedCard>(
-        Rect(0, 0, btn_rect.width(), btn_rect.height()),
+        Rect(PAD, PAD, card_rect.width(), card_rect.height()),
         card_radius,
         std::move(on_continue));
     btn_wrap->add(btn);
 
-    // "Continue" label: Figma TEXT 2065:1061. Per the Figma node:
-    //   characters       = "Continue "   (note trailing space)
-    //   textAlignHorizontal = CENTER     (NOT left)
+    // "Continue" label: Figma TEXT 2065:1061.
+    //   characters       = "Continue "   (trailing space, do not strip)
+    //   textAlignHorizontal = CENTER
     //   bbox 83x18 at button-local (4,9) -> 154x33 at (7,17) scaled
     //   font Gothic A1 Bold 14pt -> 26pt scaled
-    // Centring the trailing-space literal in the 154 bbox is what gives
-    // Figma's visible "Continue" its small left bias and matches the gap
-    // to the chevron.
-    auto cont_lbl = make_shared<Label>("Continue ", Rect(7, 17, 154, 33));
+    auto cont_lbl = make_shared<Label>("Continue ",
+        Rect(PAD + 7, PAD + 17, 154, 33));
     cont_lbl->border(0); cont_lbl->padding(0); cont_lbl->margin(0);
     cont_lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     cont_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
@@ -206,11 +215,11 @@ shared_ptr<Widget> create_wifi_connected_screen(
         chevron->border(0); chevron->padding(0); chevron->margin(0);
         chevron->fill_flags({Theme::FillFlag::blend});
         chevron->image_align(AlignFlag::center);  // no `expand`
-        // Wrap-local coords (parent Frame is at btn_rect, so 0,0 is its origin).
-        // Position in WRAP-LOCAL coords. Figma node 2065:1063 sits at
-        // (85.86, 10.64) inside the 110 x 33 Continue button -> (159, 20)
-        // inside our 204 x 61 wrap, exactly per dt::SCALE.
-        chevron->box(Rect(159, 20, chev_w, chev_h));
+        // Wrap-local coords. Figma node 2065:1063 sits at (85.86, 10.64)
+        // inside the 110 x 33 button -> button-local (159, 20). The wrap
+        // is shadow-padded by PAD on every side, so all button-local
+        // coords get +PAD applied.
+        chevron->box(Rect(PAD + 159, PAD + 20, chev_w, chev_h));
         btn_wrap->add(chevron);
     } catch (const std::exception& e) {
         printf("[CONTINUE] chevron asset missing: %s\n", e.what());
