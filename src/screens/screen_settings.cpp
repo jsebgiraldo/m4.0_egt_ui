@@ -13,6 +13,8 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 #include <algorithm>
 
 using namespace egt;
@@ -54,6 +56,45 @@ string get_firmware_version() {
     string v = read_pipe("grep -h ^VERSION_ID= /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '\"'");
     return v.empty() ? string("1.0.0") : v;
 }
+
+string nz(const string& s, const char* fallback = "—") {
+    return s.empty() ? string(fallback) : s;
+}
+
+string get_model() {
+    string m = read_pipe("cat /sys/firmware/devicetree/base/model 2>/dev/null | tr -d '\\0'");
+    return nz(m, "SAMA5D27-WLSOM1-EK");
+}
+
+string get_kernel()   { return nz(read_pipe("uname -r 2>/dev/null")); }
+string get_os_name()  { return nz(read_pipe("grep -h ^PRETTY_NAME= /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '\"'")); }
+string get_hostname() { return nz(read_pipe("hostname 2>/dev/null")); }
+string get_uptime()   { return nz(read_pipe("uptime -p 2>/dev/null | sed 's/^up //'")); }
+
+string get_mac() {
+    string m = read_pipe("cat /sys/class/net/eth0/address 2>/dev/null");
+    if (m.empty()) m = read_pipe("cat /sys/class/net/wlan0/address 2>/dev/null");
+    return nz(m);
+}
+
+string get_wifi_ssid() {
+    string s = read_pipe("iwgetid -r 2>/dev/null");
+    return s.empty() ? string("not connected") : s;
+}
+
+string get_memory() {
+    // e.g. "212 / 495 MB used"
+    return nz(read_pipe(
+        "free -m 2>/dev/null | awk '/^Mem:/{printf \"%d / %d MB used\", $3, $2}'"));
+}
+
+string get_storage() {
+    // e.g. "1.2G free of 3.5G"
+    return nz(read_pipe(
+        "df -h / 2>/dev/null | awk 'NR==2{print $4\" free of \"$2}'"));
+}
+
+string get_datetime() { return nz(read_pipe("date '+%Y-%m-%d %H:%M' 2>/dev/null")); }
 
 // ── Sun icon ───────────────────────────────────────────────────────────────
 // Figma "Group 264" / "Group 268" — both 15×15 pt (28×28 px scaled). The
@@ -224,6 +265,24 @@ shared_ptr<Frame> make_section_card(int x, int y, int w, int h)
     card->border_radius(dt::RADIUS_LG);
     return card;
 }
+
+// ── ScrolledView with an invisible scrollbar ───────────────────────────────
+// We want the page to scroll but without the loud default red slider showing.
+// Policy::never disables scrolling entirely, so we keep `as_needed` (scroll
+// works) and paint the vertical slider transparent. m_vslider is protected.
+class CleanScrolledView : public ScrolledView {
+public:
+    explicit CleanScrolledView(const Rect& rect)
+        : ScrolledView(rect, Policy::never, Policy::as_needed)
+    {
+        for (auto id : { Palette::ColorId::button_bg,
+                         Palette::ColorId::button_fg,
+                         Palette::ColorId::border,
+                         Palette::ColorId::label_text }) {
+            m_vslider.color(id, dt::kTransparent);
+        }
+    }
+};
 
 // ── Person / account glyph (SVG) ───────────────────────────────────────────
 // Rendered as an SVG (like the Setup gear) rather than a font glyph so it is
@@ -469,34 +528,12 @@ shared_ptr<Widget> create_settings_screen(
         if (on_wifi_settings) on_wifi_settings();
     }, {EventId::pointer_click});
 
-    // ── 3) About this device ────────────────────────────────────────────────
-    // Title — Figma (81, 322) 217×33
-    auto about_title = make_shared<Label>("About this device",
-        Rect(section_x, 322, 320, 33));
-    about_title->font(Font(15, Font::Weight::bold));
-    about_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    about_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    content->add(about_title);
-
-    // Body — Figma (81, 361) 522×28  Gothic A1 Regular 12pt
-    const string about_text =
-        "Firmware v" + get_firmware_version() +
-        "  ·  Serial #" + get_serial() +
-        "  ·  IP " + get_ip_address();
-    auto about_body = make_shared<Label>(about_text,
-        Rect(section_x, 361, 640, 28));
-    about_body->font(Font(12, Font::Weight::normal));
-    about_body->color(Palette::ColorId::label_text, palette::kGray600);
-    about_body->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    content->add(about_body);
-
-    // ── 4) Account ──────────────────────────────────────────────────────────
+    // ── 3) Account ──────────────────────────────────────────────────────────
     // Same visual language as the Internet cards (gray circle + glyph + bold
     // label, full tap target), so it reads as part of the Settings grid rather
     // than a stray button. Tapping it returns to the Technician Login screen.
-    // Sits below "About this device", which is why the page now scrolls.
     if (on_login) {
-        const int acc_title_y = 405;
+        const int acc_title_y = 335;
         auto acc_title = make_shared<Label>("Account",
             Rect(section_x, acc_title_y, 320, 33));
         acc_title->font(Font(15, Font::Weight::bold));
@@ -505,7 +542,7 @@ shared_ptr<Widget> create_settings_screen(
         content->add(acc_title);
 
         // Full-width card (matches the brightness card geometry: x=78, w=628).
-        const int acc_card_x = 78, acc_card_y = 444, acc_card_w = 628, acc_card_h = 84;
+        const int acc_card_x = 78, acc_card_y = 371, acc_card_w = 628, acc_card_h = 84;
         auto acc_card = make_section_card(acc_card_x, acc_card_y, acc_card_w, acc_card_h);
         content->add(acc_card);
 
@@ -543,14 +580,69 @@ shared_ptr<Widget> create_settings_screen(
         acc_card->on_event([on_login](Event&) { on_login(); }, {EventId::pointer_click});
     }
 
-    // ── Scrollable viewport (vertical only) ────────────────────────────────
+    // ── 4) About this device (last) ─────────────────────────────────────────
+    // Two-column key/value list with everything we can read off the device.
+    // Lives at the bottom of the scroll, so it never crowds the controls above.
+    {
+        const int about_title_y = (on_login ? 478 : 335);
+        auto about_title = make_shared<Label>("About this device",
+            Rect(section_x, about_title_y, 320, 33));
+        about_title->font(Font(15, Font::Weight::bold));
+        about_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        about_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
+        content->add(about_title);
+
+        const std::vector<std::pair<string, string>> rows = {
+            {"Model",       get_model()},
+            {"OS",          get_os_name()},
+            {"Firmware",    "v" + get_firmware_version()},
+            {"Serial #",    get_serial()},
+            {"Kernel",      get_kernel()},
+            {"Hostname",    get_hostname()},
+            {"IP address",  get_ip_address()},
+            {"MAC",         get_mac()},
+            {"Wi-Fi SSID",  get_wifi_ssid()},
+            {"Memory",      get_memory()},
+            {"Storage",     get_storage()},
+            {"Uptime",      get_uptime()},
+            {"Date / time", get_datetime()},
+        };
+
+        const int row_h    = 27;
+        const int key_w     = 150;
+        const int val_x     = section_x + key_w;
+        int y = about_title_y + 40;
+        for (const auto& kv : rows) {
+            auto k = make_shared<Label>(kv.first,
+                Rect(section_x, y, key_w, row_h));
+            k->font(Font(12, Font::Weight::bold));
+            k->color(Palette::ColorId::label_text, dt::kTextPrimary);
+            k->text_align(AlignFlag::left | AlignFlag::center_vertical);
+            content->add(k);
+
+            auto v = make_shared<Label>(kv.second,
+                Rect(val_x, y, dt::SCREEN_W - val_x - 24, row_h));
+            v->font(Font(12, Font::Weight::normal));
+            v->color(Palette::ColorId::label_text, palette::kGray600);
+            v->text_align(AlignFlag::left | AlignFlag::center_vertical);
+            content->add(v);
+
+            y += row_h;
+        }
+
+        // Grow the scroll content so the last row is fully reachable.
+        const int needed = y + 16;
+        if (needed > content->height())
+            content->resize(Size(dt::SCREEN_W, needed));
+    }
+
+    // ── Scrollable viewport (scrollbar hidden) ──────────────────────────────
     // Stops just above the fixed Back button so Back stays put while the
-    // sections scroll underneath. Horizontal scrolling is disabled so the
-    // brightness slider's horizontal drag never gets hijacked by panning.
-    auto scroll = make_shared<ScrolledView>(
-        Rect(0, 0, dt::SCREEN_W, 410),
-        ScrolledView::Policy::never,        // horizontal
-        ScrolledView::Policy::as_needed);   // vertical
+    // sections scroll underneath. Horizontal scrolling is disabled (so the
+    // brightness slider's horizontal drag isn't hijacked) and the vertical
+    // scrollbar is painted transparent — see CleanScrolledView.
+    auto scroll = make_shared<CleanScrolledView>(
+        Rect(0, 0, dt::SCREEN_W, 410));
     scroll->add(content);
     scroll->offset(Point(0, 0));   // always open at the top (Screen Brightness)
     container->add(scroll);
