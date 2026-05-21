@@ -41,7 +41,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     // Gothic A1 Bold 20pt -> 37pt scaled.
     auto title = make_shared<Label>("Wi-Fi Connected",
         Rect(319, 178, 300, 46));
-    title->font(Font(37, Font::Weight::bold));
+    title->font(Font("Gothic A1", 37, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kGreen);
     title->text_align(AlignFlag::left);
     container->add(title);
@@ -51,7 +51,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     auto sub = make_shared<Label>(
         "WiFi connection established successfully.\nThe device is ready to use.",
         Rect(167, 259, 494, 67));
-    sub->font(Font(26, Font::Weight::normal));
+    sub->font(Font("Gothic A1", 26, Font::Weight::normal));
     sub->color(Palette::ColorId::label_text, dt::kTextPrimary);
     sub->text_align(AlignFlag::center);
     container->add(sub);
@@ -94,7 +94,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     // Gothic A1 Bold 14pt -> (7,17), 154x33, 26pt scaled.
     auto cont_lbl = make_shared<Label>("Continue", Rect(7, 17, 154, 33));
     cont_lbl->autoresize(false);
-    cont_lbl->font(Font(26, Font::Weight::bold));
+    cont_lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     cont_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     cont_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
     btn_wrap->add(cont_lbl);

@@ -11,6 +11,41 @@ Companion docs:
 
 ## What worked (do this every time)
 
+### 0. Install Figma's font on the host FIRST
+
+**Read this before doing anything else on a new screen.** Figma's text rendering uses the font the designer picked (this project: Gothic A1). The host simulator's `fontconfig` falls back to whatever is installed when the requested font is missing — usually NotoSans on Ubuntu / WSL. Two different fonts means two different glyph widths means "Continue" ends in two different places means every downstream positioning iteration is chasing a font mismatch, not a layout mismatch.
+
+Check before iterating:
+
+```bash
+fc-match "Gothic A1:weight=700"
+# If this returns NotoSans-Bold (or anything that is not GothicA1-Bold), STOP.
+# Install Gothic A1 first.
+```
+
+Install Gothic A1 (one-time, per host):
+
+```bash
+mkdir -p ~/.local/share/fonts/gothic-a1
+cd ~/.local/share/fonts/gothic-a1
+for w in Regular Medium SemiBold Bold; do
+    curl -sSfLO "https://github.com/google/fonts/raw/main/ofl/gothica1/GothicA1-${w}.ttf"
+done
+fc-cache -f ~/.local/share/fonts/gothic-a1
+fc-match "Gothic A1:weight=700"      # should now return GothicA1-Bold.ttf
+```
+
+Then in code, **always pass the family name to `Font(...)` explicitly**:
+
+```cpp
+label->font(Font("Gothic A1", 26, Font::Weight::bold));
+// not Font(26, Font::Weight::bold) — that uses the theme default.
+```
+
+For any other font the designer introduces, repeat: install it on the host, request it by name in the code.
+
+**On the target device** (SAMA Yocto image) the available fonts are different (Lato, NotoSans, NotoSansCJKsc, NotoColorEmoji per `docs/04-ide-setup/simulator.md` and Jira M4-17). Matching the simulator to Figma is the priority for the report; if a screen must look identical on the panel, add the font family to the Yocto image recipe (M4-19 is the analogous task for splash.bmp).
+
 ### 1. Figma REST API > Figma MCP for everything
 
 The MCP server (`figma-developer-mcp`) keeps disconnecting mid-session. Use `scripts/figma-fetch.sh` directly:
@@ -180,6 +215,7 @@ Pattern: place an ImageLabel at `move(Point(462, 372))` then `resize(Size(22, 39
 
 Before writing any code:
 
+- [ ] Run `fc-match "<font name>:weight=700"` for every font the design uses. If anything returns a different family, install the missing font (see section 0 at the top of this file) before doing anything else.
 - [ ] Run `./scripts/figma-fetch.sh search "<screen text>"` to confirm the node exists in v5.
 - [ ] Run `./scripts/figma-fetch.sh image <fileKey> <node> <task>-figma-match/figma-target.png 2` to grab the reference render.
 - [ ] Run `./scripts/figma-fetch.sh node <fileKey> <node> /tmp/spec.json` for the layout JSON.
@@ -189,6 +225,7 @@ Before writing any code:
 
 When writing the code:
 
+- [ ] Every `Label` / `Button` text request: `Font("<family>", <scaled-pt>, weight)` with the family name from Figma. Never `Font(<scaled-pt>, weight)` alone — that uses the theme default and silently uses the wrong font.
 - [ ] Every `Button` / `ImageLabel` placed at a Figma rect: `autoresize(false)` immediately after construction.
 - [ ] Every icon: `Image(uri, hscale, vscale)` so the natural size matches the target, plus `image_align(AlignFlag::center)`.
 - [ ] Group icon + button (or any two widgets sharing a region) in a wrapper `Frame`.
