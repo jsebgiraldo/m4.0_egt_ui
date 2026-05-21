@@ -107,6 +107,24 @@
             "detail": "Delete the build-x86/ directory. Configure task will regenerate on next build."
         },
         {
+            "label": "Screenshot Simulator",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/screenshot-sim.sh",
+            "args": [
+                "${input:simShotPath}"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "Capture the running simulator window into the chosen file (default: docs/09-issues/m4-18-wifi-init-figma-match/<name>.png).",
+            "options": {
+                "statusbar": {
+                    "label": "$(device-camera) Screenshot",
+                    "color": "#dcdcaa",
+                    "detail": "Capture sim window via xdotool + ImageMagick"
+                }
+            }
+        },
+        {
             "label": "Screenshot (target via SSH)",
             "type": "shell",
             "command": "${workspaceFolder}/scripts/screenshot.sh",
@@ -123,6 +141,14 @@
             "group": "none",
             "problemMatcher": [],
             "detail": "Wipe stored WiFi credentials on the SAMA target and restart egtapp.service."
+        }
+    ],
+    "inputs": [
+        {
+            "id": "simShotPath",
+            "type": "promptString",
+            "description": "Screenshot output path (relative to repo root). Examples: docs/09-issues/m4-18-wifi-init-figma-match/before.png, docs/09-issues/m4-18-wifi-init-figma-match/after.png",
+            "default": "docs/09-issues/m4-18-wifi-init-figma-match/screenshot.png"
         }
     ]
 }
