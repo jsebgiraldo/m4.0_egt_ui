@@ -51,7 +51,7 @@ public:
         // ~75/255 (~30 %), fading to ~6/255 at the 8 px outer extent.
         constexpr int     shadow_steps    = 16;
         constexpr float   shadow_extent   = 8.0f;
-        constexpr uint8_t per_layer_alpha = 6;
+        constexpr uint8_t per_layer_alpha = 3;   // 1-(1-3/255)^16 ~= 17 % cumulative
         for (int i = shadow_steps; i >= 1; --i)
         {
             float grow = static_cast<float>(i) *
@@ -187,16 +187,22 @@ shared_ptr<Widget> create_wifi_connected_screen(
     btn_wrap->add(btn);
 
     // "Continue" label: Figma TEXT 2065:1061.
-    //   characters       = "Continue "   (trailing space, do not strip)
+    //   characters          = "Continue "  (trailing space, do not strip)
     //   textAlignHorizontal = CENTER
-    //   bbox 83x18 at button-local (4,9) -> 154x33 at (7,17) scaled
-    //   font Gothic A1 Bold 14pt -> 26pt scaled
+    //   textAlignVertical   = TOP          (Figma bbox is 18 tall, line-height
+    //                                       tight to text - scaling up the
+    //                                       bbox here while keeping TOP align
+    //                                       puts our 26 pt glyphs above the
+    //                                       button centre. Fix: span the
+    //                                       label across the full button
+    //                                       height (61) and center vertically.)
+    //   bbox x range 154 at button-local x=7 stays as Figma specifies.
     auto cont_lbl = make_shared<Label>("Continue ",
-        Rect(PAD + 7, PAD + 17, 154, 33));
+        Rect(PAD + 7, PAD, 154, card_rect.height()));
     cont_lbl->border(0); cont_lbl->padding(0); cont_lbl->margin(0);
     cont_lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     cont_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    cont_lbl->text_align(AlignFlag::center);
+    cont_lbl->text_align(AlignFlag::center_horizontal | AlignFlag::center_vertical);
     btn_wrap->add(cont_lbl);
 
     // ImageHolder::do_set_image() auto-resizes the widget to the image's
