@@ -1,9 +1,88 @@
 #include "screen_wifi_connected.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
+#include <cmath>
 
 using namespace egt;
 using namespace std;
+
+// Drop-shadow card: white rounded rectangle with a soft blurred shadow
+// behind it. Models the Figma Group 7 effect on the Continue button:
+// DROP_SHADOW offset (0,0), radius 10, color rgba(0,0,0,0.10).
+// Cairo / EGT has no native gaussian blur, so we fake the blur with a
+// stack of concentric rounded rectangles at progressively lower alpha,
+// then draw the white filled rect on top.
+class ShadowedCard : public Widget {
+public:
+    ShadowedCard(const Rect& rect,
+                 float corner_radius,
+                 std::function<void()> on_click)
+        : Widget(rect)
+        , m_radius(corner_radius)
+        , m_on_click(std::move(on_click))
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        if (m_on_click) {
+            on_event([this](Event& e) {
+                if (e.id() == EventId::pointer_click) m_on_click();
+            });
+        }
+    }
+
+    void draw(Painter& painter, const Rect& /*rect*/) override
+    {
+        auto b = box();
+        const float r = m_radius;
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+
+        // Soft shadow: 4 layered rounded rects, each 2 px wider, alpha tapers
+        // from 25/255 (innermost, ~10 %) down to 6/255 (outermost). With
+        // SHADOW_OFF == 0 and rect-grow on each side we get a centred glow.
+        constexpr int   layers       = 4;
+        constexpr float alpha_inner  = 25.0f;
+        constexpr float alpha_outer  = 6.0f;
+        for (int i = layers; i >= 1; --i)
+        {
+            float grow  = static_cast<float>(i) * 2.0f;
+            float alpha = alpha_outer +
+                          (alpha_inner - alpha_outer) *
+                          (1.0f - static_cast<float>(i - 1) / (layers - 1));
+            draw_rounded_path(painter, x - grow, y - grow,
+                              w + 2.0f * grow, h + 2.0f * grow,
+                              r + grow * 0.5f);
+            painter.set(Color(0, 0, 0, static_cast<uint8_t>(alpha)));
+            painter.fill();
+        }
+
+        // White card on top.
+        draw_rounded_path(painter, x, y, w, h, r);
+        painter.set(dt::kWhite);
+        painter.fill();
+    }
+
+private:
+    static void draw_rounded_path(Painter& p, float x, float y,
+                                  float w, float h, float r)
+    {
+        const float PI = static_cast<float>(M_PI);
+        p.draw(PointF(x + r,         y));
+        p.line(PointF(x + w - r,     y));
+        p.draw(Arc(PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
+        p.line(PointF(x + w,         y + h - r));
+        p.draw(Arc(PointF(x + w - r, y + h - r),   r, 0.0f,    PI / 2));
+        p.line(PointF(x + r,         y + h));
+        p.draw(Arc(PointF(x + r,     y + h - r),   r, PI / 2,  PI));
+        p.line(PointF(x,             y + r));
+        p.draw(Arc(PointF(x + r,     y + r),       r, PI,    3 * PI / 2));
+    }
+
+    float m_radius;
+    std::function<void()> m_on_click;
+};
 
 shared_ptr<Widget> create_wifi_connected_screen(
     function<void()> on_continue)
@@ -73,21 +152,16 @@ shared_ptr<Widget> create_wifi_connected_screen(
     btn_wrap->fill_flags({});                                   // transparent
     container->add(btn_wrap);
 
-    // Empty-text Button = just the outlined card + click handling. The
-    // actual "Continue" label and chevron are overlaid as separate widgets
-    // so they land at the exact Figma button-local positions, not wherever
-    // egt::Button's internal text layout decides.
-    auto btn = make_shared<Button>("",
-        Rect(0, 0, btn_rect.width(), btn_rect.height()));
-    btn->autoresize(false);
-    btn->color(Palette::ColorId::button_bg, dt::kWhite);
-    btn->color(Palette::ColorId::border, dt::kGrayLight);
-    btn->border(2);
-    btn->border_radius(dt::RADIUS_MD);
-    if (on_continue) {
-        auto cb = std::move(on_continue);
-        btn->on_click([cb](Event&) { cb(); });
-    }
+    // Figma Group 7 has NO stroke - the button outline visual is a soft
+    // drop shadow with offset (0,0), radius 10, rgba(0,0,0,0.10). Build a
+    // ShadowedCard that draws shadow + white rounded rect together so we
+    // match Figma instead of the harsh 2 px gray border the default
+    // outlined-button helper used. Corner radius 4 in Figma -> 7 scaled.
+    constexpr float card_radius = 7.0f;
+    auto btn = make_shared<ShadowedCard>(
+        Rect(0, 0, btn_rect.width(), btn_rect.height()),
+        card_radius,
+        std::move(on_continue));
     btn_wrap->add(btn);
 
     // "Continue" label: Figma TEXT 2065:1061 at button-local (4,9), 83x18,
