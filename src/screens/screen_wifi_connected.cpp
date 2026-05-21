@@ -1,50 +1,9 @@
 #include "screen_wifi_connected.h"
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
-#include <cmath>
 
 using namespace egt;
 using namespace std;
-
-
-// Green circle with a white checkmark — Figma "Connected" state icon.
-class CheckCircle : public Widget {
-public:
-    explicit CheckCircle(const Rect& rect) : Widget(rect)
-    {
-        fill_flags({Theme::FillFlag::blend});
-        border(0);
-    }
-
-    void draw(Painter& painter, const Rect& /*rect*/) override
-    {
-        auto b = content_area();
-        auto dim = static_cast<float>(min(b.width(), b.height()));
-        auto center = b.center();
-        const float radius = dim / 2.0f - 2.0f;
-
-        // Outline ring — thin like Figma (~3 px stroke at this size).
-        painter.line_width(3.5f);
-        painter.set(dt::kGreen);
-        painter.draw(Arc(center, radius, 0.0f, 2.0f * static_cast<float>(M_PI)));
-        painter.stroke();
-
-        // Check mark — thinner two-segment stroke to match Figma weight.
-        const float cx = center.x();
-        const float cy = center.y();
-        const float r  = dim * 0.30f;
-        const Point p1(cx - r,        cy + r * 0.05f);
-        const Point p2(cx - r * 0.30f, cy + r * 0.55f);
-        const Point p3(cx + r * 0.95f, cy - r * 0.55f);
-
-        painter.line_width(4.5f);
-        painter.set(dt::kGreen);
-        painter.draw(Line(p1, p2));
-        painter.stroke();
-        painter.draw(Line(p2, p3));
-        painter.stroke();
-    }
-};
 
 shared_ptr<Widget> create_wifi_connected_screen(
     function<void()> on_continue)
@@ -59,12 +18,24 @@ shared_ptr<Widget> create_wifi_connected_screen(
     auto logo = ui::create_logo(7, 17, 167, 104);
     container->add(logo);
 
-    // Check circle: Figma 35x35 at (127,86) -> 65x65 at (235,159).
-    // Sits to the left of the title on the same row, not centered above it.
-    const int check_sz = 65;
-    auto check = make_shared<CheckCircle>(
-        Rect(235, 159, check_sz, check_sz));
-    container->add(check);
+    // Check circle: Figma 35x35 at (127,86) -> 65x65 at (235,159). Exported
+    // from Figma node 2065:1047 (Group 175 = ellipse + check vector) as a
+    // 4x PNG; loaded pre-scaled so the natural size matches the target rect.
+    constexpr int check_sz = 65;
+    try {
+        const float check_scale = static_cast<float>(check_sz) / 148.0f;  // PNG 148x148
+        auto check_img = Image("file:assets/figma/images/check-circle-green.png",
+                               check_scale, check_scale);
+        auto check = make_shared<ImageLabel>(check_img);
+        check->autoresize(false);
+        check->fill_flags({Theme::FillFlag::blend});
+        check->image_align(AlignFlag::center);
+        check->box(Rect(235, 159, check_sz, check_sz));
+        container->add(check);
+    } catch (const std::exception& e) {
+        printf("[WIFI_CONNECTED] check icon asset missing: %s\n", e.what());
+        fflush(stdout);
+    }
 
     // Title "Wi-Fi Connected": Figma 162x25 at (172,96) -> 300x46 at (319,178),
     // Gothic A1 Bold 20pt -> 37pt scaled.
