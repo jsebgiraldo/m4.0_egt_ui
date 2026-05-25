@@ -14,6 +14,10 @@ inline const egt::Color kGreen         { 91, 197,   0};  // Primary brand green
 inline const egt::Color kGreenDark     { 70, 155,   0};  // Pressed / active state
 inline const egt::Color kGreenLight    {200, 235, 170};  // Scrollbar, hover highlights
 inline const egt::Color kCyan          { 48, 163, 196};  // Secondary accent (demo, links)
+inline const egt::Color kStartTop      { 48, 154, 196};  // HOME Start button gradient top
+inline const egt::Color kStartBottom   { 48,  98, 196};  // HOME Start button gradient bottom
+inline const egt::Color kStartTopPress { 32, 120, 168};  // Start button pressed top
+inline const egt::Color kStartBotPress { 24,  70, 150};  // Start button pressed bottom
 
 // ── Neutrals ────────────────────────────────────────────────────────────────
 inline const egt::Color kWhite         {255, 255, 255};

@@ -97,12 +97,15 @@ public:
         painter.set(Color(0, 0, 0, 40));
         painter.fill();
 
-        // Gradient body
-        Color top   = m_pressed ? Color(36, 130, 168) : Color(70, 178, 213);
-        Color bot   = m_pressed ? Color(20,  90, 130) : Color(36, 117, 180);
+        // Gradient body - sampled from Figma node 81:1507 (864x523 export):
+        // top edge rgb(48,154,196) -> bottom edge rgb(48,98,196). The R and B
+        // channels are constant; only G shifts. The gradient is purely
+        // vertical (endpoint Y differs, X stays the same).
+        Color top = m_pressed ? dt::kStartTopPress : dt::kStartTop;
+        Color bot = m_pressed ? dt::kStartBotPress : dt::kStartBottom;
         Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
                      Point(static_cast<int>(x), static_cast<int>(y)),
-                     Point(static_cast<int>(x + w), static_cast<int>(y + h)));
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
         draw_rounded_path(painter, x, y, w, h, r);
         painter.set(grad);
         painter.fill();
@@ -203,7 +206,7 @@ shared_ptr<Frame> make_card_button(
     lbl->border(0); lbl->padding(0); lbl->margin(0);
     lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
+    lbl->text_align(AlignFlag::center_horizontal | AlignFlag::center_vertical);
     wrap->add(lbl);
 
     return wrap;
