@@ -30,9 +30,11 @@ The success card shown once the device joins the network. Re-laid out per Figma 
 
 The main menu of the device - three actions: a large blue gradient Start button to begin a treatment, plus Demo Mode and Setting cards at the bottom. Re-laid out per Figma v5: Lice Clinics logo at exact top-centre, Start button sized and positioned per spec, the two bottom cards shrunk and repositioned to Figma's `(20, 365)` and `(496, 365)`. Both card icons (person and gear) now load from real Figma PNG exports - including the gray circle backgrounds - instead of being drawn from inline SVG strings. Cards now show the Figma drop shadow via the shared `ShadowedCard` widget.
 
+A follow-up pass tightened two remaining gaps: the Start button gradient was diagonal with ad-hoc cyan/blue colours, but Figma's export samples as a purely vertical gradient from `rgb(48,154,196)` at the top to `rgb(48,98,196)` at the bottom (R=48, B=196 constant, only G shifts). The gradient endpoint was switched to (x, y+h) and the colours moved to four new tokens (`kStartTop`, `kStartBottom`, plus pressed variants) in `palette.h`. The two bottom-card labels were left-aligned within their label box, which made the shorter "Setting" sit visibly off-centre next to the wider "Demo Mode"; Figma's spec is `textAlignHorizontal=CENTER`, so the alignment is now `center_horizontal | center_vertical`.
+
 ![HOME Before / Target / After](home-figma-match/comparison.png)
 
-*AFTER matches the Figma target on layout, icon style, card sizing, and drop shadow. Same `Gothic A1 Bold` font as the rest of the design, same `dt::kTextPrimary` for label colour.*
+*AFTER matches the Figma target on layout, icon style, card sizing, drop shadow, gradient direction and colours, and label centring. Same `Gothic A1 Bold` font as the rest of the design, same `dt::kTextPrimary` for label colour.*
 
 ---
 
