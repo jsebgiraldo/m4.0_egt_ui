@@ -382,7 +382,8 @@ shared_ptr<Widget> create_settings_screen(
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
     // Common section X (matches Figma left margin ≈ 81 px)
-    const int section_x = 80;
+    // F1:1: Figma frame-local x=44 figma px * dt::SCALE = 81 device px.
+    const int section_x = 81;
 
     // ── 1) Screen Brightness ────────────────────────────────────────────────
     // Title "Screen Brightness" — Figma (81, 31) 228x33  Gothic A1 Bold 14pt
@@ -518,8 +519,11 @@ shared_ptr<Widget> create_settings_screen(
         "Firmware v" + get_firmware_version() +
         "  ·  Serial #" + get_serial() +
         "  ·  IP " + get_ip_address();
+    // F1:1: Figma 282x15 figma px @ (44, 195) -> device 522x28 @ (81, 361).
+    // The Label autoresizes wider if our firmware/serial/IP text exceeds
+    // the figma placeholder width, so we keep the figma width here.
     auto about_body = make_shared<Label>(about_text,
-        Rect(section_x, 361, 640, 32));
+        Rect(section_x, 361, 522, 28));
     about_body->font(Font("Gothic A1", 22, Font::Weight::normal));
     about_body->color(Palette::ColorId::label_text, dt::kTextPrimary);
     about_body->text_align(AlignFlag::left | AlignFlag::center_vertical);
