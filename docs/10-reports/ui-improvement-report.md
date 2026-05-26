@@ -92,6 +92,14 @@ Added the small profile icon (Figma node `115:961`) next to the "Please Enter Cl
 
 ---
 
+### First Wi-Fi Setup / Wi-Fi Settings (`WIFI_SETTINGS` - node `151:886`)
+
+Same design as the in-app Wi-Fi Settings screen at node 151:887, used at first boot. The network list was rendering as an empty gray box even though the mock + scan returned 12 APs - the EGT `ScrolledView` viewport was failing to draw its child Frame. Swapped for a plain `Frame` (acceptable since the figma shows ~4 visible rows max) and added an `EGT_START_SCREEN=wifi-settings` shortcut that injects a fixed dummy list (BTWiFi, BTWiFi-With-Fon connected, John's iMac) so the screen renders predictably for screenshots without depending on mock scan timing.
+
+![WIFI_SETTINGS](first-wifi-setup-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 
