@@ -182,7 +182,16 @@ One short sentence describing what changed.
 ---
 ```
 
-Implementation detail (tokens, font sizes, node forensics, follow-ups) belongs in the commit body, in a side file in the report folder, or in the ticket - not in this report. The comparison image is the evidence; the sentence is the caption.
+**Hard rules** for the per-screen entry. They apply to every new entry and to existing entries when they are touched:
+
+- Exactly one sentence. No second sentence, no trailing paragraph, no follow-up note.
+- Describe the visible change ("swapped X for the Figma PNG", "added the profile icon"), not the implementation ("via the shared `ui::add_back_button` helper", "the EGT `ScrolledView` was failing to draw its child").
+- No debugging stories, no parenthetical tangents about why a widget misbehaved, no asset/font/timing details.
+- No mention of helpers, classes, files, or function names from the codebase.
+
+Implementation detail (tokens, font sizes, node forensics, follow-ups, debugging notes) belongs in the commit body, in a side file in the report folder, or in the ticket - not in this report. The comparison image is the evidence; the sentence is the caption.
+
+When in doubt, write the sentence, then read the existing short entries (WIFI_INIT, DEMO_INFO) and match their length and tone.
 
 ### 10. Decide
 
