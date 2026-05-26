@@ -238,6 +238,19 @@ static shared_ptr<Frame> make_patient_step(
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
 
+    // Small profile icon to the right of the title (Figma node 115:961,
+    // 15x15 figma px at frame-local (323, 14) -> device (598, 26, 28x28).
+    try {
+        auto img = Image("file:assets/figma/images/patient-title-profile.png");
+        auto profile = make_shared<ImageLabel>(img);
+        profile->autoresize(false);
+        profile->border(0); profile->padding(0); profile->margin(0);
+        profile->fill_flags({});
+        profile->image_align(AlignFlag::center);
+        profile->box(Rect(598, 26, 28, 28));
+        container->add(profile);
+    } catch (...) { /* fall back to no icon */ }
+
     // Tab labels (progressively shown: step 0 → Gender only, step 1 → +Age, step 2 → +ZIP)
     const char* tab_names[] = {"Gender", "Age", "ZIP Code"};
     const int tab_x[] = {222, 404, 531};

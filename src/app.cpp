@@ -294,6 +294,8 @@ void run_app(int argc, char** argv)
             [&]() { show_wifi_unavailable(); }));
     }
     else if (start && std::string(start) == "wifi-override-info") show_wifi_override_info();
+    else if (start && std::string(start) == "patient-info")       show_patient_info(false);
+    else if (start && std::string(start) == "patient-info-demo")  show_patient_info(true);
     else                                                         show_wifi_init();
 
     win.show();

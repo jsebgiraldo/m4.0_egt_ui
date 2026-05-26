@@ -84,6 +84,14 @@ Swapped the hand-drawn Wi-Fi and Ethernet glyphs for the actual Figma PNG export
 
 ---
 
+### Patient Info (`PATIENT_INFO` - node `168:808` (Gender step))
+
+Added the small profile icon (Figma node `115:961`) next to the "Please Enter Client Information" title. Cards, tab styling, and Back/Skip/Continue buttons were already aligned; the AFTER captures the screen with Female selected, matching the Figma render's state.
+
+![PATIENT_INFO](patient-info-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 
