@@ -44,6 +44,14 @@ Screen rebuilt: full-screen orange banner, green countdown number with underline
 
 ---
 
+### Login (`LOGIN` - node `4008:819`, "S4")
+
+Replaced the custom-drawn Back button (circle + chevron + bold text) with the Figma "bt EXIT" PNG via the shared `ui::add_back_button` helper, so the back affordance now matches the Figma export across all screens that use it.
+
+![LOGIN](login-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 

@@ -618,61 +618,42 @@ void ChevronLeft::draw(Painter& painter, const Rect&)
 }
 
 // ── Back button (standard bottom-left, identical across screens) ──────────
+// Renders the Figma "bt EXIT" component (84:565 / 2073:1839) as a PNG so the
+// art is pixel-equivalent to the design. Same visual and same on-screen
+// position as DEMO_INFO and WIFI_UNAVAILABLE.
 shared_ptr<Frame> add_back_button(Frame& container, function<void()> on_click)
 {
-    // Coordinates from Figma 2073:1996 (Settings screen reference).
-    constexpr int circle_d = 46;
-    constexpr int back_x   = 27;
-    constexpr int back_y   = 414;
-    constexpr int chev_w   = 30;
-    constexpr int chev_h   = 44;
-    constexpr int gap      = 10;
-
-    // Wrapper covering all back widgets so the caller can toggle the whole
-    // affordance visible/invisible as a unit (e.g. when an overlay is shown).
-    auto wrap = make_shared<Frame>(
-        Rect(back_x - 6, back_y - 4, circle_d + gap + 120 + 12, circle_d + 8));
+    // Figma button bbox is 84x33 figma -> 156x61 device at frame-local
+    // (14, 216) -> (26, 400). The exported PNG carries the gray circle, the
+    // left chevron, and the "Back" text with its drop shadow padding; its
+    // natural device size (PNG_px * SCALE / 2) is 209x98. Top-left placed
+    // so the visible button portion centres on the figma button centre.
+    const std::string png_path = "assets/figma/images/demo-info-btn-back.png";
+    auto wrap = make_shared<Frame>(Rect(0, 381, 209, 98));
     wrap->fill_flags({});
-    wrap->color(Palette::ColorId::bg, dt::kTransparent);
-    wrap->border(0);
+
+    try {
+        auto probe = Image(("file:" + png_path).c_str());
+        const float hs = static_cast<float>(wrap->width())  / probe.width();
+        const float vs = static_cast<float>(wrap->height()) / probe.height();
+        auto img = Image(("file:" + png_path).c_str(), hs, vs);
+        auto lbl = make_shared<ImageLabel>(img);
+        lbl->autoresize(false);
+        lbl->border(0); lbl->padding(0); lbl->margin(0);
+        lbl->fill_flags({});
+        lbl->image_align(AlignFlag::center);
+        lbl->box(Rect(0, 0, wrap->width(), wrap->height()));
+        wrap->add(lbl);
+    } catch (const std::exception& e) {
+        printf("[BACK_BTN] image %s missing: %s\n", png_path.c_str(), e.what());
+        fflush(stdout);
+    }
+
+    wrap->on_event([on_click](Event& e) {
+        if (e.id() == EventId::pointer_click && on_click) on_click();
+    });
+
     container.add(wrap);
-
-    // All children below position relative to the wrap origin.
-    constexpr int wrap_x_offset = 6;
-    constexpr int wrap_y_offset = 4;
-
-    auto circle = make_shared<Frame>(
-        Rect(wrap_x_offset, wrap_y_offset, circle_d, circle_d));
-    circle->fill_flags({Theme::FillFlag::blend});
-    circle->color(Palette::ColorId::bg, palette::kGray200);
-    circle->border(0);
-    circle->border_radius(circle_d / 2);
-    wrap->add(circle);
-
-    auto chev = make_shared<ChevronLeft>(
-        Rect(wrap_x_offset + (circle_d - chev_w) / 2,
-             wrap_y_offset + (circle_d - chev_h) / 2,
-             chev_w, chev_h));
-    wrap->add(chev);
-
-    auto lbl = make_shared<Label>("Back",
-        Rect(wrap_x_offset + circle_d + gap, wrap_y_offset, 120, circle_d));
-    lbl->font(Font(15, Font::Weight::bold));
-    lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
-    wrap->add(lbl);
-
-    // Hit zone - transparent overlay covering the whole wrap.
-    auto hit = make_shared<Frame>(
-        Rect(0, 0, wrap->width(), wrap->height()));
-    hit->fill_flags({Theme::FillFlag::blend});
-    hit->color(Palette::ColorId::bg, dt::kTransparent);
-    hit->border(0);
-    wrap->add(hit);
-    hit->on_event([on_click](Event&) {
-        if (on_click) on_click();
-    }, {EventId::pointer_click});
-
     return wrap;
 }
 
