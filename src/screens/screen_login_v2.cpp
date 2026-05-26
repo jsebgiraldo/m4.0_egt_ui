@@ -72,6 +72,23 @@ shared_ptr<Widget> create_login_screen_v2(
     down_arrow->color(Palette::ColorId::label_text, palette::kGray400);
     picker_box->add(down_arrow);
 
+    // Subtle 1 px dividers framing the centre slot so the selected name reads
+    // as a distinct "card" within the wheel (Figma shows a soft drop shadow
+    // here; on EGT we get the same readability with two thin gray strips).
+    const int sel_top_y    = slots_top + center_idx * slot_h;
+    const int sel_bottom_y = sel_top_y + slot_h - 1;
+    auto sel_top = make_shared<Frame>(Rect(8, sel_top_y, box_w - 16, 1));
+    sel_top->fill_flags({Theme::FillFlag::blend});
+    sel_top->color(Palette::ColorId::bg, palette::kGray300);
+    sel_top->border(0);
+    picker_box->add(sel_top);
+
+    auto sel_bot = make_shared<Frame>(Rect(8, sel_bottom_y, box_w - 16, 1));
+    sel_bot->fill_flags({Theme::FillFlag::blend});
+    sel_bot->color(Palette::ColorId::bg, palette::kGray300);
+    sel_bot->border(0);
+    picker_box->add(sel_bot);
+
     // The selected index is shared between the slider driver, the slot
     // redraw closure, and the slot-click handlers (so a tap can both
     // recenter the wheel AND open the password prompt for that name).
@@ -121,10 +138,12 @@ shared_ptr<Widget> create_login_screen_v2(
             s.label->font(Font(
                 is_sel ? 24 : 19,
                 is_sel ? Font::Weight::bold : Font::Weight::normal));
+            // Stronger fade away from the centre: the top/bottom slots are
+            // barely visible (matches Figma's alpha gradient on the wheel).
             const Color c =
                 is_sel        ? dt::kTextPrimary
               : (dist == 1)   ? palette::kGray500
-                              : palette::kGray400;
+                              : palette::kGray300;
             s.label->color(Palette::ColorId::label_text, c);
         }
         picker_box->damage();

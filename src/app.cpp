@@ -105,11 +105,12 @@ void run_app(int argc, char** argv)
     // ── LOGIN (card grid) ────────────────────────────────────────────
     // Default technician list
     std::vector<TechnicianProfile> technicians = {
-        {"Alice", "1234"},
-        {"Bob",   "5678"},
-        {"Carol", "0000"},
-        {"Dave",  "1111"},
-        {"Eve",   "2222"},
+        {"Angelina Jolie",     "1234"},
+        {"Denzel Washington",  "5678"},
+        {"Leonardo DiCaprio",  "0000"},
+        {"Meryl Streep",       "1111"},
+        {"Scarlett Johansson", "2222"},
+        {"Vanessa Hudgens",    "3333"},
     };
 
     show_login = [&](bool demo) {
