@@ -151,7 +151,11 @@ static WarnWindow current_warn_window(const shared_ptr<TreatmentState>& state)
 }
 
 // ── Forward declarations ────────────────────────────────────────────────────
-static void show_warming(shared_ptr<TreatmentState> state);
+// `resuming` toggles the post-warming target: false (initial start) → Ready
+// screen with the "Begin Treatment" button; true (after Pause → Resume) →
+// position-tip directly so the operator never has to press Begin again to
+// keep going.
+static void show_warming(shared_ptr<TreatmentState> state, bool resuming = false);
 static void show_ready(shared_ptr<TreatmentState> state);
 static void show_position_tip(shared_ptr<TreatmentState> state);
 static void show_treatment_active(shared_ptr<TreatmentState> state);
@@ -472,7 +476,7 @@ private:
 // ── WARMING SCREEN ──────────────────────────────────────────────────────────
 // Figma Group 179: large % number + superscript %, two-line status, progress bar.
 // No cumulative time, no segmented dots, no buttons.
-static void show_warming(shared_ptr<TreatmentState> state)
+static void show_warming(shared_ptr<TreatmentState> state, bool resuming)
 {
     // Warming-screen-local layout (independent from other treatment screens)
     // Number font 120px → rendered height ~145px
@@ -540,7 +544,11 @@ static void show_warming(shared_ptr<TreatmentState> state)
 
         if (*elapsed_ms >= total_ms) {
             timer->cancel();
-            show_ready(state);
+            // After a pause→resume re-warm, skip the Ready / "Begin Treatment"
+            // gate (initial-start affordance) and continue the in-progress
+            // session at the position-tip step so cumulative time is kept.
+            if (resuming) show_position_tip(state);
+            else          show_ready(state);
         }
     });
     timer->start();
@@ -953,7 +961,9 @@ static void show_treatment_paused(shared_ptr<TreatmentState> state)
         BTN_CYAN_FILLED,
         [=]() {
             state->is_paused = false;
-            show_warming(state);
+            // resuming=true → after the re-warm we jump straight back into
+            // the active treatment via position-tip (skip Ready/Begin).
+            show_warming(state, /*resuming=*/true);
         });
     container->add(btn_resume);
 
