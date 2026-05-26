@@ -75,6 +75,45 @@ public:
     int signal() const { return m_signal; }
 };
 
+// ── Card gradient: rounded rect filled with the Figma "keyboard gray"
+// gradient (244 → 255 top-to-bottom), matching node 151:891. ──────────────
+class CardGradient : public Widget {
+public:
+    CardGradient(const Rect& r, float radius) : Widget(r), m_radius(radius)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& p, const Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+        const float r = m_radius;
+        const Color top{244, 244, 244};
+        const Color bot{255, 255, 255};
+        Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
+        const auto PI = static_cast<float>(M_PI);
+        p.draw(PointF(x + r, y));
+        p.line(PointF(x + w - r, y));
+        p.draw(Arc(PointF(x + w - r, y + r),     r, -PI / 2, 0.0f));
+        p.line(PointF(x + w, y + h - r));
+        p.draw(Arc(PointF(x + w - r, y + h - r), r, 0.0f,    PI / 2));
+        p.line(PointF(x + r, y + h));
+        p.draw(Arc(PointF(x + r, y + h - r),     r, PI / 2,  PI));
+        p.line(PointF(x, y + r));
+        p.draw(Arc(PointF(x + r, y + r),         r, PI,      3 * PI / 2));
+        p.set(grad);
+        p.fill();
+    }
+private:
+    float m_radius;
+};
+
 // ── Mini scan spinner: small rotating arc shown while a scan is running ────
 class MiniSpinner : public Widget {
 public:
@@ -233,32 +272,40 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         if (net.connected) { any_connected = true; break; }
 
     // ── Card container ──────────────────────────────────────────────────────
-    const int card_x = 40;
-    const int card_y = 55;
-    const int card_w = dt::SCREEN_W - 80;  // 720
-    const int card_h = dt::SCREEN_H - 140; // 340 (leaves bottom strip for skip icon)
+    // Figma node 151:891: Rectangle 68 at (49, 46), 332×160 figma → device
+    // (91, 85, 615, 296). F1:1 with Figma TARGET.
+    const int card_x = 91;
+    const int card_y = 85;
+    const int card_w = 615;
+    const int card_h = 296;
 
-    // Card with light gray bg matching Figma rgb(245, 244, 244). Wrapping
-    // the whole list in a tinted rounded rectangle gives "Choose a Network"
-    // and the rows a distinct surface against the white screen background.
+    // Card backdrop matches Figma node 151:891's "keyboard gray" gradient
+    // (244 → 255 vertical). The Frame itself is transparent; the gradient is
+    // painted by a CardGradient child so the rounded corners follow the
+    // gradient fill cleanly.
     auto card = make_shared<Frame>(Rect(card_x, card_y, card_w, card_h));
-    card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, Color(245, 244, 244));
+    card->fill_flags({});
     card->border(0);
-    card->border_radius(dt::RADIUS_MD);
     container->add(card);
+    card->add(make_shared<CardGradient>(Rect(0, 0, card_w, card_h),
+                                        static_cast<float>(dt::RADIUS_MD)));
 
-    // "Choose a Network..." header - Figma fontSize 12 Regular -> 22 pt.
+    // "Choose a Network..." header - Figma fontSize 12 Regular -> 22 pt,
+    // left-aligned as in the Figma TARGET.
     auto choose_label = make_shared<Label>("Choose a Network...",
         Rect(30, 15, 300, 28));
     choose_label->font(Font("Gothic A1", 22, Font::Weight::normal));
     choose_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    choose_label->text_align(AlignFlag::left | AlignFlag::center_vertical);
     card->add(choose_label);
 
-    // Scan spinner — sits just right of the header label, shown only while a
-    // background scan is in flight so the user knows the list is live.
-    auto scan_spinner = make_shared<MiniSpinner>(Rect(285, 19, 22, 22));
+    // Scan spinner — sits in the top-right corner of the card, well clear of
+    // the "Choose a Network..." text. Shown only while a background scan is in
+    // flight so the user knows the list is live. Hidden by default so the
+    // static header looks clean.
+    auto scan_spinner = make_shared<MiniSpinner>(Rect(card_w - 40, 18, 22, 22));
     card->add(scan_spinner);
+    scan_spinner->hide();
 
     auto spinner_anim = make_shared<PeriodicTimer>(chrono::milliseconds(40));
     auto spinner_angle = make_shared<float>(0.0f);
@@ -363,12 +410,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
             Color text_color = net.connected ? dt::kGreen : dt::kTextPrimary;
 
-            // Row bg is the same tint as the card (rows blend into the card,
-            // separated by thin dividers added below at the bottom edge).
+            // Row bg is transparent so the card's vertical gradient shows
+            // through. Separation comes from the thin divider line drawn at
+            // the bottom edge of each row.
             auto row_frame = make_shared<Frame>(
                 Rect(0, row_y, card_w, row_h));
-            row_frame->fill_flags({Theme::FillFlag::blend});
-            row_frame->color(Palette::ColorId::bg, Color(245, 244, 244));
+            row_frame->fill_flags({});
             row_frame->border(0);
             list_content->add(row_frame);
 
@@ -489,12 +536,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             (*row_handles)[label] = RowHandles{ssid_lbl, wifi_icon, chevron, row_frame};
         }
 
-        // "Other..." entry at the bottom — always present
+        // "Other..." entry at the bottom — always present, transparent bg.
         int other_y = cur_total * row_pitch;
         auto other_frame = make_shared<Frame>(
             Rect(0, other_y, card_w, row_h));
-        other_frame->fill_flags({Theme::FillFlag::blend});
-        other_frame->color(Palette::ColorId::bg, Color(245, 244, 244));
+        other_frame->fill_flags({});
         other_frame->border(0);
         list_content->add(other_frame);
 
@@ -596,33 +642,42 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
     rebuild_rows();
 
-    // ── Gear button (bottom-left) - matches Figma node 2065:870 ──────────
-    // Same nav as the shared Back button (returns to wherever the user came
-    // from), but the glyph is a gear in a gray pill rather than a chevron.
-    // Figma uses the gear here for first-wifi-setup; we keep the same
-    // behaviour for both entry points so the function is consistent.
+    // ── Bottom icons - F1:1 with Figma ──────────────────────────────────────
+    // Both icons are 39×39 figma → 72×72 device, matching the same gray
+    // gradient pill style on Figma (217→255). Y position = figma 206 →
+    // device 381. Gear (Group 263 inner pill at figma x=18) sits at device
+    // x=33; wifi-off (Group 248) sits at figma x=375 → device x=695.
+    const int icon_sz = 72;
+    const int icon_y  = 381;
+
+    // ── Gear button (bottom-left) - Figma node 2065:870, inner pill at
+    // (7,7) 39×39 inside the 133×52 group. The pill takes the user back to
+    // wherever they came from. home-gear-icon.png already bakes in the
+    // gradient circle background + gear glyph, so we render it as the whole
+    // button (no extra pill behind it).
     {
-        auto gear_wrap = make_shared<Frame>(Rect(20, 408, 60, 60));
+        auto gear_wrap = make_shared<Frame>(Rect(33, icon_y, icon_sz, icon_sz));
         gear_wrap->fill_flags({});
         container->add(gear_wrap);
 
-        auto circle_bg = make_shared<Frame>(Rect(0, 0, 60, 60));
-        circle_bg->fill_flags({Theme::FillFlag::blend});
-        circle_bg->color(Palette::ColorId::bg, palette::kGray200);
-        circle_bg->border(0);
-        circle_bg->border_radius(30);
-        gear_wrap->add(circle_bg);
-
         try {
-            auto img = Image("file:assets/figma/images/wifi-settings-gear.png");
+            auto img = Image("file:assets/figma/images/home-gear-icon.png");
             auto gear_lbl = make_shared<ImageLabel>(img);
             gear_lbl->autoresize(false);
             gear_lbl->border(0); gear_lbl->padding(0); gear_lbl->margin(0);
             gear_lbl->fill_flags({});
             gear_lbl->image_align(AlignFlag::center);
-            gear_lbl->box(Rect(7, 7, 46, 46));
+            gear_lbl->box(Rect(0, 0, icon_sz, icon_sz));
             gear_wrap->add(gear_lbl);
-        } catch (...) { /* fall back: empty pill */ }
+        } catch (...) {
+            // Fallback: plain gray pill so the click target is still visible.
+            auto circle_bg = make_shared<Frame>(Rect(0, 0, icon_sz, icon_sz));
+            circle_bg->fill_flags({Theme::FillFlag::blend});
+            circle_bg->color(Palette::ColorId::bg, palette::kGray200);
+            circle_bg->border(0);
+            circle_bg->border_radius(icon_sz / 2);
+            gear_wrap->add(circle_bg);
+        }
 
         gear_wrap->on_event([alive, on_back](Event& e) {
             if (e.id() == EventId::pointer_click) {
@@ -632,17 +687,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         });
     }
 
-    // ── Wi-Fi-off icon (bottom-right) — goes directly to the "Not Connected"
-    // screen (screen_wifi_unavailable). The previous translucent overlay has
-    // been removed — Figma uses a dedicated screen for the override flow,
-    // not a modal. Tapping the icon fires on_connect("", "") which app.cpp
-    // routes to show_wifi_unavailable.
+    // ── Wi-Fi-off icon (bottom-right) - Figma node 151:956 (Group 248) at
+    // figma (375, 206), 39×39 → device (695, 381), 72×72. Tapping goes to
+    // the "Not Connected" screen via on_connect("", "").
     {
-        // Mirror the Back button (46×46 @ y=414) on the right edge.
-        const int icon_sz = 46;
-        const int icon_x  = dt::SCREEN_W - icon_sz - 27;
-        const int icon_y  = 414;
-
+        const int icon_x = 695;
         auto skip_btn = make_shared<SkipWiFiButton>(
             Rect(icon_x, icon_y, icon_sz, icon_sz));
         container->add(skip_btn);
