@@ -113,7 +113,10 @@ shared_ptr<Widget> create_login_screen_v2(
     const int box_w      = 329;
     const int box_h      = n_slots * slot_h + 2 * (chevron_h + padding);
     const int box_x      = (dt::SCREEN_W - box_w) / 2;
-    const int box_y      = 66;
+    // box_y from Figma: picker's absolute device y = 82 (picker top frame-
+    // local y=44 -> 82 device); previously was 66 which made the picker sit
+    // too high and pushed the Guest button gap wider than the design.
+    const int box_y      = 82;
     const int center_idx = 2;             // third slot from top (0-indexed)
     const int slots_top  = chevron_h + padding;
 
@@ -137,17 +140,30 @@ shared_ptr<Widget> create_login_screen_v2(
     picker_box->border(0);
     container->add(picker_box);
 
-    auto up_arrow = make_shared<Label>(u8"▲",
-        Rect(0, 4, box_w, chevron_h), AlignFlag::center);
-    up_arrow->font(Font(16));
-    up_arrow->color(Palette::ColorId::label_text, palette::kGray500);
-    picker_box->add(up_arrow);
-
-    auto down_arrow = make_shared<Label>(u8"▼",
-        Rect(0, box_h - chevron_h - 4, box_w, chevron_h), AlignFlag::center);
-    down_arrow->font(Font(16));
-    down_arrow->color(Palette::ColorId::label_text, palette::kGray500);
-    picker_box->add(down_arrow);
+    // Up / down arrows from Figma (Polygon 9 + Polygon 10 = nodes 4008:840
+    // and 4008:841). Wide flat triangles, not the equilateral Unicode glyph.
+    // PNGs are 29x16 (scale=2 of figma 14.5x8), natural device size ~27x15.
+    auto load_arrow = [&](const std::string& png_path, int y) {
+        auto wrap = make_shared<Frame>(Rect(0, y, box_w, 16));
+        wrap->fill_flags({});
+        try {
+            auto img = Image(("file:" + png_path).c_str());
+            auto lbl = make_shared<ImageLabel>(img);
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, box_w, 16));
+            wrap->add(lbl);
+        } catch (const std::exception& e) {
+            printf("[LOGIN] arrow %s missing: %s\n", png_path.c_str(), e.what());
+            fflush(stdout);
+        }
+        return wrap;
+    };
+    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-up.png", 4));
+    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-down.png",
+                               box_h - 16 - 4));
 
     // The selected index is shared between the slider driver, the slot
     // redraw closure, and the slot-click handlers (so a tap can both
@@ -322,10 +338,11 @@ shared_ptr<Widget> create_login_screen_v2(
     };
 
     // ── Guest button ─────────────────────────────────────────────────────
-    // Same width and x-position as the picker box; figma places it at frame-
-    // local y=215 (device 398), which works out to box_y + box_h + 26 with
-    // the new picker dimensions.
-    const int guest_y = box_y + box_h + 26;
+    // Same width and x-position as the picker box. With box_y = 82 the
+    // picker bottom lands at 388, and Figma places Guest at device y = 398
+    // - a 10 px gap below the picker (not 26; that was the artefact of
+    // the old box_y = 66).
+    const int guest_y = box_y + box_h + 10;
     auto guest = make_shared<Frame>(Rect(box_x, guest_y, box_w, 44));
     guest->fill_flags({Theme::FillFlag::blend});
     guest->color(Palette::ColorId::bg, dt::kGrayBg);
