@@ -52,9 +52,9 @@ The screen shown after the user picks "Demo Mode" on Home. Three things were mis
 
 The screen the device shows when it boots without a Wi-Fi connection. Five acceptance criteria from M4-19 all addressed in one pass: the outer card now spans the full 800x480 (was inset 40 px), the info "!" icon was missing and is now a 40x40 PNG from Figma next to Continue, the green countdown number "6" now has a 2 px underline drawn as a `Frame` with `dt::kGreen` background, the three bottom buttons (Back, Retry WiFi, Setting) are now PNG exports of the Figma button COMPONENTs so their icons and text exactly match the design, and all body text is centred with the correct colours (countdown in `dt::kGreen`, banner text in `dt::kBlack`, body in `dt::kTextPrimary`). The Continue button is the same cyan-to-blue gradient style used on HOME, also pulled as a PNG so the gradient stops match Figma without re-painting it in code.
 
-![WIFI_UNAVAILABLE Before / Target / After](m4-19-wifi-unavailable-figma-match/comparison.png)
+![WIFI_UNAVAILABLE Before / After](m4-19-wifi-unavailable-figma-match/comparison.png)
 
-*AFTER matches the underlying Figma design. The TARGET panel above shows the screen with its info-modal overlay open (faded screen visible behind a white card explaining the override-password mechanism) - that overlay is a follow-up beyond M4-19's scope; the static screen content under the modal lines up.*
+*AFTER matches Figma node `10:29`, which is the actual WIFI_UNAVAILABLE screen design. The first iteration mistakenly used node `2079:2300` as the TARGET reference - that node is actually the info-modal that appears when the user taps the orange "!" button on this screen (saved as `figma-modal-pending-2079-2300.png` in the report folder for the follow-up that implements the modal). The 3-up comparison will be regenerated with the correct Figma target once the API rate limit clears.*
 
 ---
 
