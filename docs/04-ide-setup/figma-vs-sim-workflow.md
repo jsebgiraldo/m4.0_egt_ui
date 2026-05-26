@@ -168,6 +168,22 @@ The 1 px gray border around each labeled panel becomes a 2 px gray vertical line
 
 `comparison.png` is the shareable artifact for the iteration. Drop it in a PR description, Slack, or Jira comment.
 
+### Keep the report entry short
+
+When adding the entry to `docs/10-reports/ui-improvement-report.md`, follow this exact shape - one sentence plus the comparison image, no trailing paragraph:
+
+```
+### Screen Name (`SCREEN_ID` - node `xxxx:yyyy`) [- ticket]
+
+One short sentence describing what changed.
+
+![Screen Name](path/comparison.png)
+
+---
+```
+
+Implementation detail (tokens, font sizes, node forensics, follow-ups) belongs in the commit body, in a side file in the report folder, or in the ticket - not in this report. The comparison image is the evidence; the sentence is the caption.
+
 ### 10. Decide
 
 Are key elements within `+- 4 px` of Figma and using tokens (no raw hex)? If yes, commit. If no, return to step 5 - usually only one or two values need another nudge.
