@@ -419,14 +419,14 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
                 chev_lbl->fill_flags({});
                 chev_lbl->image_align(AlignFlag::center);
-                chev_lbl->box(Rect(card_w - 60, (row_h - 40) / 2, 40, 40));
+                chev_lbl->box(Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
                 row_frame->add(chev_lbl);
                 (void)img;
             } catch (...) { /* fall back: no chevron */ }
             // Keep a transparent Label as the chevron handle for the
             // colour-update logic below (no-op when no real chevron drawn).
             chevron = make_shared<Label>("",
-                Rect(card_w - 60, (row_h - 40) / 2, 40, 40));
+                Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
             chevron->color(Palette::ColorId::label_text, text_color);
             row_frame->add(chevron);
 
@@ -547,7 +547,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
             chev_lbl->fill_flags({});
             chev_lbl->image_align(AlignFlag::center);
-            chev_lbl->box(Rect(card_w - 60, (row_h - 40) / 2, 40, 40));
+            chev_lbl->box(Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
             other_frame->add(chev_lbl);
         } catch (...) { /* fall back: no chevron */ }
 
@@ -596,11 +596,41 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
     rebuild_rows();
 
-    // ── Back button — shared layout via ui::add_back_button ────────────────
-    ui::add_back_button(*container, [alive, on_back]() {
-        *alive = false;
-        if (on_back) on_back();
-    });
+    // ── Gear button (bottom-left) - matches Figma node 2065:870 ──────────
+    // Same nav as the shared Back button (returns to wherever the user came
+    // from), but the glyph is a gear in a gray pill rather than a chevron.
+    // Figma uses the gear here for first-wifi-setup; we keep the same
+    // behaviour for both entry points so the function is consistent.
+    {
+        auto gear_wrap = make_shared<Frame>(Rect(20, 408, 60, 60));
+        gear_wrap->fill_flags({});
+        container->add(gear_wrap);
+
+        auto circle_bg = make_shared<Frame>(Rect(0, 0, 60, 60));
+        circle_bg->fill_flags({Theme::FillFlag::blend});
+        circle_bg->color(Palette::ColorId::bg, palette::kGray200);
+        circle_bg->border(0);
+        circle_bg->border_radius(30);
+        gear_wrap->add(circle_bg);
+
+        try {
+            auto img = Image("file:assets/figma/images/wifi-settings-gear.png");
+            auto gear_lbl = make_shared<ImageLabel>(img);
+            gear_lbl->autoresize(false);
+            gear_lbl->border(0); gear_lbl->padding(0); gear_lbl->margin(0);
+            gear_lbl->fill_flags({});
+            gear_lbl->image_align(AlignFlag::center);
+            gear_lbl->box(Rect(7, 7, 46, 46));
+            gear_wrap->add(gear_lbl);
+        } catch (...) { /* fall back: empty pill */ }
+
+        gear_wrap->on_event([alive, on_back](Event& e) {
+            if (e.id() == EventId::pointer_click) {
+                *alive = false;
+                if (on_back) on_back();
+            }
+        });
+    }
 
     // ── Wi-Fi-off icon (bottom-right) — goes directly to the "Not Connected"
     // screen (screen_wifi_unavailable). The previous translucent overlay has
