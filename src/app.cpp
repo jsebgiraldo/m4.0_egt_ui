@@ -293,6 +293,7 @@ void run_app(int argc, char** argv)
             [&]() { show_wifi_connected(); },
             [&]() { show_wifi_unavailable(); }));
     }
+    else if (start && std::string(start) == "wifi-override-info") show_wifi_override_info();
     else                                                         show_wifi_init();
 
     win.show();

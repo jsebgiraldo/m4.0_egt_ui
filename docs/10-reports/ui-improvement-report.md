@@ -68,6 +68,14 @@ Re-laid out to match the Figma design - spinner is now the full 396 px ring arou
 
 ---
 
+### Wi-Fi Override Info (`WIFI_OVERRIDE_INFO` - node `2079:2300`)
+
+The modal that appears when the user taps the orange `!` on WIFI_UNAVAILABLE. Modal now opens by default on the screen, sits below the orange banner (which stays visible), and shows the orange info icon top-left + X close top-right per the Figma design.
+
+![WIFI_OVERRIDE_INFO](wifi-override-info-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 

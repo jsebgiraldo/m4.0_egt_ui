@@ -254,14 +254,14 @@ shared_ptr<Widget> create_wifi_override_info_screen(
         Rect(cont_x, cont_y, cont_w, cont_h), on_continue);
     card->add(btn_continue);
 
-    // Full-screen dark popup (built below) toggled by the badge. The dark
-    // layer itself IS the popup surface (covers the whole screen, per the
-    // Figma) rather than a small centred card.
-    auto popup = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
+    // Dark popup that lays out BELOW the orange banner so the banner stays
+    // visible (Figma node 2079:2300 shows the banner clear and the dark
+    // overlay starting underneath it).
+    const int popup_y = card_y + banner_h;
+    auto popup = make_shared<Frame>(Rect(0, popup_y, dt::SCREEN_W, dt::SCREEN_H - popup_y));
     popup->fill_flags({Theme::FillFlag::blend});
     popup->color(Palette::ColorId::bg, Color(45, 45, 45, 235));
     popup->border(0);
-    popup->hide();
 
     auto badge = make_shared<InfoBadge>(
         Rect(cont_x + cont_w + 16, cont_y + (cont_h - 36) / 2, 36, 36),
@@ -283,26 +283,40 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     card->add(make_icon_button(30 + 2 * (row_w + row_gap), row_y, row_w, row_h,
         "Setting", gear_icon, on_settings));
 
-    // ── Info popup content (full-screen, text directly on the dark layer) ───
+    // ── Info popup content (sits below the banner) ─────────────────────────
     {
         const int M = 60;                       // side margin
         const int tw = dt::SCREEN_W - 2 * M;    // text width
+        const int H  = dt::SCREEN_H - popup_y;  // popup height
 
-        // X close — Painter-drawn, top-right corner of the screen.
+        // Orange info icon top-left (Figma 2073:1852).
+        try {
+            auto img = Image("file:assets/figma/images/wifi-info-icon.png");
+            auto info_lbl = make_shared<ImageLabel>(img);
+            info_lbl->autoresize(false);
+            info_lbl->border(0); info_lbl->padding(0); info_lbl->margin(0);
+            info_lbl->fill_flags({});
+            info_lbl->image_align(AlignFlag::center);
+            info_lbl->box(Rect(28, 22, 44, 44));
+            popup->add(info_lbl);
+        } catch (...) { /* fall back to no icon */ }
+
+        // X close — Painter-drawn, top-right of the popup area.
         popup->add(make_shared<CloseX>(
-            Rect(dt::SCREEN_W - 64, 18, 44, 44), dt::kWhite,
+            Rect(dt::SCREEN_W - 64, 22, 44, 44), dt::kWhite,
             [popup]() { popup->hide(); }));
 
         // The green "N calendar day(s)" sits inline; render as stacked lines
-        // with the day-count line green. All centred.
+        // with the day-count line green. All centred within the popup.
+        const int y0 = (H - 280) / 2;  // vertically centre the text block
         auto l1 = make_shared<Label>("Please note that on",
-            Rect(M, 70, tw, 34), AlignFlag::center);
-        l1->font(Font(20)); l1->color(Palette::ColorId::label_text, dt::kWhite);
+            Rect(M, y0, tw, 34), AlignFlag::center);
+        l1->font(Font(22)); l1->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l1);
 
         auto l2 = make_shared<Label>(to_string(days) + " calendar day(s) from today,",
-            Rect(M, 106, tw, 34), AlignFlag::center);
-        l2->font(Font(20, Font::Weight::bold));
+            Rect(M, y0 + 38, tw, 34), AlignFlag::center);
+        l2->font(Font(22, Font::Weight::bold));
         l2->color(Palette::ColorId::label_text, dt::kGreen);
         popup->add(l2);
 
@@ -310,15 +324,14 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             "a Wi-Fi/Network Connection must be established,\n"
             "or an Override Password must be entered for the\n"
             "device to continue to operate.",
-            Rect(M, 148, tw, 96), AlignFlag::center);
-        l3->font(Font(19)); l3->color(Palette::ColorId::label_text, dt::kWhite);
+            Rect(M, y0 + 80, tw, 90), AlignFlag::center);
+        l3->font(Font(20)); l3->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l3);
 
         auto l4 = make_shared<Label>(
             "(An Override Password is provided by Larada Sciences,\n"
-            "please contact your Clinic Success contact for more\n"
-            "details).",
-            Rect(M, 270, tw, 96), AlignFlag::center);
+            "please contact your Clinic Success contact for more details).",
+            Rect(M, y0 + 190, tw, 70), AlignFlag::center);
         l4->font(Font(18)); l4->color(Palette::ColorId::label_text, palette::kGray200);
         popup->add(l4);
     }
