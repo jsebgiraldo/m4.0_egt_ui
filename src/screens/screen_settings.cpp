@@ -406,23 +406,32 @@ shared_ptr<Widget> create_settings_screen(
         circle_bg->border_radius(circle_d / 2);
         card->add(circle_bg);
 
-        // Glyph sized per Figma, centred inside the gray circle.
-        // Wi-Fi:  45×33 (Figma "Group 127") → offset (13, 18) inside the circle.
-        // Eth:    47×46 (Figma "Group 269") → offset (13, 9) inside the circle.
-        if (is_wifi) {
-            auto g = make_shared<WifiGlyph>(
-                Rect(circle_x + 13, circle_y + 18, 45, 33));
-            card->add(g);
-        } else {
-            auto g = make_shared<EthernetGlyph>(
-                Rect(circle_x + 13, circle_y + 9, 47, 46));
-            card->add(g);
-        }
+        // Glyph from Figma PNG (settings-wifi.png / settings-ethernet.png).
+        // Custom Painter-drawn glyphs rendered as "briefcase-ish" shapes that
+        // did not match the Figma art; the PNG exports are pixel-equivalent.
+        const std::string icon_path = is_wifi
+            ? "assets/figma/images/settings-wifi.png"
+            : "assets/figma/images/settings-ethernet.png";
+        try {
+            auto img = Image(("file:" + icon_path).c_str());
+            auto icon = make_shared<ImageLabel>(img);
+            icon->autoresize(false);
+            icon->border(0); icon->padding(0); icon->margin(0);
+            icon->fill_flags({});
+            icon->image_align(AlignFlag::center);
+            const int icon_w = is_wifi ? 45 : 47;
+            const int icon_h = is_wifi ? 33 : 46;
+            const int icon_dy = is_wifi ? 18 : 9;
+            icon->box(Rect(circle_x + (circle_d - icon_w) / 2,
+                           circle_y + icon_dy, icon_w, icon_h));
+            card->add(icon);
+        } catch (...) { /* fall back to no glyph */ }
 
-        // Text — Figma "Wi-Fi" at card-relative (143, 44); "Ethernet" at (144, 44)
+        // Text - Figma "Wi-Fi" at card-relative (143, 44); fontSize 14 Bold
+        // -> device 26 pt (was Font(15) = literal 15, too small).
         auto lbl = make_shared<Label>(title_text,
             Rect(143, 0, chip_w - 143 - 16, chip_h));
-        lbl->font(Font(15, Font::Weight::bold));
+        lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
         card->add(lbl);
@@ -441,20 +450,22 @@ shared_ptr<Widget> create_settings_screen(
     // Title — Figma (81, 322) 217×33
     auto about_title = make_shared<Label>("About this device",
         Rect(section_x, 322, 320, 33));
-    about_title->font(Font(15, Font::Weight::bold));
+    about_title->font(Font("Gothic A1", 26, Font::Weight::bold));
     about_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     about_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
     container->add(about_title);
 
-    // Body — Figma (81, 361) 522×28  Gothic A1 Regular 12pt
+    // Body — Figma (81, 361) 522x28, fontSize 12 Regular -> device 22 Regular.
+    // Colour rgb(100, 101, 105) = dt::kTextPrimary (was using kGray600 which
+    // looked subtly cyan at small px sizes due to sub-pixel AA).
     const string about_text =
         "Firmware v" + get_firmware_version() +
         "  ·  Serial #" + get_serial() +
         "  ·  IP " + get_ip_address();
     auto about_body = make_shared<Label>(about_text,
-        Rect(section_x, 361, 640, 28));
-    about_body->font(Font(12, Font::Weight::normal));
-    about_body->color(Palette::ColorId::label_text, palette::kGray600);
+        Rect(section_x, 361, 640, 32));
+    about_body->font(Font("Gothic A1", 22, Font::Weight::normal));
+    about_body->color(Palette::ColorId::label_text, dt::kTextPrimary);
     about_body->text_align(AlignFlag::left | AlignFlag::center_vertical);
     container->add(about_body);
 

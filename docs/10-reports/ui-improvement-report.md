@@ -76,6 +76,14 @@ The modal that appears when the user taps the orange `!` on WIFI_UNAVAILABLE. Mo
 
 ---
 
+### Settings (`SETTINGS` - node `2073:1996`)
+
+Swapped the hand-drawn Wi-Fi and Ethernet glyphs for the actual Figma PNG exports (the custom Painter code was rendering a sun-ish glyph for Wi-Fi and a briefcase-ish shape for Ethernet), bumped font sizes on the "About this device" body and the card labels from 12-15 pt literal to the Figma-scaled 22-26 pt, and switched the about-text colour from kGray600 to kTextPrimary.
+
+![SETTINGS](settings-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 
