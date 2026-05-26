@@ -17,6 +17,58 @@ using namespace std;
 // frames + an invisible vertical Slider on top driving the wheel index.
 // Tapping a slot opens the password prompt for that technician.
 
+namespace {
+
+// Vertical gradient backdrop for the wheel: medium gray at the top edge,
+// near-white in the middle band, medium gray at the bottom. Same trick
+// Figma uses to fake the "cylinder rolling behind a curved window" look.
+class WheelGradient : public egt::Widget {
+public:
+    WheelGradient(const egt::Rect& r, float radius = 6.0f)
+        : egt::Widget(r), m_radius(radius)
+    {
+        fill_flags({egt::Theme::FillFlag::blend});
+        border(0);
+    }
+
+    void draw(egt::Painter& painter, const egt::Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+
+        // 3-stop pattern: dark edge -> light middle -> dark edge.
+        const egt::Color edge_dark{195, 197, 200};   // medium gray
+        const egt::Color middle  {238, 239, 241};   // near white
+        egt::Pattern grad(egt::Pattern::StepArray{
+            {0.0f, edge_dark}, {0.5f, middle}, {1.0f, edge_dark}
+        }, egt::Point(static_cast<int>(x), static_cast<int>(y)),
+           egt::Point(static_cast<int>(x), static_cast<int>(y + h)));
+
+        // Draw a rounded rectangle path then fill with the gradient.
+        const float r = m_radius;
+        const auto PI = static_cast<float>(M_PI);
+        painter.draw(egt::PointF(x + r, y));
+        painter.line(egt::PointF(x + w - r, y));
+        painter.draw(egt::Arc(egt::PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
+        painter.line(egt::PointF(x + w, y + h - r));
+        painter.draw(egt::Arc(egt::PointF(x + w - r, y + h - r),   r, 0.0f,   PI / 2));
+        painter.line(egt::PointF(x + r, y + h));
+        painter.draw(egt::Arc(egt::PointF(x + r, y + h - r),       r, PI / 2, PI));
+        painter.line(egt::PointF(x, y + r));
+        painter.draw(egt::Arc(egt::PointF(x + r, y + r),           r, PI, 3 * PI / 2));
+        painter.set(grad);
+        painter.fill();
+    }
+
+private:
+    float m_radius;
+};
+
+} // namespace
+
 shared_ptr<Widget> create_login_screen_v2(
     const vector<TechnicianProfile>& technicians,
     function<void(const string& technician_name)> on_login_success,
@@ -38,56 +90,57 @@ shared_ptr<Widget> create_login_screen_v2(
     container->add(title);
 
     // ── Wheel-list picker ────────────────────────────────────────────────
-    // Layout constants chosen so the box visually matches Figma's 180×166
-    // ratio scaled up to a 800×480 viewport (≈ 380×320 here). Slot_h is
-    // bumped to 52 so the names breathe; the box stretches down to give
-    // Guest room to sit comfortably above Back without crowding.
-    const int slot_h     = 52;
-    const int n_slots    = 5;             // odd → middle slot is "selected"
+    // Six visible slots with the third slot from the top (centre_idx = 2)
+    // as the selected row, matching Figma node 4008:819. Slot height shrunk
+    // from 52 to 44 so six fit comfortably without pushing Guest off-screen.
+    const int slot_h     = 44;
+    const int n_slots    = 6;
     const int chevron_h  = 22;
     const int padding    = 8;
     const int box_w      = 380;
     const int box_h      = n_slots * slot_h + 2 * (chevron_h + padding);
     const int box_x      = (dt::SCREEN_W - box_w) / 2;
     const int box_y      = 66;
-    const int center_idx = n_slots / 2;
+    const int center_idx = 2;             // third slot from top (0-indexed)
     const int slots_top  = chevron_h + padding;
 
+    // Backdrop is a vertical gradient (dark-light-dark) so the wheel reads
+    // as a curved cylinder; the centre slot gets its own white fill on top.
+    auto picker_bg = make_shared<WheelGradient>(
+        Rect(box_x, box_y, box_w, box_h), 6.0f);
+    container->add(picker_bg);
+
+    // Inner Frame holds the chevrons + slots; transparent so the gradient
+    // shows through. Border-radius matches the backdrop so clicks land
+    // inside the visible wheel area.
     auto picker_box = make_shared<Frame>(Rect(box_x, box_y, box_w, box_h));
-    picker_box->fill_flags({Theme::FillFlag::blend});
-    picker_box->color(Palette::ColorId::bg, dt::kGrayBg);
+    picker_box->fill_flags({});
     picker_box->border(0);
-    picker_box->border_radius(6);
     container->add(picker_box);
 
     auto up_arrow = make_shared<Label>(u8"▲",
         Rect(0, 4, box_w, chevron_h), AlignFlag::center);
     up_arrow->font(Font(16));
-    up_arrow->color(Palette::ColorId::label_text, palette::kGray400);
+    up_arrow->color(Palette::ColorId::label_text, palette::kGray500);
     picker_box->add(up_arrow);
 
     auto down_arrow = make_shared<Label>(u8"▼",
         Rect(0, box_h - chevron_h - 4, box_w, chevron_h), AlignFlag::center);
     down_arrow->font(Font(16));
-    down_arrow->color(Palette::ColorId::label_text, palette::kGray400);
+    down_arrow->color(Palette::ColorId::label_text, palette::kGray500);
     picker_box->add(down_arrow);
 
-    // Subtle 1 px dividers framing the centre slot so the selected name reads
-    // as a distinct "card" within the wheel (Figma shows a soft drop shadow
-    // here; on EGT we get the same readability with two thin gray strips).
-    const int sel_top_y    = slots_top + center_idx * slot_h;
-    const int sel_bottom_y = sel_top_y + slot_h - 1;
-    auto sel_top = make_shared<Frame>(Rect(8, sel_top_y, box_w - 16, 1));
-    sel_top->fill_flags({Theme::FillFlag::blend});
-    sel_top->color(Palette::ColorId::bg, palette::kGray300);
-    sel_top->border(0);
-    picker_box->add(sel_top);
-
-    auto sel_bot = make_shared<Frame>(Rect(8, sel_bottom_y, box_w - 16, 1));
-    sel_bot->fill_flags({Theme::FillFlag::blend});
-    sel_bot->color(Palette::ColorId::bg, palette::kGray300);
-    sel_bot->border(0);
-    picker_box->add(sel_bot);
+    // White fill for the centre slot - sits on top of the gradient so the
+    // selected name pops as a raised "card", same effect Figma renders as
+    // a soft drop shadow on the chosen slot.
+    const int sel_top_y = slots_top + center_idx * slot_h;
+    auto sel_card = make_shared<Frame>(
+        Rect(6, sel_top_y, box_w - 12, slot_h));
+    sel_card->fill_flags({Theme::FillFlag::blend});
+    sel_card->color(Palette::ColorId::bg, dt::kBgWhite);
+    sel_card->border(0);
+    sel_card->border_radius(4);
+    picker_box->add(sel_card);
 
     // The selected index is shared between the slider driver, the slot
     // redraw closure, and the slot-click handlers (so a tap can both
@@ -133,17 +186,31 @@ shared_ptr<Widget> create_login_screen_v2(
                 continue;
             }
             const bool is_sel = (k == center_idx);
-            const int  dist   = std::abs(k - center_idx);
             s.label->text(technicians[idx].name);
             s.label->font(Font(
                 is_sel ? 24 : 19,
                 is_sel ? Font::Weight::bold : Font::Weight::normal));
-            // Stronger fade away from the centre: the top/bottom slots are
-            // barely visible (matches Figma's alpha gradient on the wheel).
-            const Color c =
-                is_sel        ? dt::kTextPrimary
-              : (dist == 1)   ? palette::kGray500
-                              : palette::kGray300;
+            // Per-slot alpha so the top and bottom items dissolve into the
+            // wheel gradient (matches Figma). Alphas chosen by row index, not
+            // by distance from centre, since the rows are not symmetric
+            // around centre_idx = 2 (we have 2 rows above, 3 below).
+            //   k=0 (top edge):    very faint
+            //   k=1:               half visible
+            //   k=2 (selected):    full alpha, bold
+            //   k=3, k=4:          half visible
+            //   k=5 (bottom edge): very faint
+            int alpha;
+            switch (k) {
+                case 0:  alpha =  60; break;
+                case 1:  alpha = 180; break;
+                case 2:  alpha = 255; break;
+                case 3:  alpha = 200; break;
+                case 4:  alpha = 130; break;
+                default: alpha =  60; break;   // k == 5
+            }
+            const auto base = dt::kTextPrimary;
+            const Color c(base.red(), base.green(), base.blue(),
+                          static_cast<uint8_t>(alpha));
             s.label->color(Palette::ColorId::label_text, c);
         }
         picker_box->damage();
