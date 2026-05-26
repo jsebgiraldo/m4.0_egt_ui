@@ -279,9 +279,10 @@ void run_app(int argc, char** argv)
     else if (start && std::string(start) == "wifi-settings") {
         // Inject a fixed dummy list so the screen renders predictably for
         // figma-vs-sim screenshots, bypassing the live scan + mock timing.
+        // Signals chosen so the natural sort matches the Figma render order.
         auto dummy = std::make_shared<std::vector<egt_wifi::WiFiNetwork>>();
-        dummy->push_back({"BTWiFi",          70, "", false});
-        dummy->push_back({"BTWiFi-With-Fon", 85, "", true });
+        dummy->push_back({"BTWiFi",          90, "", false});
+        dummy->push_back({"BTWiFi-With-Fon", 80, "", true });
         dummy->push_back({"John's iMac",     65, "", false});
         show_wifi_setup(dummy, [&]() { show_home(); });
     }

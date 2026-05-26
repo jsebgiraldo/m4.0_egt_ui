@@ -191,11 +191,10 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         }
         nets = result;
     }
-    // Sort: connected network always first, then by signal strength desc.
-    // Keeping the connected AP pinned to the top means it doesn't "sink" in
-    // the list when a stronger neighbour appears on a later scan.
+    // Sort by signal strength descending. Figma shows the connected AP
+    // somewhere in the middle (not pinned to the top), so we don't promote
+    // it - the green text + green icons identify it well enough.
     auto net_sort = [](const WiFiNetwork& a, const WiFiNetwork& b) {
-        if (a.connected != b.connected) return a.connected;
         return a.signal > b.signal;
     };
     sort(nets->begin(), nets->end(), net_sort);
@@ -282,8 +281,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     // y=591 -> 30 figma px between rows -> 56 device px.
     const int list_top = 52;
     const int list_h = card_h - list_top;
-    const int row_h = 50;
-    const int row_gap = 6;
+    // Figma row pitch is 30 figma px = 56 device. Rows have no gap; the
+    // visual separation comes from a thin divider line drawn at the bottom
+    // edge of each row (below).
+    const int row_h = 56;
+    const int row_gap = 0;
     const int row_pitch = row_h + row_gap;     // 56 = figma 30 * SCALE
     const int text_pad = 20;
 
@@ -379,13 +381,16 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             ssid_lbl->border(0);
             row_frame->add(ssid_lbl);
 
-            // WiFi signal arcs from Figma PNG (node 151:918, 15x10 figma px
-            // -> device 28x19 natural). Scaled up to 50x33 to read at the
-            // visual size figma uses on the wide rows (the PNG keeps its
-            // aspect ratio so the arcs don't distort).
-            std::shared_ptr<WifiIcon> wifi_icon;   // kept as widget for the
-            try {                                  // colour-by-signal calls
-                auto img = Image("file:assets/figma/images/wifi-row-signal.png");
+            // WiFi signal arcs from Figma PNG. Connected row uses the green
+            // variant (node 151:922); other rows use the gray variant
+            // (node 151:918). Both are 15x10 figma px -> device 28x19 natural,
+            // scaled to 50x33 for visual parity with figma.
+            std::shared_ptr<WifiIcon> wifi_icon;   // kept as fallback handle
+            const std::string signal_png = net.connected
+                ? "assets/figma/images/wifi-row-signal-green.png"
+                : "assets/figma/images/wifi-row-signal.png";
+            try {
+                auto img = Image(("file:" + signal_png).c_str());
                 auto wifi_lbl = make_shared<ImageLabel>(img);
                 wifi_lbl->autoresize(false);
                 wifi_lbl->border(0); wifi_lbl->padding(0); wifi_lbl->margin(0);
@@ -393,21 +398,17 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 wifi_lbl->image_align(AlignFlag::center);
                 wifi_lbl->box(Rect(card_w - 130, (row_h - 33) / 2, 50, 33));
                 row_frame->add(wifi_lbl);
-                // Connected state is signalled by the green SSID label; the
-                // PNG arc icon stays gray (matching figma's actual export).
-                (void)net.connected;
             } catch (...) {
-                // Fall back to the painter-drawn icon if the PNG is missing.
                 wifi_icon = make_shared<WifiIcon>(
                     Rect(card_w - 130, (row_h - 33) / 2, 50, 33),
                     text_color, net.signal);
                 row_frame->add(wifi_icon);
             }
 
-            // Chevron right - PNG from Figma node 151:904 (chevron in a small
-            // shadowed circle). Wraps a Label for the click hit area.
+            // Chevron right - PNG from Figma. Connected row uses the green
+            // variant (node 151:907), other rows the gray (node 151:904).
             const std::string chev_path = net.connected
-                ? "assets/figma/images/wifi-row-chevron.png"
+                ? "assets/figma/images/wifi-row-chevron-green.png"
                 : "assets/figma/images/wifi-row-chevron.png";
             std::shared_ptr<Label> chevron;
             try {
@@ -475,10 +476,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 if (on_show_screen) on_show_screen(pwd_screen);
             }, {EventId::pointer_click});
 
+            // Row divider line - matches figma's visible row separator.
             auto sep = make_shared<Frame>(
                 Rect(15, row_h - 1, card_w - 30, 1));
             sep->fill_flags({Theme::FillFlag::blend});
-            sep->color(Palette::ColorId::bg, Color(217, 217, 217, 100));
+            sep->color(Palette::ColorId::bg, Color(220, 220, 220));
             sep->border(0);
             row_frame->add(sep);
 
