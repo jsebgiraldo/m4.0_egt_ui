@@ -311,10 +311,14 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             popup->add(info_lbl);
         } catch (...) { /* fall back to no icon */ }
 
-        // X close — Painter-drawn, top-right of the popup card.
+        // X close — Painter-drawn, top-right of the popup card. The popup IS
+        // the screen for the user, so X exits the override flow entirely and
+        // returns to the WiFi-unavailable screen they came from. It does NOT
+        // just dismiss to a popup-less "card view" (that was the surprise
+        // jump that made it look like a different screen).
         popup->add(make_shared<CloseX>(
             Rect(popup_w - 60, 18, 44, 44), dt::kWhite,
-            [popup]() { popup->hide(); }));
+            [on_back]() { if (on_back) on_back(); }));
 
         // The green "N calendar day(s)" sits inline; render as stacked lines
         // with the day-count line green. All centred within the popup.
@@ -344,6 +348,15 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             Rect(M, y0 + 180, tw, 70), AlignFlag::center);
         l4->font(Font(18)); l4->color(Palette::ColorId::label_text, palette::kGray200);
         popup->add(l4);
+
+        // Continue button inside the popup so the override path stays
+        // reachable without dismissing to the underlying card view.
+        const int btn_w = 240, btn_h = 56;
+        const int btn_x = (popup_w - btn_w) / 2;
+        const int btn_y = H - btn_h - 22;
+        auto btn_cont = ui::create_filled_button("Continue",
+            Rect(btn_x, btn_y, btn_w, btn_h), on_continue);
+        popup->add(btn_cont);
     }
     container->add(popup);
 
