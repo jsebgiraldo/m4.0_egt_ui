@@ -74,15 +74,19 @@ shared_ptr<Widget> create_password_prompt_screen(
     y_cursor += 10; // espacio antes del input
     // ---- FIN: Layout dinámico superior ----
 
-    // Layout horizontal: campo de contraseña + botones de acción
-    auto input_row = make_shared<Frame>(Rect(32, y_cursor, CARD_W - 64, 70));
+    // Layout horizontal: campo de contraseña + botones de acción. Input row
+    // spans the full card width so the Cancel + Join PNGs (148x70 / 172x70)
+    // fit at their figma-derived global positions without clipping.
+    auto input_row = make_shared<Frame>(Rect(0, y_cursor, CARD_W, 70));
     input_row->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
     card->add(input_row);
 
-    // Password field — Figma: gray fill, r=2, inner shadow
+    // Password field - Figma: gray fill, r=2, inner shadow.
+    // Card sits at x=10 in global coords; field ends just before the Cancel
+    // button (Cancel global x = 459). So field width = 459 - 10 - margin.
     auto pwd = make_shared<TextBox>("Password...");
-    pwd->resize(Size(CARD_W - 280, 44));
-    pwd->move(Point(0, 13));
+    pwd->resize(Size(429, 44));
+    pwd->move(Point(10, 13));
     pwd->font(Font(16));
     pwd->color(Palette::ColorId::text, Color(150, 150, 150));
     pwd->color(Palette::ColorId::bg, INPUT_BG);
@@ -137,34 +141,65 @@ shared_ptr<Widget> create_password_prompt_screen(
         return false;
     });
 
-    // Cancel button — Figma: white fill, r=4, shadow, gray text
-    auto btn_cancel = make_shared<Button>(cancel_label.empty() ? "Cancel" : cancel_label);
-    btn_cancel->resize(Size(85, 44));
-    btn_cancel->move(Point(CARD_W - 240, 13));
-    btn_cancel->font(Font(14, Font::Weight::bold));
-    btn_cancel->color(Palette::ColorId::button_bg, CANCEL_BG);
-    btn_cancel->color(Palette::ColorId::button_text, CANCEL_FG);
-    btn_cancel->color(Palette::ColorId::border, Color(220, 220, 220));
-    btn_cancel->border(1);
-    btn_cancel->border_radius(4);
-    btn_cancel->on_click([=](Event&){ if (on_cancel) on_cancel(); });
+    // Cancel + Join buttons rendered as PNGs from Figma so we get the exact
+    // shadow + gradient look without re-painting in code. Figma button
+    // bboxes (device): Cancel (459,85,141,54), Join (611,85,165,54).
+    // PNG natural device sizes: Cancel 148x70, Join 172x70 (PNG_px * 0.926).
+    // Inside input_row (origin at global (42, y_cursor)), the wraps land at:
+    //   Cancel:  x = 459-42-(148-141)/2 = 413, y = 85-y_cursor-(70-54)/2
+    //   Join:    x = 611-42-(172-165)/2 = 565
+    // We use y=4 inside input_row so the buttons sit visually centred on
+    // the password field (input_row is 70 px tall; the field is 44 at y=13).
+    auto make_img_btn = [](const std::string& png_path, const Rect& r,
+                           function<void()> on_click) {
+        auto wrap = make_shared<Frame>(r);
+        wrap->fill_flags({});
+        try {
+            auto probe = Image(("file:" + png_path).c_str());
+            const float hs = static_cast<float>(r.width())  / probe.width();
+            const float vs = static_cast<float>(r.height()) / probe.height();
+            auto img = Image(("file:" + png_path).c_str(), hs, vs);
+            auto lbl = make_shared<ImageLabel>(img);
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, r.width(), r.height()));
+            wrap->add(lbl);
+        } catch (const std::exception& e) {
+            printf("[PWD] image %s missing: %s\n", png_path.c_str(), e.what());
+            fflush(stdout);
+        }
+        wrap->on_event([on_click](Event& e) {
+            if (e.id() == EventId::pointer_click && on_click) on_click();
+        });
+        return wrap;
+    };
+
+    // Cancel at global x=459 - card x=10 -> input_row x=449
+    // Join   at global x=611 - card x=10 -> input_row x=601
+    auto btn_cancel = make_img_btn(
+        "assets/figma/images/pwd-btn-cancel.png",
+        Rect(449, 0, 148, 70),
+        [=]() { if (on_cancel) on_cancel(); });
     input_row->add(btn_cancel);
 
-    // Join button — Figma: cyan→blue gradient, r=4, shadow, white text
-    auto btn_join = make_shared<Button>(join_label.empty() ? "Join" : join_label);
-    btn_join->resize(Size(85, 44));
-    btn_join->move(Point(CARD_W - 145, 13));
-    btn_join->font(Font(14, Font::Weight::bold));
-    btn_join->color(Palette::ColorId::button_bg, JOIN_BG);
-    btn_join->color(Palette::ColorId::button_text, dt::kWhite);
-    btn_join->color(Palette::ColorId::border, JOIN_BG);
-    btn_join->border(0);
-    btn_join->border_radius(4);
-    btn_join->on_click([=](Event&){ if (on_join) on_join(pwd->text()); });
+    auto btn_join = make_img_btn(
+        "assets/figma/images/pwd-btn-join.png",
+        Rect(601, 0, 172, 70),
+        [=]() { if (on_join) on_join(pwd->text()); });
     input_row->add(btn_join);
 
-    // Recalcular y base del teclado según nueva altura ocupada
-    int keyboard_top = y_cursor + 70 + 10;
+    // ── Forgot Password link (Figma 154:919) ───────────────────────────────
+    // Centered below the input row. fontSize 12 Bold -> device 22 Bold.
+    auto forgot = make_shared<Label>("Forgot Password",
+        Rect(0, y_cursor + 75, CARD_W, 30), AlignFlag::center);
+    forgot->font(Font("Gothic A1", 22, Font::Weight::bold));
+    forgot->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    card->add(forgot);
+
+    // Recalcular y base del teclado: input row (70) + Forgot Password (30) + gap
+    int keyboard_top = y_cursor + 70 + 30 + 10;
 
     auto keyboard_frame = make_shared<Frame>(Rect(24, keyboard_top, CARD_W - 48, CARD_H - keyboard_top - 10));
     keyboard_frame->color(Palette::ColorId::bg, dt::kWhite);

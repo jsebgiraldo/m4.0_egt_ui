@@ -19,7 +19,7 @@ Success card re-laid out: checkmark beside the title on one row, Lice Clinics lo
 ![WIFI_CONNECTED](m4-18-wifi-connected-figma-match/comparison.png)
 
 ---
-
+    
 ### Home (`HOME` - node `81:1507`)
 
 Main menu rebuilt to Figma v5: large blue-gradient Start button, Demo Mode and Setting cards at the bottom with PNG icons and the Figma drop shadow.
@@ -49,6 +49,14 @@ Screen rebuilt: full-screen orange banner, green countdown number with underline
 Replaced the custom-drawn Back button (circle + chevron + bold text) with the Figma "bt EXIT" PNG via the shared `ui::add_back_button` helper, so the back affordance now matches the Figma export across all screens that use it.
 
 ![LOGIN](login-figma-match/comparison.png)
+
+---
+
+### Password Prompt (`PASSWORD_PROMPT` - node `144:877`)
+
+Cancel and Join buttons replaced with the Figma PNG renders (gradient Join + white Cancel with shadow), added the "Forgot Password" link below the input row, and widened the input row to fit the full button row without clipping.
+
+![PASSWORD_PROMPT](password-prompt-figma-match/comparison.png)
 
 ---
 
