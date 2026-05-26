@@ -193,6 +193,12 @@ shared_ptr<Frame> make_card_button(
         icon_lbl->fill_flags({Theme::FillFlag::blend});
         icon_lbl->image_align(AlignFlag::center);
         icon_lbl->box(Rect(PAD + 13, PAD + 13, icon_w, icon_h));
+        // The icon sits on top of the ShadowedCard in z-order, so a click on
+        // the glyph would land here and never reach the card's on_click. Wire
+        // the same handler so the icon is a live tap target.
+        if (on_click)
+            icon_lbl->on_event([on_click](Event&) { on_click(); },
+                               {EventId::pointer_click});
         wrap->add(icon_lbl);
     } catch (const std::exception& e) {
         printf("[CARD] icon %s missing: %s\n", icon_path.c_str(), e.what());
@@ -207,6 +213,11 @@ shared_ptr<Frame> make_card_button(
     lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     lbl->text_align(AlignFlag::center_horizontal | AlignFlag::center_vertical);
+    // Same z-order issue as the icon: the label covers the right half of the
+    // card; tap there must fire on_click too.
+    if (on_click)
+        lbl->on_event([on_click](Event&) { on_click(); },
+                      {EventId::pointer_click});
     wrap->add(lbl);
 
     return wrap;

@@ -99,7 +99,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     auto btn = make_shared<ShadowedCard>(
         Rect(PAD, PAD, card_rect.width(), card_rect.height()),
         card_radius,
-        std::move(on_continue));
+        on_continue);
     btn_wrap->add(btn);
 
     // "Continue" label: Figma TEXT 2065:1061.
@@ -119,6 +119,11 @@ shared_ptr<Widget> create_wifi_connected_screen(
     cont_lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
     cont_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     cont_lbl->text_align(AlignFlag::center_horizontal | AlignFlag::center_vertical);
+    // Label sits on top of the ShadowedCard, so the card's on_click never
+    // sees taps on the text. Wire the same handler here.
+    if (on_continue)
+        cont_lbl->on_event([on_continue](Event&) { on_continue(); },
+                           {EventId::pointer_click});
     btn_wrap->add(cont_lbl);
 
     // ImageHolder::do_set_image() auto-resizes the widget to the image's
@@ -142,6 +147,11 @@ shared_ptr<Widget> create_wifi_connected_screen(
         // is shadow-padded by PAD on every side, so all button-local
         // coords get +PAD applied.
         chevron->box(Rect(PAD + 159, PAD + 20, chev_w, chev_h));
+        // Same z-order fix: chevron overlays the card so it must forward
+        // pointer_click to on_continue too.
+        if (on_continue)
+            chevron->on_event([on_continue](Event&) { on_continue(); },
+                              {EventId::pointer_click});
         btn_wrap->add(chevron);
     } catch (const std::exception& e) {
         printf("[CONTINUE] chevron asset missing: %s\n", e.what());
