@@ -6,6 +6,7 @@
 #   ./scripts/run-simulator.sh --build        # configure + build, then run
 #   ./scripts/run-simulator.sh --clean        # nuke build dir + reconfigure + build + run
 #   ./scripts/run-simulator.sh --wifi-static  # show the wifi-connected screen directly
+#   ./scripts/run-simulator.sh --wifi-init    # hold on the WIFI_INIT spinner (for screenshots)
 #
 # Env overrides:
 #   BUILD_DIR     default: build-x86
@@ -29,6 +30,7 @@ for arg in "$@"; do
         --build)         DO_BUILD=1 ;;
         --clean)         DO_CLEAN=1; DO_BUILD=1 ;;
         --wifi-static)   export EGT_MOCK_WIFI="connected" ;;
+        --wifi-init)     export EGT_MOCK_WIFI="init" ;;
         -h|--help)
             sed -n '2,20p' "$0"
             exit 0

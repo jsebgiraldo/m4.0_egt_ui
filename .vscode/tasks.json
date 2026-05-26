@@ -1,0 +1,154 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Configure (CMake)",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-S", ".", "-B", "build-x86"],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Generate build-x86/ Makefiles via CMake. Runs once on folder open.",
+            "runOptions": {
+                "runOn": "folderOpen"
+            }
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "build-x86", "-j"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "detail": "Compile egt-app into build-x86/ (no launch).",
+            "dependsOn": "Configure (CMake)",
+            "options": {
+                "statusbar": {
+                    "label": "$(tools) Build",
+                    "color": "#6a9955",
+                    "detail": "cmake --build build-x86 -j"
+                }
+            }
+        },
+        {
+            "label": "Build & Run",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/run-simulator.sh",
+            "args": ["--build"],
+            "group": "test",
+            "problemMatcher": "$gcc",
+            "detail": "Incremental rebuild + launch the X11 simulator window (the main dev loop).",
+            "options": {
+                "statusbar": {
+                    "label": "$(rocket) Build & Run",
+                    "color": "#569cd6",
+                    "detail": "./scripts/run-simulator.sh --build"
+                }
+            }
+        },
+        {
+            "label": "Run",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/run-simulator.sh",
+            "args": [],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Relaunch the existing build-x86/egt-app binary without rebuilding.",
+            "options": {
+                "statusbar": {
+                    "label": "$(play) Run",
+                    "color": "#6a9955",
+                    "detail": "./scripts/run-simulator.sh"
+                }
+            }
+        },
+        {
+            "label": "Run (WiFi Connected)",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/run-simulator.sh",
+            "args": ["--wifi-static"],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Boot straight into the WIFI_CONNECTED screen (skips WiFi list). EGT_MOCK_WIFI=connected.",
+            "options": {
+                "statusbar": {
+                    "label": "$(broadcast) Run (WiFi)",
+                    "color": "#c586c0",
+                    "detail": "./scripts/run-simulator.sh --wifi-static"
+                }
+            }
+        },
+        {
+            "label": "Clean Rebuild & Run",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/run-simulator.sh",
+            "args": ["--clean"],
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "detail": "Nuke build-x86/, reconfigure, full rebuild, then launch the simulator.",
+            "options": {
+                "statusbar": {
+                    "label": "$(refresh) Clean Rebuild",
+                    "color": "#d4d4d4",
+                    "detail": "./scripts/run-simulator.sh --clean"
+                }
+            }
+        },
+        {
+            "label": "Clean",
+            "type": "shell",
+            "command": "rm",
+            "args": ["-rf", "build-x86"],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Delete the build-x86/ directory. Configure task will regenerate on next build."
+        },
+        {
+            "label": "Screenshot Simulator",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/screenshot-sim.sh",
+            "args": [
+                "${input:simShotPath}"
+            ],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "Capture the running simulator window into the chosen file (default: docs/10-reports/m4-18-wifi-init-figma-match/<name>.png).",
+            "options": {
+                "statusbar": {
+                    "label": "$(device-camera) Screenshot",
+                    "color": "#dcdcaa",
+                    "detail": "Capture sim window via xdotool + ImageMagick"
+                }
+            }
+        },
+        {
+            "label": "Screenshot (target via SSH)",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/screenshot.sh",
+            "args": ["screenshot.png"],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "Capture the live framebuffer from the SAMA target into ./screenshot.png."
+        },
+        {
+            "label": "Reset WiFi (target via SSH)",
+            "type": "shell",
+            "command": "ssh",
+            "args": ["root@192.168.1.125", "reset-wifi.sh"],
+            "group": "none",
+            "problemMatcher": [],
+            "detail": "Wipe stored WiFi credentials on the SAMA target and restart egtapp.service."
+        }
+    ],
+    "inputs": [
+        {
+            "id": "simShotPath",
+            "type": "promptString",
+            "description": "Screenshot output path (relative to repo root). Examples: docs/10-reports/m4-18-wifi-init-figma-match/before.png, docs/10-reports/m4-18-wifi-init-figma-match/after.png",
+            "default": "docs/10-reports/m4-18-wifi-init-figma-match/screenshot.png"
+        }
+    ]
+}

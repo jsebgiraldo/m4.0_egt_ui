@@ -28,7 +28,9 @@ public:
     {
         auto b = content_area();
         auto dim = static_cast<float>(min(b.width(), b.height()));
-        constexpr float linew = 14.0f;
+        // Sampled from Figma: ring stroke is ~19 device px wide. Bumped from
+        // 14 to 20 to match (same widening applied to WIFI_CONNECTING).
+        constexpr float linew = 20.0f;
         float radius = dim / 2.0f - linew / 2.0f;
         auto center = b.center();
         constexpr float twopi = 2.0f * static_cast<float>(M_PI);
@@ -100,28 +102,27 @@ shared_ptr<Widget> create_wifi_init_screen(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
-    // Figma: Spinner COMPONENT 214×214 → ~396px scaled, centered vertically
+    // Figma v5 node 2065:980: Spinner 214×214 at (114,20) → 396×396 at (211,37) scaled.
     const int spin_sz = 396;
-    const int spin_x = (dt::SCREEN_W - spin_sz) / 2;
-    const int spin_y = (dt::SCREEN_H - spin_sz) / 2 - 20;
+    const int spin_x = 211;
+    const int spin_y = 37;
 
     auto spinner = make_shared<SpinnerRing>(Rect(spin_x, spin_y, spin_sz, spin_sz));
     container->add(spinner);
 
-    // Logo (centered inside the ring)
-    const int logo_w = 200;
-    const int logo_h = 125;
-    auto logo = ui::create_logo(
-        spin_x + (spin_sz - logo_w) / 2,
-        spin_y + 70,
-        logo_w,
-        logo_h);
+    // Figma: Lice-temp logo 135×84 at (155,69) → 250×156 at (287,128) scaled.
+    const int logo_w = 250;
+    const int logo_h = 156;
+    const int logo_x = 287;
+    const int logo_y = 128;
+    auto logo = ui::create_logo(logo_x, logo_y, logo_w, logo_h);
     container->add(logo);
 
-    // Status text (centered inside ring, below logo)
-    auto status_label = make_shared<Label>("Checking WiFi...",
-        Rect(spin_x, spin_y + 230, spin_sz, 40));
-    status_label->font(Font(18, Font::Weight::normal));
+    // Figma: "Connecting to Wifi" Gothic A1 Regular 12 at (171,160) sized 100×15
+    // → 22pt at (317,296) sized 185×28 scaled. Use a wider rect so EGT can centre.
+    auto status_label = make_shared<Label>("Connecting to Wifi",
+        Rect(spin_x, logo_y + logo_h + 12, spin_sz, 32));
+    status_label->font(Font(22, Font::Weight::normal));
     status_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status_label);
 
@@ -136,7 +137,9 @@ shared_ptr<Widget> create_wifi_init_screen(
     });
     anim_timer->start();
 
-    const bool mock_mode = (std::getenv("EGT_MOCK_WIFI") != nullptr);
+    const char* mock_env = std::getenv("EGT_MOCK_WIFI");
+    const bool mock_mode    = (mock_env != nullptr);
+    const bool hold_on_init = (mock_env != nullptr && std::string(mock_env) == "init");
 
     // ── Async WiFi scanning (runs in background thread) ─────────────────────
     auto start_scan = [=]() {
@@ -238,7 +241,7 @@ shared_ptr<Widget> create_wifi_init_screen(
                 }
             }
 
-            // Phase 2: NM up — check connectivity
+            // Phase 2: NM up - check connectivity
             if (*nm_ready) {
                 if (!r->ssid.empty()) {
                     printf("[WIFI_INIT] connected to '%s'\n", r->ssid.c_str());
@@ -290,7 +293,12 @@ shared_ptr<Widget> create_wifi_init_screen(
             check_running->store(false);
         }).detach();
     });
-    main_timer->start();
+    if (hold_on_init) {
+        printf("[WIFI_INIT] EGT_MOCK_WIFI=init -> holding on this screen for screenshots\n");
+        fflush(stdout);
+    } else {
+        main_timer->start();
+    }
 
     return container;
 }

@@ -256,13 +256,54 @@ public:
 };
 
 // ── Card helper — gray rounded background, ~Figma "Rectangle 68/96/97" ─────
+// Section card with a subtle vertical gradient (Figma uses rgb(246,246,246)
+// at the top fading to rgb(254,254,254) at the bottom).
+class SectionGradient : public Widget {
+public:
+    SectionGradient(const Rect& r, float radius) : Widget(r), m_radius(radius)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& p, const Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+        const float r = m_radius;
+        const Color top{246, 246, 246};
+        const Color bot{254, 254, 254};
+        Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
+        const auto PI = static_cast<float>(M_PI);
+        p.draw(PointF(x + r, y));
+        p.line(PointF(x + w - r, y));
+        p.draw(Arc(PointF(x + w - r, y + r),     r, -PI / 2, 0.0f));
+        p.line(PointF(x + w, y + h - r));
+        p.draw(Arc(PointF(x + w - r, y + h - r), r, 0.0f,    PI / 2));
+        p.line(PointF(x + r, y + h));
+        p.draw(Arc(PointF(x + r, y + h - r),     r, PI / 2,  PI));
+        p.line(PointF(x, y + r));
+        p.draw(Arc(PointF(x + r, y + r),         r, PI,      3 * PI / 2));
+        p.set(grad);
+        p.fill();
+    }
+private:
+    float m_radius;
+};
+
 shared_ptr<Frame> make_section_card(int x, int y, int w, int h)
 {
+    // Wrap a transparent Frame that holds the gradient backdrop. Returning
+    // a Frame keeps the existing API (callers add children to it).
     auto card = make_shared<Frame>(Rect(x, y, w, h));
-    card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, dt::kGrayBg);
+    card->fill_flags({});  // transparent - the gradient does the painting
     card->border(0);
-    card->border_radius(dt::RADIUS_LG);
+    card->add(make_shared<SectionGradient>(Rect(0, 0, w, h),
+                                           static_cast<float>(dt::RADIUS_LG)));
     return card;
 }
 
@@ -432,13 +473,15 @@ shared_ptr<Widget> create_settings_screen(
     content->border(0);
 
     // Common section X (matches Figma left margin ≈ 81 px)
-    const int section_x = 80;
+    // F1:1: Figma frame-local x=44 figma px * dt::SCALE = 81 device px.
+    const int section_x = 81;
 
     // ── 1) Screen Brightness ────────────────────────────────────────────────
-    // Title "Screen Brightness" — Figma (81, 31) 228×33  Gothic A1 Bold 14pt
+    // Title "Screen Brightness" — Figma (81, 31) 228x33  Gothic A1 Bold 14pt
+    // -> device 26 pt.
     auto bright_title = make_shared<Label>("Screen Brightness",
         Rect(section_x, 31, 300, 33));
-    bright_title->font(Font(15, Font::Weight::bold));
+    bright_title->font(Font("Gothic A1", 26, Font::Weight::bold));
     bright_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     bright_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
     content->add(bright_title);
@@ -451,12 +494,23 @@ shared_ptr<Widget> create_settings_screen(
     auto brt_card = make_section_card(brt_card_x, brt_card_y, brt_card_w, brt_card_h);
     content->add(brt_card);
 
-    // Sun icons — same geometry, different ink: pale-thin on the "low" side
-    // and dark-bold on the "high" side to read as a brightness ramp.
-    auto sun_left  = make_shared<SunIcon>(Rect( 53, 28, 28, 28), /*light=*/true);
-    auto sun_right = make_shared<SunIcon>(Rect(535, 28, 28, 28), /*light=*/false);
-    brt_card->add(sun_left);
-    brt_card->add(sun_right);
+    // Sun icons - PNG exports from Figma (left = thin "low brightness",
+    // right = bold "high brightness"). Replaces the custom SunIcon widget
+    // so the artwork is pixel-equivalent to the design.
+    auto load_sun = [&](const std::string& png, int x, int y) {
+        try {
+            auto img = Image(("file:" + png).c_str());
+            auto icon = make_shared<ImageLabel>(img);
+            icon->autoresize(false);
+            icon->border(0); icon->padding(0); icon->margin(0);
+            icon->fill_flags({});
+            icon->image_align(AlignFlag::center);
+            icon->box(Rect(x, y, 28, 28));
+            brt_card->add(icon);
+        } catch (...) { /* fall back to no icon */ }
+    };
+    load_sun("assets/figma/images/settings-sun-left.png",   53, 28);
+    load_sun("assets/figma/images/settings-sun-right.png", 535, 28);
 
     // Brightness bar — Figma slider track at card-relative (105, 32) 409×20.
     // The bar widget reserves room for a 28 px handle, so the bar height is
@@ -470,7 +524,7 @@ shared_ptr<Widget> create_settings_screen(
     // Title — Figma (81, 163) 246×33
     auto inet_title = make_shared<Label>("Internet Connection",
         Rect(section_x, 163, 320, 33));
-    inet_title->font(Font(15, Font::Weight::bold));
+    inet_title->font(Font("Gothic A1", 26, Font::Weight::bold));
     inet_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     inet_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
     content->add(inet_title);
@@ -497,23 +551,35 @@ shared_ptr<Widget> create_settings_screen(
         circle_bg->border_radius(circle_d / 2);
         card->add(circle_bg);
 
-        // Glyph sized per Figma, centred inside the gray circle.
-        // Wi-Fi:  45×33 (Figma "Group 127") → offset (13, 18) inside the circle.
-        // Eth:    47×46 (Figma "Group 269") → offset (13, 9) inside the circle.
-        if (is_wifi) {
-            auto g = make_shared<WifiGlyph>(
-                Rect(circle_x + 13, circle_y + 18, 45, 33));
-            card->add(g);
-        } else {
-            auto g = make_shared<EthernetGlyph>(
-                Rect(circle_x + 13, circle_y + 9, 47, 46));
-            card->add(g);
-        }
+        // Glyph from Figma PNG (settings-wifi.png / settings-ethernet.png).
+        // Custom Painter-drawn glyphs rendered as "briefcase-ish" shapes that
+        // did not match the Figma art; the PNG exports are pixel-equivalent.
+        const std::string icon_path = is_wifi
+            ? "assets/figma/images/settings-wifi.png"
+            : "assets/figma/images/settings-ethernet.png";
+        try {
+            auto img = Image(("file:" + icon_path).c_str());
+            auto icon = make_shared<ImageLabel>(img);
+            icon->autoresize(false);
+            icon->border(0); icon->padding(0); icon->margin(0);
+            icon->fill_flags({});
+            icon->image_align(AlignFlag::center);
+            // Natural device size (PNG_px * SCALE / 2):
+            //   Wi-Fi: 56x42 PNG -> 52x39 device
+            //   Eth:   53x50 PNG -> 49x46 device
+            const int icon_w = is_wifi ? 52 : 49;
+            const int icon_h = is_wifi ? 39 : 46;
+            const int icon_dy = is_wifi ? 16 : 13;
+            icon->box(Rect(circle_x + (circle_d - icon_w) / 2,
+                           circle_y + icon_dy, icon_w, icon_h));
+            card->add(icon);
+        } catch (...) { /* fall back to no glyph */ }
 
-        // Text — Figma "Wi-Fi" at card-relative (143, 44); "Ethernet" at (144, 44)
+        // Text - Figma "Wi-Fi" at card-relative (143, 44); fontSize 12 Bold
+        // -> device 22 pt.
         auto lbl = make_shared<Label>(title_text,
             Rect(143, 0, chip_w - 143 - 16, chip_h));
-        lbl->font(Font(15, Font::Weight::bold));
+        lbl->font(Font("Gothic A1", 22, Font::Weight::bold));
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
         card->add(lbl);

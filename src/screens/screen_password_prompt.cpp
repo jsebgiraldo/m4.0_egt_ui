@@ -59,31 +59,30 @@ shared_ptr<Widget> create_password_prompt_screen(
     card->add(title);
     y_cursor += 34; // avanzar debajo del título
 
-    // Mensaje opcional
-    if (!message.empty()) {
-        y_cursor += 4; // pequeño gap
-        auto subtitle = make_shared<Label>(message);
-        subtitle->resize(Size(CARD_W - PAD * 2, 22));
-        subtitle->move(Point(PAD, y_cursor));
-        subtitle->font(Font(14));
-        subtitle->color(Palette::ColorId::label_text, dt::kTextPrimary);
-        card->add(subtitle);
-        y_cursor += 22; // avanzar debajo del subtitle
-    }
+    // Subtitle line ("message" param) is intentionally not rendered. Figma
+    // node 144:877 has just the title + input row + Forgot Password +
+    // keyboard, no per-user context line. The parameter is kept in the
+    // signature for compatibility with callers that pass it.
+    (void)message;
 
     y_cursor += 10; // espacio antes del input
     // ---- FIN: Layout dinámico superior ----
 
-    // Layout horizontal: campo de contraseña + botones de acción
-    auto input_row = make_shared<Frame>(Rect(32, y_cursor, CARD_W - 64, 70));
+    // Layout horizontal: campo de contraseña + botones de acción. Input row
+    // spans the full card width so the Cancel + Join PNGs (148x70 / 172x70)
+    // fit at their figma-derived global positions without clipping.
+    auto input_row = make_shared<Frame>(Rect(0, y_cursor, CARD_W, 70));
     input_row->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
     card->add(input_row);
 
-    // Password field — Figma: gray fill, r=2, inner shadow
-    auto pwd = make_shared<TextBox>("Password...");
-    pwd->resize(Size(CARD_W - 280, 44));
-    pwd->move(Point(0, 13));
-    pwd->font(Font(16));
+    // Password field - Figma: gray fill, r=2, inner shadow.
+    // Dimensions sampled from the Figma render at scale=2: the rectangle is
+    // 227 figma px wide x 30.5 figma px tall -> 420 x 56 device px. Centred
+    // vertically in the 70 px input_row (y = (70-56)/2 = 7).
+    auto pwd = make_shared<TextBox>("Password..");
+    pwd->resize(Size(420, 56));
+    pwd->move(Point(10, 7));
+    pwd->font(Font("Gothic A1", 22, Font::Weight::normal));
     pwd->color(Palette::ColorId::text, Color(150, 150, 150));
     pwd->color(Palette::ColorId::bg, INPUT_BG);
     pwd->color(Palette::ColorId::border, Color(200, 200, 200));
@@ -137,51 +136,86 @@ shared_ptr<Widget> create_password_prompt_screen(
         return false;
     });
 
-    // Cancel button — Figma: white fill, r=4, shadow, gray text
-    auto btn_cancel = make_shared<Button>(cancel_label.empty() ? "Cancel" : cancel_label);
-    btn_cancel->resize(Size(85, 44));
-    btn_cancel->move(Point(CARD_W - 240, 13));
-    btn_cancel->font(Font(14, Font::Weight::bold));
-    btn_cancel->color(Palette::ColorId::button_bg, CANCEL_BG);
-    btn_cancel->color(Palette::ColorId::button_text, CANCEL_FG);
-    btn_cancel->color(Palette::ColorId::border, Color(220, 220, 220));
-    btn_cancel->border(1);
-    btn_cancel->border_radius(4);
-    btn_cancel->on_click([=](Event&){ if (on_cancel) on_cancel(); });
+    // Cancel + Join buttons rendered as PNGs from Figma so we get the exact
+    // shadow + gradient look without re-painting in code. Figma button
+    // bboxes (device): Cancel (459,85,141,54), Join (611,85,165,54).
+    // PNG natural device sizes: Cancel 148x70, Join 172x70 (PNG_px * 0.926).
+    // Inside input_row (origin at global (42, y_cursor)), the wraps land at:
+    //   Cancel:  x = 459-42-(148-141)/2 = 413, y = 85-y_cursor-(70-54)/2
+    //   Join:    x = 611-42-(172-165)/2 = 565
+    // We use y=4 inside input_row so the buttons sit visually centred on
+    // the password field (input_row is 70 px tall; the field is 44 at y=13).
+    auto make_img_btn = [](const std::string& png_path, const Rect& r,
+                           function<void()> on_click) {
+        auto wrap = make_shared<Frame>(r);
+        wrap->fill_flags({});
+        try {
+            auto probe = Image(("file:" + png_path).c_str());
+            const float hs = static_cast<float>(r.width())  / probe.width();
+            const float vs = static_cast<float>(r.height()) / probe.height();
+            auto img = Image(("file:" + png_path).c_str(), hs, vs);
+            auto lbl = make_shared<ImageLabel>(img);
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, r.width(), r.height()));
+            wrap->add(lbl);
+        } catch (const std::exception& e) {
+            printf("[PWD] image %s missing: %s\n", png_path.c_str(), e.what());
+            fflush(stdout);
+        }
+        wrap->on_event([on_click](Event& e) {
+            if (e.id() == EventId::pointer_click && on_click) on_click();
+        });
+        return wrap;
+    };
+
+    // Cancel at global x=459 - card x=10 -> input_row x=449
+    // Join   at global x=611 - card x=10 -> input_row x=601
+    auto btn_cancel = make_img_btn(
+        "assets/figma/images/pwd-btn-cancel.png",
+        Rect(449, 0, 148, 70),
+        [=]() { if (on_cancel) on_cancel(); });
     input_row->add(btn_cancel);
 
-    // Join button — Figma: cyan→blue gradient, r=4, shadow, white text
-    auto btn_join = make_shared<Button>(join_label.empty() ? "Join" : join_label);
-    btn_join->resize(Size(85, 44));
-    btn_join->move(Point(CARD_W - 145, 13));
-    btn_join->font(Font(14, Font::Weight::bold));
-    btn_join->color(Palette::ColorId::button_bg, JOIN_BG);
-    btn_join->color(Palette::ColorId::button_text, dt::kWhite);
-    btn_join->color(Palette::ColorId::border, JOIN_BG);
-    btn_join->border(0);
-    btn_join->border_radius(4);
-    btn_join->on_click([=](Event&){ if (on_join) on_join(pwd->text()); });
+    auto btn_join = make_img_btn(
+        "assets/figma/images/pwd-btn-join.png",
+        Rect(601, 0, 172, 70),
+        [=]() { if (on_join) on_join(pwd->text()); });
     input_row->add(btn_join);
 
-    // Recalcular y base del teclado según nueva altura ocupada
-    int keyboard_top = y_cursor + 70 + 10;
+    // ── Forgot Password link (Figma 154:919) ───────────────────────────────
+    // Centered below the input row. fontSize 12 Bold -> device 22 Bold.
+    auto forgot = make_shared<Label>("Forgot Password",
+        Rect(0, y_cursor + 75, CARD_W, 30), AlignFlag::center);
+    forgot->font(Font("Gothic A1", 22, Font::Weight::bold));
+    forgot->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    card->add(forgot);
 
-    auto keyboard_frame = make_shared<Frame>(Rect(24, keyboard_top, CARD_W - 48, CARD_H - keyboard_top - 10));
+    // Recalcular y base del teclado: input row (70) + Forgot Password (30) + gap
+    int keyboard_top = y_cursor + 70 + 30 + 10;
+
+    auto keyboard_frame = make_shared<Frame>(Rect(4, keyboard_top, CARD_W - 8, CARD_H - keyboard_top - 10));
     keyboard_frame->color(Palette::ColorId::bg, dt::kWhite);
     card->add(keyboard_frame);
 
     auto shift_on = make_shared<bool>(false);
-    int tw = CARD_W - 48;  // total keyboard width (tighter horizontal padding)
+    int tw = CARD_W - 8;  // total keyboard width (near-edge so 64 px keys fit)
 
     // iOS-style key geometry — stretch keys (Return, shift, ?123, space) are
     // visibly wider than letters. Row 1 is the alignment reference for rows
     // 2 and 4; row 3 ends up a touch wider than row 1 because its 11 slots
     // include 2 stretched shifts (same asymmetry iOS has). sy is computed so
     // the 4-row block sits vertically centred — no dead space at the bottom.
-    const int kw = 56, kh = 54, gx = 6, gy = 9;
+    // Key dimensions sampled from the Figma render: each key is roughly
+    // 35 figma px square -> 64 device px. The keyboard frame uses CARD_W-8
+    // so row 1 (11*64 + 60 = 764) fits inside tw = 772 with 4 px of slack
+    // on each side.
+    const int kw = 64, kh = 64, gx = 6, gy = 9;
     const int rw       = 11 * kw + 10 * gx;       // row 1 outer extent
     const int sx1      = (tw - rw) / 2;           // row 1 left margin
-    const int return_w = kw + 26;                 // row 2 wide key
+    const int return_w = kw + 50;                 // row 2 wide key (fits "Return" at 26 pt)
     const int shift_w  = kw + 18;                 // row 3 wide keys
     const int nkw      = kw + 22;                 // ?123 / ABC wide keys (row 4)
     const int space_w  = rw - 2 * nkw - 2 * gx;   // space fills row 4 to row 1 edges
@@ -223,7 +257,9 @@ shared_ptr<Widget> create_password_prompt_screen(
                   int x, int y, int w, int h,
                   function<void()> action, bool special = false) {
         auto b = make_shared<Button>(label, Rect(x, y, w, h));
-        b->font(Font(14, Font::Weight::normal));
+        b->autoresize(false);  // bigger font would otherwise grow the button
+        // Figma keyboard letters are fontSize 14 Medium -> device 26 pt.
+        b->font(Font("Gothic A1", 26, Font::Weight::normal));
         b->color(Palette::ColorId::button_bg, special ? KEY_SPECIAL : KEY_BG);
         b->color(Palette::ColorId::button_text, KEY_TEXT);
         b->color(Palette::ColorId::border, Color(210, 210, 210));
@@ -298,11 +334,11 @@ shared_ptr<Widget> create_password_prompt_screen(
 
         // Row 4: ?123 [space] ?123 — outer edges aligned with row 1
         int y4 = y3 + kh + gy;
-        mk(kb_alpha, "?123", sx4, y4, nkw, kh, switch_num, true);
+        mk(kb_alpha, ".?123", sx4, y4, nkw, kh, switch_num, true);
         mk(kb_alpha, "",
            sx4 + nkw + gx, y4, space_w, kh,
            [type_ch]() { type_ch(' '); });
-        mk(kb_alpha, "?123",
+        mk(kb_alpha, ".?123",
            sx4 + nkw + gx + space_w + gx, y4, nkw, kh, switch_num, true);
     }
 

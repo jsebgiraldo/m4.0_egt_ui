@@ -127,11 +127,12 @@ void run_app(int argc, char** argv)
     // ── LOGIN (card grid) ────────────────────────────────────────────
     // Default technician list
     std::vector<TechnicianProfile> technicians = {
-        {"Alice", "1234"},
-        {"Bob",   "5678"},
-        {"Carol", "0000"},
-        {"Dave",  "1111"},
-        {"Eve",   "2222"},
+        {"Angelina Jolie",     "1234"},
+        {"Denzel Washington",  "5678"},
+        {"Leonardo DiCaprio",  "0000"},
+        {"Meryl Streep",       "1111"},
+        {"Scarlett Johansson", "2222"},
+        {"Vanessa Hudgens",    "3333"},
     };
 
     show_login = [&](bool demo) {
@@ -294,7 +295,7 @@ void run_app(int argc, char** argv)
     };
 
     // ── Boot: start with WiFi Init (or a specific screen for diagnostics) ─
-    // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable}
+    // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable|demo-info|password}
     // lets the simulator skip the normal boot flow when iterating on a single
     // screen.
     const char* start = std::getenv("EGT_START_SCREEN");
@@ -304,6 +305,25 @@ void run_app(int argc, char** argv)
     else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable([&]() { show_home(); });
     else if (start && std::string(start) == "login")             show_login(false);
     else if (start && std::string(start) == "setup")             show_setup();
+    else if (start && std::string(start) == "demo-info")         show_demo_info(true);
+    else if (start && std::string(start) == "password") {
+        screens.show(create_password_prompt_screen(
+            "Enter Password", "User: Leonardo DiCaprio",
+            "Join", "Back",
+            [&](const std::string&) { show_home(); },
+            [&]() { show_login(false); }));
+    }
+    else if (start && std::string(start) == "wifi-connecting") {
+        screens.show(create_wifi_connecting_screen(
+            "TestNetwork", "password",
+            [&]() { show_wifi_connected(); },
+            // unavailable now takes an on_exit (subtree was rethreaded so Back
+            // never skips Login). Diagnostic launches just send it to Home.
+            [&]() { show_wifi_unavailable([&]() { show_home(); }); }));
+    }
+    else if (start && std::string(start) == "wifi-override-info") show_wifi_override_info([&]() { show_home(); });
+    else if (start && std::string(start) == "patient-info")       show_patient_info(false);
+    else if (start && std::string(start) == "patient-info-demo")  show_patient_info(true);
     else                                                         show_wifi_init();
 
     win.show();

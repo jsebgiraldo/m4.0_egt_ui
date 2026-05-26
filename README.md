@@ -4,6 +4,17 @@ Embedded UI for the Suntek M4 treatment device, built with [Ensemble Graphics To
 
 **Target:** SAMA5D27-WLSOM1-EK-SD (ARM Cortex-A5, 800×480 display)
 
+## Design source
+
+UI designs live in Figma. **The working file is a personal-workspace duplicate** of the original Suntek file. The duplicate exists so REST API rate limits do not block iteration (the Suntek workspace is on Figma Starter, which caps API calls at ~6 per file per month). Node IDs are preserved across the duplicate, so any node ID that worked against the original still works here.
+
+- **Figma file (working duplicate):** [M4.0 latest revision (copia)](https://www.figma.com/design/OYaZtgoJHMtHpIO4vFYJ6V/M4.0-latest-revision--copia-)
+- **File key:** `OYaZtgoJHMtHpIO4vFYJ6V`
+- **Original Suntek file (reference only):** `PBh3UuMmYwdFzalAyPTMBw` (Jason-M4.0-v5)
+- **Canvas size:** 432×261 pt, scaled ×1.852 to the 800×480 target panel (`dt::SCALE` in `src/ui/design_tokens.h`)
+
+Older Figma files (e.g. v3 `fgxw4dmXVGV6Wvd7pAJ7Fb`) and the mapping in `context/FIGMA_DESIGN_MAP.md` are stale - node IDs have moved. Always pull from the working duplicate above.
+
 ## Project Structure
 
 ```
@@ -56,7 +67,7 @@ Build and run the app:
 ./scripts/run-simulator.sh --build
 ```
 
-That configures `build-x86/`, builds, and opens an 800×480 X11 window with `EGT_MOCK_WIFI=1` (dynamic mock APs). Subsequent runs without `--build` just relaunch. See [docs/SIMULATOR.md](docs/SIMULATOR.md) for the full walkthrough — flags, WSL2 setup, troubleshooting, and what to look for in each screen.
+That configures `build-x86/`, builds, and opens an 800×480 X11 window with `EGT_MOCK_WIFI=1` (dynamic mock APs). Subsequent runs without `--build` just relaunch. See [docs/04-ide-setup/simulator.md](docs/04-ide-setup/simulator.md) for the full walkthrough - flags, WSL2 setup, troubleshooting, and what to look for in each screen.
 
 Manual equivalent:
 ```bash
@@ -109,5 +120,6 @@ HOME → Settings (WiFi)
 
 ## Documentation
 
-- **[docs/SIMULATOR.md](docs/SIMULATOR.md)** — set up & run the x86 simulator (WSL/Linux), flags, troubleshooting, per-screen walkthrough.
-- **[docs/useful-commands.md](docs/useful-commands.md)** — common Docker / cross-compile / deploy commands.
+- **[docs/04-ide-setup/simulator.md](docs/04-ide-setup/simulator.md)** - set up & run the x86 simulator (WSL/Linux), flags, troubleshooting, per-screen walkthrough.
+- **[docs/07-deployment/useful-commands.md](docs/07-deployment/useful-commands.md)** - common Docker / cross-compile / deploy commands.
+- **[docs/README.md](docs/README.md)** - documentation hub with topic-organized folders.

@@ -15,14 +15,42 @@ std::shared_ptr<egt::Frame> create_header_bar(
     const std::string& title,
     bool demo_mode = false);
 
+// ── Shadowed card ───────────────────────────────────────────────────────────
+/// White rounded-rectangle card with a soft drop shadow on every side.
+/// Matches Figma's DROP_SHADOW(offset 0,0, radius 10, rgba(0,0,0,0.10)).
+///
+/// EGT clips Painter drawing to the widget's box(), so the widget needs room
+/// outside the visible card for the shadow to render. The constructor takes
+/// the visible CARD rect and grows the widget by SHADOW_PAD on every side
+/// internally. Parent Frames must also be enlarged by SHADOW_PAD if they
+/// contain a ShadowedCard, and child widget positions get +SHADOW_PAD biased.
+class ShadowedCard : public egt::Widget {
+public:
+    static constexpr int SHADOW_PAD = 12;
+
+    ShadowedCard(const egt::Rect& card_rect,
+                 float corner_radius,
+                 std::function<void()> on_click);
+
+    /// Visible card rect (the white area). Use this for placing children.
+    egt::Rect card_rect() const { return m_card_rect; }
+
+    void draw(egt::Painter& painter, const egt::Rect& clip) override;
+
+private:
+    float m_radius;
+    egt::Rect m_card_rect;
+    std::function<void()> m_on_click;
+};
+
 // ── Buttons ─────────────────────────────────────────────────────────────────
-/// Outlined button (white bg, gray text) — like Figma "bt new".
+/// Outlined button (white bg, gray text) - like Figma "bt new".
 std::shared_ptr<egt::Button> create_outlined_button(
     const std::string& text,
     const egt::Rect& rect,
     std::function<void()> on_click);
 
-/// Filled button (cyan bg, white text) — like Figma "bt new over".
+/// Filled button (cyan bg, white text) - like Figma "bt new over".
 std::shared_ptr<egt::Button> create_filled_button(
     const std::string& text,
     const egt::Rect& rect,
@@ -76,7 +104,7 @@ CumulativeTimeFooter create_cumulative_time_footer(
 ///                        used during treatment so Exit reads as a
 ///                        prominent affordance.
 ///   - Compact:           clean stacked text + small button, no card
-///                        chrome — used on patient-info where the badge
+///                        chrome - used on patient-info where the badge
 ///                        should sit quietly in the corner.
 enum class DemoBadgeStyle { Card, Compact };
 
@@ -106,13 +134,13 @@ std::shared_ptr<egt::Widget> create_logo(int x, int y, int w, int h);
 // ── Back button (chevron-in-circle + "Back" label) ─────────────────────────
 /// Adds a Back affordance at the standard bottom-left position used across
 /// screens (Figma 2073:1996). The position is hard-coded so every screen
-/// renders the button at the same coordinates — no per-screen drift.
+/// renders the button at the same coordinates - no per-screen drift.
 ///
 /// Layout: 46-px gray circle at (27, 414) + chevron glyph centred inside +
 /// "Back" label to the right + a transparent hit-zone covering both. Tapping
 /// either the circle or the label invokes on_click.
 ///
-/// Returns the wrapper Frame holding all back widgets — call `->visible(false)`
+/// Returns the wrapper Frame holding all back widgets - call `->visible(false)`
 /// on it to hide the whole thing (and disable the hit zone) when an overlay
 /// or modal is showing.
 std::shared_ptr<egt::Frame> add_back_button(

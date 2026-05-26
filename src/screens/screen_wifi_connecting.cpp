@@ -26,7 +26,9 @@ public:
     {
         auto b = content_area();
         auto dim = static_cast<float>(min(b.width(), b.height()));
-        constexpr float linew = 10.0f;
+        // Sampled from the Figma render: ring stroke is 20 image px =
+        // ~19 device px wide. Was 10 (half the right thickness).
+        constexpr float linew = 20.0f;
         float radius = dim / 2.0f - linew / 2.0f;
         auto center = b.center();
         constexpr float twopi = 2.0f * static_cast<float>(M_PI);
@@ -68,31 +70,34 @@ shared_ptr<Widget> create_wifi_connecting_screen(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
 
-    // Spinner — centred, slightly above middle.
-    const int spin_sz = 200;
-    const int spin_x = (dt::SCREEN_W - spin_sz) / 2;
-    const int spin_y = 110;
+    // Figma node 2065:1005 ("S1" inside Frame 18) - same composition as
+    // WIFI_INIT (node 2065:980): big spinner ring centred, Lice Clinics
+    // logo in the middle of the ring, "Connecting to Wifi" text below.
+    // Spinner: figma 214x214 at (114, 20) -> device 396x396 at (211, 37).
+    const int spin_sz = 396;
+    const int spin_x = 211;
+    const int spin_y = 37;
     auto spinner = make_shared<ConnectSpinner>(Rect(spin_x, spin_y, spin_sz, spin_sz));
     container->add(spinner);
 
-    // "Connecting to <SSID>" — under the spinner.
-    auto title = make_shared<Label>("Connecting to",
-        Rect(0, spin_y + spin_sz + 10, dt::SCREEN_W, 32));
-    title->font(Font(dt::FONT_SUBTITLE, Font::Weight::normal));
-    title->color(Palette::ColorId::label_text, dt::kTextPrimary);
-    title->text_align(AlignFlag::center);
-    container->add(title);
+    // Logo inside the ring: figma 135x84 at (155, 69) -> 250x156 at (287, 128).
+    auto logo = ui::create_logo(287, 128, 250, 156);
+    container->add(logo);
 
-    auto ssid_lbl = make_shared<Label>(ssid,
-        Rect(0, spin_y + spin_sz + 44, dt::SCREEN_W, 40));
-    ssid_lbl->font(Font(dt::FONT_TITLE, Font::Weight::bold));
-    ssid_lbl->color(Palette::ColorId::label_text, dt::kGreen);
-    ssid_lbl->text_align(AlignFlag::center);
-    container->add(ssid_lbl);
+    // "Connecting to Wifi" label sits under the logo, inside the spinner ring.
+    // The SSID is intentionally not shown - Figma uses generic "Connecting to
+    // Wifi" copy here.
+    (void)ssid;  // referenced by the worker thread below but not by the UI
+    auto status_label = make_shared<Label>("Connecting to Wifi",
+        Rect(spin_x, 128 + 156 + 12, spin_sz, 32));
+    status_label->font(Font(22, Font::Weight::normal));
+    status_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    status_label->text_align(AlignFlag::center);
+    container->add(status_label);
 
-    // Status line — updated on failure so the user knows what to do next.
+    // Status line - updated on failure so the user knows what to do next.
     auto status = make_shared<Label>("",
-        Rect(0, spin_y + spin_sz + 92, dt::SCREEN_W, 30));
+        Rect(0, spin_y + spin_sz + 8, dt::SCREEN_W, 30));
     status->font(Font(dt::FONT_BODY, Font::Weight::normal));
     status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     status->text_align(AlignFlag::center);

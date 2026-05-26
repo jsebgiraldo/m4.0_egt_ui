@@ -71,6 +71,9 @@ screenshots/
 screenshot_egt.png
 *.png
 
+# But: Figma-exported icons under assets/figma/images/ ARE tracked.
+!assets/figma/images/*.png
+
 # Figma parsing scripts (local dev tools, reference local paths)
 dump_demo.py
 dump_flow.py
@@ -82,3 +85,14 @@ src/screens/_legacy/
 
 # VSCode MCP config (contains API tokens)
 .vscode/mcp.json
+
+# Local API tokens (Jira, Figma, etc.)
+api_key.json
+*.api_key.json
+figma_token.json
+*_token.json
+
+# Claude Code local state and personal notes
+.claude/
+CLAUDE.md
+.playwright-mcp/

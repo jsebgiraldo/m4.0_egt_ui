@@ -1,9 +1,30 @@
 #pragma once
-/// Design tokens extracted from Figma "Jason M4.0" design file.
-/// Figma canvas: 432×261  →  Target display: 800×480  (scale ≈ 1.852)
+/// Design tokens extracted from Figma "Jason M4.0 v5" design file.
+///
+/// Figma canvas: 432 x 261.47 pt   (aspect 1.6522)
+/// Device panel: 800 x 480 px      (aspect 1.6667)
+///
+/// The two surfaces have slightly different aspect ratios, so a single
+/// uniform scale cannot map them 1:1. Per-axis scales:
+///
+///   SCALE_X = 800 / 432    = 1.8519
+///   SCALE_Y = 480 / 261.47 = 1.8358
+///
+/// Convention used throughout this codebase: `SCALE = SCALE_X = 1.852`,
+/// applied uniformly to both axes. This keeps X exact and accepts a
+/// ~1 % vertical drift -- the bottom row of the Figma canvas (y ~ 261)
+/// maps to device y ~ 484, which is 4 px below the visible area and
+/// effectively clipped. Design elements never reach y > 258 in Figma
+/// today, so the clip is harmless in practice.
+///
+/// When a future layout needs exact Y mapping (something that genuinely
+/// has to sit at the bottom edge), pass `dt::SCALE_Y` to the y math:
+///
+///     int x_px = static_cast<int>(figma_x * dt::SCALE);
+///     int y_px = static_cast<int>(figma_y * dt::SCALE_Y);
 ///
 /// Colors are sourced from the master palette (palette.h).
-/// Do NOT define raw Color values here — add them to palette.h instead.
+/// Do NOT define raw Color values here -- add them to palette.h instead.
 
 #include <egt/ui>
 #include "palette.h"
@@ -14,13 +35,21 @@ namespace dt {
 inline constexpr int SCREEN_W = 800;
 inline constexpr int SCREEN_H = 480;
 
-// ── Scale helper (Figma 432×261 → 800×480) ─────────────────────────────────
-inline constexpr double SCALE = 800.0 / 432.0;  // ≈ 1.852
+// ── Scale helpers ──────────────────────────────────────────────────────────
+// Figma canvas 432 x 261.47 -> Device 800 x 480. Per-axis scales differ by
+// ~1 %; SCALE (=SCALE_X) is the canonical project-wide value.
+inline constexpr double SCALE_X = 800.0 / 432.0;     // 1.8519
+inline constexpr double SCALE_Y = 480.0 / 261.47;    // 1.8358
+inline constexpr double SCALE   = SCALE_X;           // canonical uniform scale
 
 // ── Color aliases (sourced from palette.h) ──────────────────────────────────
 inline const egt::Color& kBgWhite       = palette::kWhite;
 inline const egt::Color& kTextPrimary   = palette::kGray700;
 inline const egt::Color& kAccentCyan    = palette::kCyan;
+inline const egt::Color& kStartTop      = palette::kStartTop;
+inline const egt::Color& kStartBottom   = palette::kStartBottom;
+inline const egt::Color& kStartTopPress = palette::kStartTopPress;
+inline const egt::Color& kStartBotPress = palette::kStartBotPress;
 inline const egt::Color& kGreen         = palette::kGreen;
 inline const egt::Color& kGreenLight    = palette::kGreenLight;
 inline const egt::Color& kGrayLight     = palette::kGray200;

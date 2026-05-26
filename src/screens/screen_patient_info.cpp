@@ -238,6 +238,19 @@ static shared_ptr<Frame> make_patient_step(
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
 
+    // Small profile icon to the right of the title (Figma node 115:961,
+    // 15x15 figma px at frame-local (323, 14) -> device (598, 26, 28x28).
+    try {
+        auto img = Image("file:assets/figma/images/patient-title-profile.png");
+        auto profile = make_shared<ImageLabel>(img);
+        profile->autoresize(false);
+        profile->border(0); profile->padding(0); profile->margin(0);
+        profile->fill_flags({});
+        profile->image_align(AlignFlag::center);
+        profile->box(Rect(598, 26, 28, 28));
+        container->add(profile);
+    } catch (...) { /* fall back to no icon */ }
+
     // Tab labels (progressively shown: step 0 → Gender only, step 1 → +Age, step 2 → +ZIP)
     const char* tab_names[] = {"Gender", "Age", "ZIP Code"};
     const int tab_x[] = {222, 404, 531};
@@ -349,15 +362,25 @@ static shared_ptr<Widget> create_gender_step(
         card->border_radius(dt::RADIUS_XS);
         container->add(card);
 
-        const char* svg_data = female_card ? kFemaleSvg : kMaleSvg;
-        const char* svg_id   = female_card ? "female-pi" : "male-pi";
-        auto ico = load_svg_icon(svg_id, svg_data, icon_sz);
-        if (!ico.empty()) {
+        // Icon from Figma PNG (Group 252 / Group 253). The custom SVG
+        // silhouettes did not match the design - swapped for the actual
+        // figma exports so the Male / Female glyphs read identically to
+        // the figma render.
+        const std::string icon_path = female_card
+            ? "assets/figma/images/patient-female-icon.png"
+            : "assets/figma/images/patient-male-icon.png";
+        try {
+            auto img = Image(("file:" + icon_path).c_str());
+            auto icon = make_shared<ImageLabel>(img);
+            icon->autoresize(false);
+            icon->border(0); icon->padding(0); icon->margin(0);
+            icon->fill_flags({});
+            icon->image_align(AlignFlag::center);
             const int icon_x = (card_w - icon_sz) / 2;
-            auto img = make_shared<ImageLabel>(ico, "",
-                Rect(icon_x, icon_y, icon_sz, icon_sz));
-            card->add(img);
-        }
+            icon->box(Rect(icon_x, icon_y, icon_sz, icon_sz));
+            card->add(icon);
+        } catch (...) { /* fall back: no icon */ }
+        (void)kMaleSvg; (void)kFemaleSvg;  // SVG constants kept but unused
 
         auto lbl = make_shared<Label>(female_card ? "Female" : "Male",
             Rect(0, icon_y + icon_sz + 8, card_w, 32), AlignFlag::center);

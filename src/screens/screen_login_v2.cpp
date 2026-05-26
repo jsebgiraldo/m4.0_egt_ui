@@ -17,6 +17,68 @@ using namespace std;
 // frames + an invisible vertical Slider on top driving the wheel index.
 // Tapping a slot opens the password prompt for that technician.
 
+namespace {
+
+// Vertical gradient backdrop for the wheel: medium gray at the top edge,
+// near-white in the middle band, medium gray at the bottom. Same trick
+// Figma uses to fake the "cylinder rolling behind a curved window" look.
+class WheelGradient : public egt::Widget {
+public:
+    WheelGradient(const egt::Rect& r, float plateau_top, float plateau_bot,
+                  float radius = 6.0f)
+        : egt::Widget(r), m_radius(radius),
+          m_plateau_top(plateau_top), m_plateau_bot(plateau_bot)
+    {
+        fill_flags({egt::Theme::FillFlag::blend});
+        border(0);
+    }
+
+    void draw(egt::Painter& painter, const egt::Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+
+        // Colours sampled from the Figma export (node 4008:819):
+        //   edge rgb(212,212,212) -> pure white plateau over the centre
+        //   slot -> back to rgb(212,212,212). The plateau is what makes the
+        //   selected name blend with the gradient instead of fighting it.
+        const egt::Color edge {212, 212, 212};
+        const egt::Color white{255, 255, 255};
+        egt::Pattern grad(egt::Pattern::StepArray{
+            {0.0f,            edge},
+            {m_plateau_top,   white},
+            {m_plateau_bot,   white},
+            {1.0f,            edge}
+        }, egt::Point(static_cast<int>(x), static_cast<int>(y)),
+           egt::Point(static_cast<int>(x), static_cast<int>(y + h)));
+
+        // Draw a rounded rectangle path then fill with the gradient.
+        const float r = m_radius;
+        const auto PI = static_cast<float>(M_PI);
+        painter.draw(egt::PointF(x + r, y));
+        painter.line(egt::PointF(x + w - r, y));
+        painter.draw(egt::Arc(egt::PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
+        painter.line(egt::PointF(x + w, y + h - r));
+        painter.draw(egt::Arc(egt::PointF(x + w - r, y + h - r),   r, 0.0f,   PI / 2));
+        painter.line(egt::PointF(x + r, y + h));
+        painter.draw(egt::Arc(egt::PointF(x + r, y + h - r),       r, PI / 2, PI));
+        painter.line(egt::PointF(x, y + r));
+        painter.draw(egt::Arc(egt::PointF(x + r, y + r),           r, PI, 3 * PI / 2));
+        painter.set(grad);
+        painter.fill();
+    }
+
+private:
+    float m_radius;
+    float m_plateau_top;
+    float m_plateau_bot;
+};
+
+} // namespace
+
 shared_ptr<Widget> create_login_screen_v2(
     const vector<TechnicianProfile>& technicians,
     function<void(const string& technician_name)> on_login_success,
@@ -38,39 +100,70 @@ shared_ptr<Widget> create_login_screen_v2(
     container->add(title);
 
     // ── Wheel-list picker ────────────────────────────────────────────────
-    // Layout constants chosen so the box visually matches Figma's 180×166
-    // ratio scaled up to a 800×480 viewport (≈ 380×320 here). Slot_h is
-    // bumped to 52 so the names breathe; the box stretches down to give
-    // Guest room to sit comfortably above Back without crowding.
-    const int slot_h     = 52;
-    const int n_slots    = 5;             // odd → middle slot is "selected"
-    const int chevron_h  = 22;
-    const int padding    = 8;
-    const int box_w      = 380;
+    // Six visible slots with the third slot from the top (centre_idx = 2)
+    // as the selected row, matching Figma node 4008:819.
+    // Dimensions come from sampling the Figma render at scale=2: the picker
+    // is 178 figma px wide -> 329 device px, and 165 figma px tall ->
+    // 306 device px. With slot_h = 44 (each row is 24 figma px), the
+    // chevron + padding band is (306 - 6*44) / 2 = 21 device px per side.
+    const int slot_h     = 44;
+    const int n_slots    = 6;
+    const int chevron_h  = 16;
+    const int padding    = 5;
+    const int box_w      = 329;
     const int box_h      = n_slots * slot_h + 2 * (chevron_h + padding);
     const int box_x      = (dt::SCREEN_W - box_w) / 2;
-    const int box_y      = 66;
-    const int center_idx = n_slots / 2;
+    // box_y from Figma: picker's absolute device y = 82 (picker top frame-
+    // local y=44 -> 82 device); previously was 66 which made the picker sit
+    // too high and pushed the Guest button gap wider than the design.
+    const int box_y      = 82;
+    const int center_idx = 2;             // third slot from top (0-indexed)
     const int slots_top  = chevron_h + padding;
 
+    // Backdrop is a vertical gradient with a pure-white plateau covering the
+    // selected slot - same composition Figma uses. Plateau fractions are
+    // computed from the slot geometry so the gradient peak lands exactly on
+    // the centre row no matter how slot_h / n_slots are tuned.
+    const int sel_top_y = slots_top + center_idx * slot_h;
+    const float plateau_top = static_cast<float>(sel_top_y) / box_h;
+    const float plateau_bot = static_cast<float>(sel_top_y + slot_h) / box_h;
+    auto picker_bg = make_shared<WheelGradient>(
+        Rect(box_x, box_y, box_w, box_h),
+        plateau_top, plateau_bot, 6.0f);
+    container->add(picker_bg);
+
+    // Inner Frame holds the chevrons + slots; transparent so the gradient
+    // shows through. No separate white card on the selected slot - the
+    // gradient plateau already paints it pure white at the right spot.
     auto picker_box = make_shared<Frame>(Rect(box_x, box_y, box_w, box_h));
-    picker_box->fill_flags({Theme::FillFlag::blend});
-    picker_box->color(Palette::ColorId::bg, dt::kGrayBg);
+    picker_box->fill_flags({});
     picker_box->border(0);
-    picker_box->border_radius(6);
     container->add(picker_box);
 
-    auto up_arrow = make_shared<Label>(u8"▲",
-        Rect(0, 4, box_w, chevron_h), AlignFlag::center);
-    up_arrow->font(Font(16));
-    up_arrow->color(Palette::ColorId::label_text, palette::kGray400);
-    picker_box->add(up_arrow);
-
-    auto down_arrow = make_shared<Label>(u8"▼",
-        Rect(0, box_h - chevron_h - 4, box_w, chevron_h), AlignFlag::center);
-    down_arrow->font(Font(16));
-    down_arrow->color(Palette::ColorId::label_text, palette::kGray400);
-    picker_box->add(down_arrow);
+    // Up / down arrows from Figma (Polygon 9 + Polygon 10 = nodes 4008:840
+    // and 4008:841). Wide flat triangles, not the equilateral Unicode glyph.
+    // PNGs are 29x16 (scale=2 of figma 14.5x8), natural device size ~27x15.
+    auto load_arrow = [&](const std::string& png_path, int y) {
+        auto wrap = make_shared<Frame>(Rect(0, y, box_w, 16));
+        wrap->fill_flags({});
+        try {
+            auto img = Image(("file:" + png_path).c_str());
+            auto lbl = make_shared<ImageLabel>(img);
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, box_w, 16));
+            wrap->add(lbl);
+        } catch (const std::exception& e) {
+            printf("[LOGIN] arrow %s missing: %s\n", png_path.c_str(), e.what());
+            fflush(stdout);
+        }
+        return wrap;
+    };
+    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-up.png", 4));
+    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-down.png",
+                               box_h - 16 - 4));
 
     // The selected index is shared between the slider driver, the slot
     // redraw closure, and the slot-click handlers (so a tap can both
@@ -116,15 +209,31 @@ shared_ptr<Widget> create_login_screen_v2(
                 continue;
             }
             const bool is_sel = (k == center_idx);
-            const int  dist   = std::abs(k - center_idx);
             s.label->text(technicians[idx].name);
             s.label->font(Font(
                 is_sel ? 24 : 19,
                 is_sel ? Font::Weight::bold : Font::Weight::normal));
-            const Color c =
-                is_sel        ? dt::kTextPrimary
-              : (dist == 1)   ? palette::kGray500
-                              : palette::kGray400;
+            // Per-slot alpha so the top and bottom items dissolve into the
+            // wheel gradient (matches Figma). Alphas chosen by row index, not
+            // by distance from centre, since the rows are not symmetric
+            // around centre_idx = 2 (we have 2 rows above, 3 below).
+            //   k=0 (top edge):    very faint
+            //   k=1:               half visible
+            //   k=2 (selected):    full alpha, bold
+            //   k=3, k=4:          half visible
+            //   k=5 (bottom edge): very faint
+            int alpha;
+            switch (k) {
+                case 0:  alpha =  60; break;
+                case 1:  alpha = 180; break;
+                case 2:  alpha = 255; break;
+                case 3:  alpha = 200; break;
+                case 4:  alpha = 130; break;
+                default: alpha =  60; break;   // k == 5
+            }
+            const auto base = dt::kTextPrimary;
+            const Color c(base.red(), base.green(), base.blue(),
+                          static_cast<uint8_t>(alpha));
             s.label->color(Palette::ColorId::label_text, c);
         }
         picker_box->damage();
@@ -229,9 +338,12 @@ shared_ptr<Widget> create_login_screen_v2(
     };
 
     // ── Guest button ─────────────────────────────────────────────────────
-    // Centered below the wheel, same width as the picker box.
-    const int guest_y = box_y + box_h + 14;
-    auto guest = make_shared<Frame>(Rect(box_x, guest_y, box_w, 50));
+    // Same width and x-position as the picker box. With box_y = 82 the
+    // picker bottom lands at 388, and Figma places Guest at device y = 398
+    // - a 10 px gap below the picker (not 26; that was the artefact of
+    // the old box_y = 66).
+    const int guest_y = box_y + box_h + 10;
+    auto guest = make_shared<Frame>(Rect(box_x, guest_y, box_w, 44));
     guest->fill_flags({Theme::FillFlag::blend});
     guest->color(Palette::ColorId::bg, dt::kGrayBg);
     guest->border(1);
@@ -240,8 +352,9 @@ shared_ptr<Widget> create_login_screen_v2(
     container->add(guest);
 
     auto guest_lbl = make_shared<Label>("Guest",
-        Rect(0, 0, box_w, 50), AlignFlag::center);
-    guest_lbl->font(Font(18, Font::Weight::bold));
+        Rect(0, 0, box_w, 44), AlignFlag::center);
+    // Figma 4008:833: fontSize 11 Medium (weight 500) -> device 20 pt Normal.
+    guest_lbl->font(Font("Gothic A1", 20, Font::Weight::normal));
     guest_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     guest->add(guest_lbl);
 

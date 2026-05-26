@@ -57,20 +57,22 @@ target_compile_options(egt-app PRIVATE
     ${DBUS_CFLAGS_OTHER}
 )
 
-# AGREGAR: Copiar archivos de assets al directorio de build
+# AGREGAR: Copiar archivos de assets al directorio de build (Figma images).
 file(GLOB ASSETS_FILES
-    "assets/image/*.png"
-    "assets/image/*.jpg"
-    "assets/image/*.jpeg"
+    "assets/figma/images/*.png"
+    "assets/figma/images/*.jpg"
+    "assets/figma/images/*.jpeg"
 )
 
-# Crear directorio de assets en build
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets/image)
+# Crear directorio de assets en build (mismo layout que el repo).
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets/figma/images)
 
 # Copiar assets al directorio de build
 foreach(ASSET_FILE ${ASSETS_FILES})
     get_filename_component(ASSET_NAME ${ASSET_FILE} NAME)
-    configure_file(${ASSET_FILE} ${CMAKE_BINARY_DIR}/assets/image/${ASSET_NAME} COPYONLY)
+    configure_file(${ASSET_FILE}
+                   ${CMAKE_BINARY_DIR}/assets/figma/images/${ASSET_NAME}
+                   COPYONLY)
 endforeach()
 
 # ALTERNATIVA: Usar add_custom_command para copiar automáticamente
