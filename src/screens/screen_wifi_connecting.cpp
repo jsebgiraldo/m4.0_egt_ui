@@ -26,7 +26,9 @@ public:
     {
         auto b = content_area();
         auto dim = static_cast<float>(min(b.width(), b.height()));
-        constexpr float linew = 10.0f;
+        // Sampled from the Figma render: ring stroke is 20 image px =
+        // ~19 device px wide. Was 10 (half the right thickness).
+        constexpr float linew = 20.0f;
         float radius = dim / 2.0f - linew / 2.0f;
         auto center = b.center();
         constexpr float twopi = 2.0f * static_cast<float>(M_PI);

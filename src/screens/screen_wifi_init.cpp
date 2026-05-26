@@ -28,7 +28,9 @@ public:
     {
         auto b = content_area();
         auto dim = static_cast<float>(min(b.width(), b.height()));
-        constexpr float linew = 14.0f;
+        // Sampled from Figma: ring stroke is ~19 device px wide. Bumped from
+        // 14 to 20 to match (same widening applied to WIFI_CONNECTING).
+        constexpr float linew = 20.0f;
         float radius = dim / 2.0f - linew / 2.0f;
         auto center = b.center();
         constexpr float twopi = 2.0f * static_cast<float>(M_PI);
