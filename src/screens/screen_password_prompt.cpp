@@ -196,19 +196,23 @@ shared_ptr<Widget> create_password_prompt_screen(
     // Recalcular y base del teclado: input row (70) + Forgot Password (30) + gap
     int keyboard_top = y_cursor + 70 + 30 + 10;
 
-    auto keyboard_frame = make_shared<Frame>(Rect(24, keyboard_top, CARD_W - 48, CARD_H - keyboard_top - 10));
+    auto keyboard_frame = make_shared<Frame>(Rect(4, keyboard_top, CARD_W - 8, CARD_H - keyboard_top - 10));
     keyboard_frame->color(Palette::ColorId::bg, dt::kWhite);
     card->add(keyboard_frame);
 
     auto shift_on = make_shared<bool>(false);
-    int tw = CARD_W - 48;  // total keyboard width (tighter horizontal padding)
+    int tw = CARD_W - 8;  // total keyboard width (near-edge so 64 px keys fit)
 
     // iOS-style key geometry — stretch keys (Return, shift, ?123, space) are
     // visibly wider than letters. Row 1 is the alignment reference for rows
     // 2 and 4; row 3 ends up a touch wider than row 1 because its 11 slots
     // include 2 stretched shifts (same asymmetry iOS has). sy is computed so
     // the 4-row block sits vertically centred — no dead space at the bottom.
-    const int kw = 56, kh = 54, gx = 6, gy = 9;
+    // Key dimensions sampled from the Figma render: each key is roughly
+    // 35 figma px square -> 64 device px. The keyboard frame uses CARD_W-8
+    // so row 1 (11*64 + 60 = 764) fits inside tw = 772 with 4 px of slack
+    // on each side.
+    const int kw = 64, kh = 64, gx = 6, gy = 9;
     const int rw       = 11 * kw + 10 * gx;       // row 1 outer extent
     const int sx1      = (tw - rw) / 2;           // row 1 left margin
     const int return_w = kw + 50;                 // row 2 wide key (fits "Return" at 26 pt)
