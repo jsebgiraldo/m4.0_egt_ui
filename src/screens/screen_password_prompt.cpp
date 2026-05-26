@@ -76,13 +76,12 @@ shared_ptr<Widget> create_password_prompt_screen(
     card->add(input_row);
 
     // Password field - Figma: gray fill, r=2, inner shadow.
-    // Card sits at x=10 in global coords; field ends just before the Cancel
-    // button (Cancel global x = 459). So field width = 459 - 10 - margin.
-    // Placeholder text is "Password.." (two dots) at 22 pt to match Figma
-    // node 72:1595 (fontSize 12 Normal -> device 22 Normal).
+    // Dimensions sampled from the Figma render at scale=2: the rectangle is
+    // 227 figma px wide x 30.5 figma px tall -> 420 x 56 device px. Centred
+    // vertically in the 70 px input_row (y = (70-56)/2 = 7).
     auto pwd = make_shared<TextBox>("Password..");
-    pwd->resize(Size(429, 44));
-    pwd->move(Point(10, 13));
+    pwd->resize(Size(420, 56));
+    pwd->move(Point(10, 7));
     pwd->font(Font("Gothic A1", 22, Font::Weight::normal));
     pwd->color(Palette::ColorId::text, Color(150, 150, 150));
     pwd->color(Palette::ColorId::bg, INPUT_BG);
@@ -212,7 +211,7 @@ shared_ptr<Widget> create_password_prompt_screen(
     const int kw = 56, kh = 54, gx = 6, gy = 9;
     const int rw       = 11 * kw + 10 * gx;       // row 1 outer extent
     const int sx1      = (tw - rw) / 2;           // row 1 left margin
-    const int return_w = kw + 26;                 // row 2 wide key
+    const int return_w = kw + 50;                 // row 2 wide key (fits "Return" at 26 pt)
     const int shift_w  = kw + 18;                 // row 3 wide keys
     const int nkw      = kw + 22;                 // ?123 / ABC wide keys (row 4)
     const int space_w  = rw - 2 * nkw - 2 * gx;   // space fills row 4 to row 1 edges
