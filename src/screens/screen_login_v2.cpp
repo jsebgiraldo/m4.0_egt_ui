@@ -101,13 +101,16 @@ shared_ptr<Widget> create_login_screen_v2(
 
     // ── Wheel-list picker ────────────────────────────────────────────────
     // Six visible slots with the third slot from the top (centre_idx = 2)
-    // as the selected row, matching Figma node 4008:819. Slot height shrunk
-    // from 52 to 44 so six fit comfortably without pushing Guest off-screen.
+    // as the selected row, matching Figma node 4008:819.
+    // Dimensions come from sampling the Figma render at scale=2: the picker
+    // is 178 figma px wide -> 329 device px, and 165 figma px tall ->
+    // 306 device px. With slot_h = 44 (each row is 24 figma px), the
+    // chevron + padding band is (306 - 6*44) / 2 = 21 device px per side.
     const int slot_h     = 44;
     const int n_slots    = 6;
-    const int chevron_h  = 22;
-    const int padding    = 8;
-    const int box_w      = 380;
+    const int chevron_h  = 16;
+    const int padding    = 5;
+    const int box_w      = 329;
     const int box_h      = n_slots * slot_h + 2 * (chevron_h + padding);
     const int box_x      = (dt::SCREEN_W - box_w) / 2;
     const int box_y      = 66;
@@ -319,9 +322,11 @@ shared_ptr<Widget> create_login_screen_v2(
     };
 
     // ── Guest button ─────────────────────────────────────────────────────
-    // Centered below the wheel, same width as the picker box.
-    const int guest_y = box_y + box_h + 14;
-    auto guest = make_shared<Frame>(Rect(box_x, guest_y, box_w, 50));
+    // Same width and x-position as the picker box; figma places it at frame-
+    // local y=215 (device 398), which works out to box_y + box_h + 26 with
+    // the new picker dimensions.
+    const int guest_y = box_y + box_h + 26;
+    auto guest = make_shared<Frame>(Rect(box_x, guest_y, box_w, 44));
     guest->fill_flags({Theme::FillFlag::blend});
     guest->color(Palette::ColorId::bg, dt::kGrayBg);
     guest->border(1);
@@ -330,7 +335,7 @@ shared_ptr<Widget> create_login_screen_v2(
     container->add(guest);
 
     auto guest_lbl = make_shared<Label>("Guest",
-        Rect(0, 0, box_w, 50), AlignFlag::center);
+        Rect(0, 0, box_w, 44), AlignFlag::center);
     // Figma 4008:833: fontSize 11 Medium (weight 500) -> device 20 pt Normal.
     guest_lbl->font(Font("Gothic A1", 20, Font::Weight::normal));
     guest_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
