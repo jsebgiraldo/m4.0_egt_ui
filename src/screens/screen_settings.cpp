@@ -213,13 +213,54 @@ public:
 };
 
 // ── Card helper — gray rounded background, ~Figma "Rectangle 68/96/97" ─────
+// Section card with a subtle vertical gradient (Figma uses rgb(246,246,246)
+// at the top fading to rgb(254,254,254) at the bottom).
+class SectionGradient : public Widget {
+public:
+    SectionGradient(const Rect& r, float radius) : Widget(r), m_radius(radius)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& p, const Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+        const float r = m_radius;
+        const Color top{246, 246, 246};
+        const Color bot{254, 254, 254};
+        Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
+        const auto PI = static_cast<float>(M_PI);
+        p.draw(PointF(x + r, y));
+        p.line(PointF(x + w - r, y));
+        p.draw(Arc(PointF(x + w - r, y + r),     r, -PI / 2, 0.0f));
+        p.line(PointF(x + w, y + h - r));
+        p.draw(Arc(PointF(x + w - r, y + h - r), r, 0.0f,    PI / 2));
+        p.line(PointF(x + r, y + h));
+        p.draw(Arc(PointF(x + r, y + h - r),     r, PI / 2,  PI));
+        p.line(PointF(x, y + r));
+        p.draw(Arc(PointF(x + r, y + r),         r, PI,      3 * PI / 2));
+        p.set(grad);
+        p.fill();
+    }
+private:
+    float m_radius;
+};
+
 shared_ptr<Frame> make_section_card(int x, int y, int w, int h)
 {
+    // Wrap a transparent Frame that holds the gradient backdrop. Returning
+    // a Frame keeps the existing API (callers add children to it).
     auto card = make_shared<Frame>(Rect(x, y, w, h));
-    card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, dt::kGrayBg);
+    card->fill_flags({});  // transparent - the gradient does the painting
     card->border(0);
-    card->border_radius(dt::RADIUS_LG);
+    card->add(make_shared<SectionGradient>(Rect(0, 0, w, h),
+                                           static_cast<float>(dt::RADIUS_LG)));
     return card;
 }
 
@@ -419,9 +460,12 @@ shared_ptr<Widget> create_settings_screen(
             icon->border(0); icon->padding(0); icon->margin(0);
             icon->fill_flags({});
             icon->image_align(AlignFlag::center);
-            const int icon_w = is_wifi ? 45 : 47;
-            const int icon_h = is_wifi ? 33 : 46;
-            const int icon_dy = is_wifi ? 18 : 9;
+            // Natural device size (PNG_px * SCALE / 2):
+            //   Wi-Fi: 56x42 PNG -> 52x39 device
+            //   Eth:   53x50 PNG -> 49x46 device
+            const int icon_w = is_wifi ? 52 : 49;
+            const int icon_h = is_wifi ? 39 : 46;
+            const int icon_dy = is_wifi ? 16 : 13;
             icon->box(Rect(circle_x + (circle_d - icon_w) / 2,
                            circle_y + icon_dy, icon_w, icon_h));
             card->add(icon);
