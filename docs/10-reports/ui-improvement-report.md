@@ -38,6 +38,16 @@ A follow-up pass tightened two remaining gaps: the Start button gradient was dia
 
 ---
 
+### Demo Info (`DEMO_INFO` - Figma node `84:608`, "Demonstration Mode") - M4-24
+
+The screen shown after the user picks "Demo Mode" on Home. Three things were missing per ticket M4-24: the small Exit-demo button that sits under the DEMO MODE badge (top-right), and the left-chevron + circle icon on Back and the right-chevron + circle icon on Continue at the bottom. All three button glyphs were pulled directly from Figma as PNGs (`bt leave`, `bt EXIT`, `bt continue` component renders at scale=2) and placed via a small `make_image_button` helper that wraps an `ImageLabel` in a clickable `Frame`. Vertical positions of the green progress bar, divider, "TRAINING ONLY" heading, body text, and warning text were nudged 8-16 px down to match the Figma frame-local coordinates.
+
+![DEMO_INFO Before / Target / After](m4-24-demo-info-figma-match/comparison.png)
+
+*AFTER matches the Figma target on icons, button layout, and major positions. The button widths are a few pixels narrower than the target due to PNG aspect-fit (the PNGs include a small shadow padding), but the icon and text content are pixel-equivalent.*
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 

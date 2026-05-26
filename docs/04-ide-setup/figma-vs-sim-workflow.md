@@ -192,7 +192,7 @@ PNGs are excluded from the repo via the global `*.png` gitignore rule, so these 
 
 ## References
 
-- Top-level [README - Design source](../../README.md#design-source) - authoritative Figma file (v5, `PBh3UuMmYwdFzalAyPTMBw`).
+- Top-level [README - Design source](../../README.md#design-source) - working Figma file (personal duplicate, `OYaZtgoJHMtHpIO4vFYJ6V`).
 - [simulator.md](simulator.md) - simulator install, env vars, troubleshooting, per-screen UX checkpoints.
 - [useful-commands.md](../07-deployment/useful-commands.md) - Yocto cross-compile + deploy when the change needs target verification.
 - `src/ui/design_tokens.h`, `src/ui/palette.h` - color + dimension tokens.

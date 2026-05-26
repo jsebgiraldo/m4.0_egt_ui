@@ -6,13 +6,14 @@ Embedded UI for the Suntek M4 treatment device, built with [Ensemble Graphics To
 
 ## Design source
 
-UI designs live in Figma. **The current authoritative file is v5** (the on-canvas label may read v7 - internal version drift, the file key is what counts):
+UI designs live in Figma. **The working file is a personal-workspace duplicate** of the original Suntek file. The duplicate exists so REST API rate limits do not block iteration (the Suntek workspace is on Figma Starter, which caps API calls at ~6 per file per month). Node IDs are preserved across the duplicate, so any node ID that worked against the original still works here.
 
-- **Figma file:** [Jason M4.0 v5](https://www.figma.com/design/PBh3UuMmYwdFzalAyPTMBw/Jason-M4.0-v5)
-- **File key:** `PBh3UuMmYwdFzalAyPTMBw`
+- **Figma file (working duplicate):** [M4.0 latest revision (copia)](https://www.figma.com/design/OYaZtgoJHMtHpIO4vFYJ6V/M4.0-latest-revision--copia-)
+- **File key:** `OYaZtgoJHMtHpIO4vFYJ6V`
+- **Original Suntek file (reference only):** `PBh3UuMmYwdFzalAyPTMBw` (Jason-M4.0-v5)
 - **Canvas size:** 432×261 pt, scaled ×1.852 to the 800×480 target panel (`dt::SCALE` in `src/ui/design_tokens.h`)
 
-Older Figma files (e.g. v3 `fgxw4dmXVGV6Wvd7pAJ7Fb`) and the mapping in `context/FIGMA_DESIGN_MAP.md` are stale - node IDs have moved. Always pull from v5 above.
+Older Figma files (e.g. v3 `fgxw4dmXVGV6Wvd7pAJ7Fb`) and the mapping in `context/FIGMA_DESIGN_MAP.md` are stale - node IDs have moved. Always pull from the working duplicate above.
 
 ## Project Structure
 

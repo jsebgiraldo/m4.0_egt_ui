@@ -269,7 +269,7 @@ void run_app(int argc, char** argv)
     };
 
     // ── Boot: start with WiFi Init (or a specific screen for diagnostics) ─
-    // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable}
+    // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable|demo-info}
     // lets the simulator skip the normal boot flow when iterating on a single
     // screen.
     const char* start = std::getenv("EGT_START_SCREEN");
@@ -278,6 +278,7 @@ void run_app(int argc, char** argv)
     else if (start && std::string(start) == "wifi-settings")     show_wifi_setup(nullptr, [&]() { show_home(); });
     else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable();
     else if (start && std::string(start) == "login")             show_login(false);
+    else if (start && std::string(start) == "demo-info")         show_demo_info(true);
     else                                                         show_wifi_init();
 
     win.show();

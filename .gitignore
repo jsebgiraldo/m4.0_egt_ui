@@ -95,3 +95,4 @@ figma_token.json
 # Claude Code local state and personal notes
 .claude/
 CLAUDE.md
+.playwright-mcp/
