@@ -225,8 +225,19 @@ std::vector<WiFiNetwork> WiFiManager::scan_networks() {
 }
 
 bool WiFiManager::connect(const std::string& ssid, const std::string& password) {
-    // In mock mode, simulate successful connection
+    // In mock mode, simulate successful connection.
+    // Set EGT_MOCK_WIFI_HOLD=<seconds> to keep the WIFI_CONNECTING screen
+    // visible long enough to screenshot. Without the hold the mock returns
+    // immediately and the UI flashes through to WIFI_CONNECTED in a frame.
     if (std::getenv("EGT_MOCK_WIFI")) {
+        if (const char* hold = std::getenv("EGT_MOCK_WIFI_HOLD")) {
+            int sec = std::atoi(hold);
+            if (sec > 0) {
+                printf("[WIFI] mock connect: holding %d s before success\n", sec);
+                fflush(stdout);
+                std::this_thread::sleep_for(std::chrono::seconds(sec));
+            }
+        }
         printf("[WIFI] mock connect to '%s' -> OK\n", ssid.c_str());
         fflush(stdout);
         return true;

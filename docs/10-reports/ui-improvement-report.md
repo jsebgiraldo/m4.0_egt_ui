@@ -60,6 +60,14 @@ Cancel and Join buttons replaced with the Figma PNG renders (gradient Join + whi
 
 ---
 
+### Wi-Fi Connecting (`WIFI_CONNECTING` - node `2065:1005`)
+
+Re-laid out to match the Figma design - spinner is now the full 396 px ring around the Lice Clinics logo with "Connecting to Wifi" beneath, replacing the small spinner + SSID label combination.
+
+![WIFI_CONNECTING](wifi-connecting-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 

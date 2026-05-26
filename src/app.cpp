@@ -287,6 +287,12 @@ void run_app(int argc, char** argv)
             [&](const std::string&) { show_home(); },
             [&]() { show_login(false); }));
     }
+    else if (start && std::string(start) == "wifi-connecting") {
+        screens.show(create_wifi_connecting_screen(
+            "TestNetwork", "password",
+            [&]() { show_wifi_connected(); },
+            [&]() { show_wifi_unavailable(); }));
+    }
     else                                                         show_wifi_init();
 
     win.show();
