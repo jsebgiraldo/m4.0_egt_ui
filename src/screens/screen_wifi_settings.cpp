@@ -278,11 +278,13 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     card->add(hdr_line);
 
     // ── Scrollable network list ─────────────────────────────────────────────
+    // Row pitch sampled from Figma: BTWiFi at y=561, BTWiFi-With-Fon at
+    // y=591 -> 30 figma px between rows -> 56 device px.
     const int list_top = 52;
     const int list_h = card_h - list_top;
-    const int row_h = 60;
-    const int row_gap = 10;
-    const int row_pitch = row_h + row_gap;
+    const int row_h = 50;
+    const int row_gap = 6;
+    const int row_pitch = row_h + row_gap;     // 56 = figma 30 * SCALE
     const int text_pad = 20;
 
     // Total rows: networks + "Other..." entry
@@ -377,12 +379,30 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             ssid_lbl->border(0);
             row_frame->add(ssid_lbl);
 
-            // WiFi signal arcs PNG from Figma (151:918, 16x10 figma px ->
-            // device 30x19, kept the original WifiIcon for the colour-by-
-            // signal behaviour but the PNG matches the design proportions).
-            auto wifi_icon = make_shared<WifiIcon>(
-                Rect(card_w - 130, (row_h - 38) / 2, 50, 38), text_color, net.signal);
-            row_frame->add(wifi_icon);
+            // WiFi signal arcs from Figma PNG (node 151:918, 15x10 figma px
+            // -> device 28x19 natural). Scaled up to 50x33 to read at the
+            // visual size figma uses on the wide rows (the PNG keeps its
+            // aspect ratio so the arcs don't distort).
+            std::shared_ptr<WifiIcon> wifi_icon;   // kept as widget for the
+            try {                                  // colour-by-signal calls
+                auto img = Image("file:assets/figma/images/wifi-row-signal.png");
+                auto wifi_lbl = make_shared<ImageLabel>(img);
+                wifi_lbl->autoresize(false);
+                wifi_lbl->border(0); wifi_lbl->padding(0); wifi_lbl->margin(0);
+                wifi_lbl->fill_flags({});
+                wifi_lbl->image_align(AlignFlag::center);
+                wifi_lbl->box(Rect(card_w - 130, (row_h - 33) / 2, 50, 33));
+                row_frame->add(wifi_lbl);
+                // Connected state is signalled by the green SSID label; the
+                // PNG arc icon stays gray (matching figma's actual export).
+                (void)net.connected;
+            } catch (...) {
+                // Fall back to the painter-drawn icon if the PNG is missing.
+                wifi_icon = make_shared<WifiIcon>(
+                    Rect(card_w - 130, (row_h - 33) / 2, 50, 33),
+                    text_color, net.signal);
+                row_frame->add(wifi_icon);
+            }
 
             // Chevron right - PNG from Figma node 151:904 (chevron in a small
             // shadowed circle). Wraps a Label for the click hit area.
@@ -412,7 +432,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             auto hover_timer = make_shared<Timer>(chrono::milliseconds(1500));
             hover_timer->on_timeout([=]() {
                 ssid_lbl->color(Palette::ColorId::label_text, text_color);
-                wifi_icon->set_color(text_color);
+                if (wifi_icon) wifi_icon->set_color(text_color);
                 chevron->color(Palette::ColorId::label_text, text_color);
                 row_frame->damage();
             });
@@ -420,7 +440,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 if (event.id() == EventId::raw_pointer_down) {
                     hover_timer->stop();
                     ssid_lbl->color(Palette::ColorId::label_text, dt::kGreen);
-                    wifi_icon->set_color(dt::kGreen);
+                    if (wifi_icon) wifi_icon->set_color(dt::kGreen);
                     chevron->color(Palette::ColorId::label_text, dt::kGreen);
                     row_frame->damage();
                 } else if (event.id() == EventId::raw_pointer_up) {
@@ -429,7 +449,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                            event.id() == EventId::pointer_drag) {
                     hover_timer->stop();
                     ssid_lbl->color(Palette::ColorId::label_text, text_color);
-                    wifi_icon->set_color(text_color);
+                    if (wifi_icon) wifi_icon->set_color(text_color);
                     chevron->color(Palette::ColorId::label_text, text_color);
                     row_frame->damage();
                 }
