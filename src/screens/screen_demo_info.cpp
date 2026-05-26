@@ -81,16 +81,19 @@ shared_ptr<Widget> create_demo_info_screen(
     container->add(title);
 
     // ── DEMO MODE badge (Figma 67:761, 79x44 @(442,505)) ───────────────────
-    // fontSize 20 Medium (weight 500) -> 37 pt. Two-line stack so it never
-    // clips and matches the Figma badge proportions.
+    // Frame-local (353, 6, 79, 44) -> device (654, 11, 146, 81). The two
+    // lines must fit in that 81-px vertical band so the badge does not
+    // overlap the exit-demo button below (which starts at y=93). With a
+    // 37 pt font, one line is ~37 px tall - placing line 1 at y=11 and
+    // line 2 at y=48 puts the bottom of MODE at ~85, leaving an 8 px gap.
     auto demo_l1 = make_shared<Label>("DEMO",
-        Rect(dt::SCREEN_W - 160, 14, 150, 44), AlignFlag::center);
+        Rect(654, 11, 146, 37), AlignFlag::center);
     demo_l1->font(Font("Gothic A1", 37, Font::Weight::normal));
     demo_l1->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(demo_l1);
 
     auto demo_l2 = make_shared<Label>("MODE",
-        Rect(dt::SCREEN_W - 160, 58, 150, 44), AlignFlag::center);
+        Rect(654, 48, 146, 37), AlignFlag::center);
     demo_l2->font(Font("Gothic A1", 37, Font::Weight::normal));
     demo_l2->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(demo_l2);
