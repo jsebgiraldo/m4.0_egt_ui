@@ -59,17 +59,11 @@ shared_ptr<Widget> create_password_prompt_screen(
     card->add(title);
     y_cursor += 34; // avanzar debajo del título
 
-    // Mensaje opcional
-    if (!message.empty()) {
-        y_cursor += 4; // pequeño gap
-        auto subtitle = make_shared<Label>(message);
-        subtitle->resize(Size(CARD_W - PAD * 2, 22));
-        subtitle->move(Point(PAD, y_cursor));
-        subtitle->font(Font(14));
-        subtitle->color(Palette::ColorId::label_text, dt::kTextPrimary);
-        card->add(subtitle);
-        y_cursor += 22; // avanzar debajo del subtitle
-    }
+    // Subtitle line ("message" param) is intentionally not rendered. Figma
+    // node 144:877 has just the title + input row + Forgot Password +
+    // keyboard, no per-user context line. The parameter is kept in the
+    // signature for compatibility with callers that pass it.
+    (void)message;
 
     y_cursor += 10; // espacio antes del input
     // ---- FIN: Layout dinámico superior ----
@@ -84,10 +78,12 @@ shared_ptr<Widget> create_password_prompt_screen(
     // Password field - Figma: gray fill, r=2, inner shadow.
     // Card sits at x=10 in global coords; field ends just before the Cancel
     // button (Cancel global x = 459). So field width = 459 - 10 - margin.
-    auto pwd = make_shared<TextBox>("Password...");
+    // Placeholder text is "Password.." (two dots) at 22 pt to match Figma
+    // node 72:1595 (fontSize 12 Normal -> device 22 Normal).
+    auto pwd = make_shared<TextBox>("Password..");
     pwd->resize(Size(429, 44));
     pwd->move(Point(10, 13));
-    pwd->font(Font(16));
+    pwd->font(Font("Gothic A1", 22, Font::Weight::normal));
     pwd->color(Palette::ColorId::text, Color(150, 150, 150));
     pwd->color(Palette::ColorId::bg, INPUT_BG);
     pwd->color(Palette::ColorId::border, Color(200, 200, 200));
@@ -258,7 +254,9 @@ shared_ptr<Widget> create_password_prompt_screen(
                   int x, int y, int w, int h,
                   function<void()> action, bool special = false) {
         auto b = make_shared<Button>(label, Rect(x, y, w, h));
-        b->font(Font(14, Font::Weight::normal));
+        b->autoresize(false);  // bigger font would otherwise grow the button
+        // Figma keyboard letters are fontSize 14 Medium -> device 26 pt.
+        b->font(Font("Gothic A1", 26, Font::Weight::normal));
         b->color(Palette::ColorId::button_bg, special ? KEY_SPECIAL : KEY_BG);
         b->color(Palette::ColorId::button_text, KEY_TEXT);
         b->color(Palette::ColorId::border, Color(210, 210, 210));
@@ -333,11 +331,11 @@ shared_ptr<Widget> create_password_prompt_screen(
 
         // Row 4: ?123 [space] ?123 — outer edges aligned with row 1
         int y4 = y3 + kh + gy;
-        mk(kb_alpha, "?123", sx4, y4, nkw, kh, switch_num, true);
+        mk(kb_alpha, ".?123", sx4, y4, nkw, kh, switch_num, true);
         mk(kb_alpha, "",
            sx4 + nkw + gx, y4, space_w, kh,
            [type_ch]() { type_ch(' '); });
-        mk(kb_alpha, "?123",
+        mk(kb_alpha, ".?123",
            sx4 + nkw + gx + space_w + gx, y4, nkw, kh, switch_num, true);
     }
 

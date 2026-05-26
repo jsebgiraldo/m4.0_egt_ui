@@ -188,9 +188,18 @@ Implementation detail (tokens, font sizes, node forensics, follow-ups) belongs i
 
 Are key elements within `+- 4 px` of Figma and using tokens (no raw hex)? If yes, commit. If no, return to step 5 - usually only one or two values need another nudge.
 
-### 11. Commit
+### 11. Iterate at least three cycles before committing
 
-Use the `/git-commit` skill (semantic firmware format). The change usually fits as a single `(MINOR)[fw]` or `(PATCH)[fw]` commit per screen. Reference the Figma node id and any new mock mode in the body for traceability.
+Cycle 1 lands the big layout changes. Cycles 2 and 3 catch the misses (wrong font sizes, leftover labels, icon shapes, fade values, off-by-a-few-pixels). Do them.
+
+- **Cycle 2 - element pass.** Open TARGET and AFTER side by side. List every visible difference - fonts, sizes, missing or extra elements, icon shapes, gradients, label colours. Apply the fixes. Recompose `comparison.png`.
+- **Cycle 3 - polish pass.** One more focused look for the small things a reviewer would catch (alignment by a few pixels, weights, spacings). Apply. Recompose.
+
+If a cycle produces zero deltas, it is fine to stop. The rule is "at least three cycles attempted", not "always three commits".
+
+### 12. Commit
+
+Use the `/git-commit` skill (semantic firmware format). One `(MINOR)[fw]` or `(PATCH)[fw]` commit per screen is usually enough. Reference the Figma node id and any new mock mode in the body for traceability.
 
 ## Folder layout
 
