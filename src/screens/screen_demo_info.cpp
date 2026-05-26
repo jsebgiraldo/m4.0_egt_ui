@@ -8,27 +8,30 @@ using namespace std;
 
 namespace {
 
-// Clickable image-button: an ImageLabel inside a Frame. The PNG already
-// contains background, icon, and text rendered by Figma at scale=2, so the
-// helper just sizes it to the device-space rect and forwards clicks.
+// Clickable button rendered from a Figma PNG. The PNG was exported at
+// scale=2, so its natural device size = PNG_px * (SCALE / 2) = PNG_px * 0.926.
+// We size the wrap rect to that natural device size (which includes shadow
+// padding), and the caller positions it so the visible button portion lands
+// on the right place. Scale is uniform so the icon and text are not distorted.
 shared_ptr<Frame> make_image_button(
     const string& png_path,
     const Rect& rect,
     function<void()> on_click)
 {
     auto wrap = make_shared<Frame>(rect);
-    wrap->fill_flags({});  // transparent so the PNG corners blend in
+    wrap->fill_flags({});  // transparent so the PNG drop shadow blends
 
     try {
-        // Probe the PNG so we can pick scale factors that fit the rect
-        // without distortion (both axes use the smaller of the two ratios).
         auto probe = Image(("file:" + png_path).c_str());
         const float sw = static_cast<float>(probe.width());
         const float sh = static_cast<float>(probe.height());
+        // Independent scale per axis so the PNG fills the rect exactly. The
+        // caller is expected to pass a rect whose aspect matches the PNG's
+        // (PNG_px * SCALE/2), so hs and vs should be equal in practice and
+        // no real distortion occurs.
         const float hs = static_cast<float>(rect.width())  / sw;
         const float vs = static_cast<float>(rect.height()) / sh;
-        const float s  = std::min(hs, vs);
-        auto img = Image(("file:" + png_path).c_str(), s, s);
+        auto img = Image(("file:" + png_path).c_str(), hs, vs);
         auto lbl = make_shared<ImageLabel>(img);
         lbl->autoresize(false);
         lbl->border(0); lbl->padding(0); lbl->margin(0);
@@ -52,7 +55,11 @@ shared_ptr<Frame> make_image_button(
 
 // ── DEMO INFO screen (Figma node 84:608, "Demonstration Mode") ──────────────
 // Figma frame: 432x261 at (89, 499) -> 800x480 device-px (SCALE = 1.852).
-// Bayron-personal duplicate file key: OYaZtgoJHMtHpIO4vFYJ6V.
+// Working file (personal-workspace duplicate): OYaZtgoJHMtHpIO4vFYJ6V.
+//
+// All font sizes are pulled from Figma TEXT nodes' styleOverrideTable and
+// multiplied by SCALE. Title is fontSize 14 -> 26 pt, badge 20 -> 37 pt,
+// TRAINING ONLY 24 -> 44 pt, body and warning 14 -> 26 pt.
 shared_ptr<Widget> create_demo_info_screen(
     function<void()> on_continue,
     function<void()> on_back)
@@ -66,32 +73,35 @@ shared_ptr<Widget> create_demo_info_screen(
     container->add(logo);
 
     // ── "Demonstration Mode" title (Figma 37:1833, 141x18 @(236,533)) ──────
+    // Frame-local (147, 34) -> device (272, 63). fontSize 14 Bold -> 26 pt.
     auto title = make_shared<Label>("Demonstration Mode",
-        Rect(272, 55, 280, 40), AlignFlag::left);
-    title->font(Font(22, Font::Weight::bold));
+        Rect(272, 50, 280, 40), AlignFlag::center);
+    title->font(Font("Gothic A1", 26, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
 
     // ── DEMO MODE badge (Figma 67:761, 79x44 @(442,505)) ───────────────────
-    // 2-line stacked so it never clips.
+    // fontSize 20 Medium (weight 500) -> 37 pt. Two-line stack so it never
+    // clips and matches the Figma badge proportions.
     auto demo_l1 = make_shared<Label>("DEMO",
-        Rect(dt::SCREEN_W - 140, 14, 124, 30), AlignFlag::center);
-    demo_l1->font(Font(22, Font::Weight::bold));
+        Rect(dt::SCREEN_W - 160, 14, 150, 44), AlignFlag::center);
+    demo_l1->font(Font("Gothic A1", 37, Font::Weight::normal));
     demo_l1->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(demo_l1);
 
     auto demo_l2 = make_shared<Label>("MODE",
-        Rect(dt::SCREEN_W - 140, 44, 124, 30), AlignFlag::center);
-    demo_l2->font(Font(22, Font::Weight::bold));
+        Rect(dt::SCREEN_W - 160, 58, 150, 44), AlignFlag::center);
+    demo_l2->font(Font("Gothic A1", 37, Font::Weight::normal));
     demo_l2->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(demo_l2);
 
     // ── Exit-demo button (Figma 84:565 "bt leave", 60x24 @(452,551)) ───────
     // Top-right under the DEMO MODE badge. Returns to Home (same as Back).
-    // Figma frame-local (363, 52) -> device (672, 96), size 60x24 -> 111x44.
+    // PNG 128x56 -> natural device 119x52, centred on figma button centre
+    // (frame-local (393, 64) -> device (728, 119)) -> top-left (669, 93).
     auto btn_exit = make_image_button(
         "assets/figma/images/demo-info-btn-exit.png",
-        Rect(672, 96, 111, 44),
+        Rect(669, 93, 119, 52),
         on_back);
     container->add(btn_exit);
 
@@ -109,44 +119,46 @@ shared_ptr<Widget> create_demo_info_screen(
     divider->border(0);
     container->add(divider);
 
-    // ── "TRAINING ONLY" - large, blue, centred ─────────────────────────────
+    // ── "TRAINING ONLY" - big, cyan, regular weight (UPPERCASE in Figma) ───
+    // Figma styleOverride 51: fontSize 24 Regular UPPER -> 44 pt Normal.
     auto training = make_shared<Label>("TRAINING ONLY",
-        Rect(0, 178, dt::SCREEN_W, 50), AlignFlag::center);
-    training->font(Font(36, Font::Weight::bold));
+        Rect(0, 170, dt::SCREEN_W, 60), AlignFlag::center);
+    training->font(Font("Gothic A1", 44, Font::Weight::normal));
     training->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(training);
 
-    // ── Body - dark, normal weight ─────────────────────────────────────────
+    // ── Body text (Figma 63:390 styleOverride 41: fontSize 14 Regular) ─────
     auto body = make_shared<Label>(
         "The Demo Mode has a lower temperature\n"
         "and a lower fan speed.",
-        Rect(0, 248, dt::SCREEN_W, 60), AlignFlag::center);
-    body->font(Font(dt::FONT_SUBTITLE, Font::Weight::normal));
+        Rect(0, 245, dt::SCREEN_W, 70), AlignFlag::center);
+    body->font(Font("Gothic A1", 26, Font::Weight::normal));
     body->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(body);
 
-    // ── "Do Not Use For Treatments !" - blue, bold, lower ──────────────────
+    // ── "Do Not Use For Treatments !" (styleOverride 55: 14 Regular cyan) ──
     auto warn = make_shared<Label>("Do Not Use For Treatments !",
-        Rect(0, 322, dt::SCREEN_W, 36), AlignFlag::center);
-    warn->font(Font(dt::FONT_SUBTITLE, Font::Weight::bold));
+        Rect(0, 320, dt::SCREEN_W, 36), AlignFlag::center);
+    warn->font(Font("Gothic A1", 26, Font::Weight::normal));
     warn->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(warn);
 
     // ── Back button (Figma 81:555 "bt EXIT", 84x33 @(103,715)) ─────────────
-    // Frame-local (14, 216) -> device (26, 400). The PNG carries the gray
-    // circle, left chevron, and "Back" text already; we just place it.
+    // Frame-local (14, 216) -> device button centre (104, 430). PNG 226x106
+    // -> natural device 209x98. Top-left = centre - half-PNG = (-0.5, 381).
+    // Clip x to 0; the left 1 px of shadow falls off-screen, invisible.
     auto btn_back = make_image_button(
         "assets/figma/images/demo-info-btn-back.png",
-        Rect(26, 400, 156, 61),
+        Rect(0, 381, 209, 98),
         on_back);
     container->add(btn_back);
 
     // ── Continue button (Figma 81:505 "bt continue", 117x33 @(393,715)) ────
-    // Frame-local (304, 216) -> device (563, 400). PNG has cyan bg, white
-    // circle with right chevron, and "Continue" text.
+    // Frame-local (304, 216) -> device button centre (671, 430). PNG 274x106
+    // -> natural device 254x98. Top-left = (544, 381).
     auto btn_continue = make_image_button(
         "assets/figma/images/demo-info-btn-continue.png",
-        Rect(563, 400, 217, 61),
+        Rect(544, 381, 254, 98),
         on_continue);
     container->add(btn_continue);
 
