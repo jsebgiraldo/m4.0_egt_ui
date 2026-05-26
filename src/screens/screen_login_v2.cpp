@@ -24,8 +24,10 @@ namespace {
 // Figma uses to fake the "cylinder rolling behind a curved window" look.
 class WheelGradient : public egt::Widget {
 public:
-    WheelGradient(const egt::Rect& r, float radius = 6.0f)
-        : egt::Widget(r), m_radius(radius)
+    WheelGradient(const egt::Rect& r, float plateau_top, float plateau_bot,
+                  float radius = 6.0f)
+        : egt::Widget(r), m_radius(radius),
+          m_plateau_top(plateau_top), m_plateau_bot(plateau_bot)
     {
         fill_flags({egt::Theme::FillFlag::blend});
         border(0);
@@ -39,11 +41,17 @@ public:
         const float w = static_cast<float>(b.width());
         const float h = static_cast<float>(b.height());
 
-        // 3-stop pattern: dark edge -> light middle -> dark edge.
-        const egt::Color edge_dark{195, 197, 200};   // medium gray
-        const egt::Color middle  {238, 239, 241};   // near white
+        // Colours sampled from the Figma export (node 4008:819):
+        //   edge rgb(212,212,212) -> pure white plateau over the centre
+        //   slot -> back to rgb(212,212,212). The plateau is what makes the
+        //   selected name blend with the gradient instead of fighting it.
+        const egt::Color edge {212, 212, 212};
+        const egt::Color white{255, 255, 255};
         egt::Pattern grad(egt::Pattern::StepArray{
-            {0.0f, edge_dark}, {0.5f, middle}, {1.0f, edge_dark}
+            {0.0f,            edge},
+            {m_plateau_top,   white},
+            {m_plateau_bot,   white},
+            {1.0f,            edge}
         }, egt::Point(static_cast<int>(x), static_cast<int>(y)),
            egt::Point(static_cast<int>(x), static_cast<int>(y + h)));
 
@@ -65,6 +73,8 @@ public:
 
 private:
     float m_radius;
+    float m_plateau_top;
+    float m_plateau_bot;
 };
 
 } // namespace
@@ -104,15 +114,21 @@ shared_ptr<Widget> create_login_screen_v2(
     const int center_idx = 2;             // third slot from top (0-indexed)
     const int slots_top  = chevron_h + padding;
 
-    // Backdrop is a vertical gradient (dark-light-dark) so the wheel reads
-    // as a curved cylinder; the centre slot gets its own white fill on top.
+    // Backdrop is a vertical gradient with a pure-white plateau covering the
+    // selected slot - same composition Figma uses. Plateau fractions are
+    // computed from the slot geometry so the gradient peak lands exactly on
+    // the centre row no matter how slot_h / n_slots are tuned.
+    const int sel_top_y = slots_top + center_idx * slot_h;
+    const float plateau_top = static_cast<float>(sel_top_y) / box_h;
+    const float plateau_bot = static_cast<float>(sel_top_y + slot_h) / box_h;
     auto picker_bg = make_shared<WheelGradient>(
-        Rect(box_x, box_y, box_w, box_h), 6.0f);
+        Rect(box_x, box_y, box_w, box_h),
+        plateau_top, plateau_bot, 6.0f);
     container->add(picker_bg);
 
     // Inner Frame holds the chevrons + slots; transparent so the gradient
-    // shows through. Border-radius matches the backdrop so clicks land
-    // inside the visible wheel area.
+    // shows through. No separate white card on the selected slot - the
+    // gradient plateau already paints it pure white at the right spot.
     auto picker_box = make_shared<Frame>(Rect(box_x, box_y, box_w, box_h));
     picker_box->fill_flags({});
     picker_box->border(0);
@@ -129,18 +145,6 @@ shared_ptr<Widget> create_login_screen_v2(
     down_arrow->font(Font(16));
     down_arrow->color(Palette::ColorId::label_text, palette::kGray500);
     picker_box->add(down_arrow);
-
-    // White fill for the centre slot - sits on top of the gradient so the
-    // selected name pops as a raised "card", same effect Figma renders as
-    // a soft drop shadow on the chosen slot.
-    const int sel_top_y = slots_top + center_idx * slot_h;
-    auto sel_card = make_shared<Frame>(
-        Rect(6, sel_top_y, box_w - 12, slot_h));
-    sel_card->fill_flags({Theme::FillFlag::blend});
-    sel_card->color(Palette::ColorId::bg, dt::kBgWhite);
-    sel_card->border(0);
-    sel_card->border_radius(4);
-    picker_box->add(sel_card);
 
     // The selected index is shared between the slider driver, the slot
     // redraw closure, and the slot-click handlers (so a tap can both
@@ -327,7 +331,8 @@ shared_ptr<Widget> create_login_screen_v2(
 
     auto guest_lbl = make_shared<Label>("Guest",
         Rect(0, 0, box_w, 50), AlignFlag::center);
-    guest_lbl->font(Font(18, Font::Weight::bold));
+    // Figma 4008:833: fontSize 11 Medium (weight 500) -> device 20 pt Normal.
+    guest_lbl->font(Font("Gothic A1", 20, Font::Weight::normal));
     guest_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     guest->add(guest_lbl);
 
