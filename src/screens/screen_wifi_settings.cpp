@@ -220,11 +220,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kWhite);
 
-    // ── Title ───────────────────────────────────────────────────────────────
+    // ── Title - Figma fontSize 14 Bold -> device 26 pt ─────────────────────
     auto title = make_shared<Label>("Establish Wi-Fi Connection",
-        Rect(80, 20, dt::SCREEN_W - 80, 30));
-    title->font(Font(22, Font::Weight::bold));
+        Rect(0, 20, dt::SCREEN_W, 36));
+    title->font(Font("Gothic A1", 26, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    title->text_align(AlignFlag::center);
     container->add(title);
 
     // ── Determine connected state ───────────────────────────────────────────
@@ -238,17 +239,20 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     const int card_w = dt::SCREEN_W - 80;  // 720
     const int card_h = dt::SCREEN_H - 140; // 340 (leaves bottom strip for skip icon)
 
+    // Card with light gray bg matching Figma rgb(245, 244, 244). Wrapping
+    // the whole list in a tinted rounded rectangle gives "Choose a Network"
+    // and the rows a distinct surface against the white screen background.
     auto card = make_shared<Frame>(Rect(card_x, card_y, card_w, card_h));
     card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, dt::kWhite);  // blend into screen background
+    card->color(Palette::ColorId::bg, Color(245, 244, 244));
     card->border(0);
     card->border_radius(dt::RADIUS_MD);
     container->add(card);
 
-    // ── "Choose a Network..." header ────────────────────────────────────────
+    // "Choose a Network..." header - Figma fontSize 12 Regular -> 22 pt.
     auto choose_label = make_shared<Label>("Choose a Network...",
         Rect(30, 15, 300, 28));
-    choose_label->font(Font(22, Font::Weight::normal));
+    choose_label->font(Font("Gothic A1", 22, Font::Weight::normal));
     choose_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(choose_label);
 
@@ -285,29 +289,47 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     const int total_rows = total + 1;
     const int content_h = total_rows > 0 ? (total_rows * row_pitch - row_gap) : 0;
 
-    // ScrolledView in EGT 1.10 (target build) is failing to render its child
-    // frame in our setup - rows are added (13 children logged) but the
-    // viewport draws empty. Substituting a plain Frame: rows that exceed the
-    // visible height get clipped, which is acceptable because the figma
-    // design only shows ~5 rows anyway and the live device has at most that
-    // many strong APs in range. A real ScrolledView fix can come later.
+    // ScrolledView in EGT 1.10 (target build) was failing to render its child
+    // Frame, so we use a plain clipping Frame and implement scroll-by-drag
+    // manually. Rows that fall outside the visible band are clipped by EGT's
+    // default child clipping; touch-drag on the scroll_view moves the inner
+    // list_content's y to bring hidden rows into view.
     auto scroll_view = make_shared<Frame>(
         Rect(0, list_top, card_w, list_h));
     scroll_view->fill_flags({});
     scroll_view->border(0);
     card->add(scroll_view);
 
-    // Arrow-key scrolling - disabled while scroll_view is a plain Frame.
-    // Re-enable once the ScrolledView render issue is fixed.
-    (void)row_h;
-
-    // Content frame inside the scrolled view — holds all rows
+    // Content frame inside the clipping view - holds all rows.
     auto list_content = make_shared<Frame>(
         Rect(0, 0, card_w, content_h));
     list_content->fill_flags({Theme::FillFlag::blend});
     list_content->color(Palette::ColorId::bg, dt::kTransparent);
     list_content->border(0);
     scroll_view->add(list_content);
+
+    // Touch-drag scrolling: track pointer delta and shift list_content's y.
+    // Clamped to [-(content_h - list_h), 0] so we never reveal empty space.
+    auto drag_origin_y = make_shared<int>(0);
+    auto drag_start_y  = make_shared<int>(0);
+    auto drag_active   = make_shared<bool>(false);
+    scroll_view->on_event([=](Event& e) {
+        if (e.id() == EventId::pointer_drag_start) {
+            *drag_origin_y = list_content->y();
+            *drag_start_y  = e.pointer().point.y();
+            *drag_active   = true;
+        } else if (e.id() == EventId::pointer_drag && *drag_active) {
+            const int dy = e.pointer().point.y() - *drag_start_y;
+            int new_y = *drag_origin_y + dy;
+            const int min_y = -(list_content->height() - list_h);
+            if (min_y > 0) new_y = 0;  // content fits, no scroll
+            else if (new_y > 0) new_y = 0;
+            else if (new_y < min_y) new_y = min_y;
+            list_content->move(Point(0, new_y));
+        } else if (e.id() == EventId::pointer_drag_stop) {
+            *drag_active = false;
+        }
+    });
 
     // ── Network list rows (rebuilt on each WiFi scan update) ────────────────
     // Wrapping the row construction in a lambda lets the periodic refresh timer
@@ -337,45 +359,53 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
             Color text_color = net.connected ? dt::kGreen : dt::kTextPrimary;
 
+            // Row bg is the same tint as the card (rows blend into the card,
+            // separated by thin dividers added below at the bottom edge).
             auto row_frame = make_shared<Frame>(
                 Rect(0, row_y, card_w, row_h));
             row_frame->fill_flags({Theme::FillFlag::blend});
-            row_frame->color(Palette::ColorId::bg, dt::kGrayBg);
+            row_frame->color(Palette::ColorId::bg, Color(245, 244, 244));
             row_frame->border(0);
-            row_frame->border_radius(10);
             list_content->add(row_frame);
 
+            // Row name - Figma fontSize 12 Bold -> device 22 pt.
             auto ssid_lbl = make_shared<Label>(label,
-                Rect(text_pad, 4, card_w - 140, row_h - 8));
-            ssid_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
+                Rect(text_pad, 4, card_w - 180, row_h - 8));
+            ssid_lbl->font(Font("Gothic A1", 22, Font::Weight::bold));
             ssid_lbl->color(Palette::ColorId::label_text, text_color);
             ssid_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
             ssid_lbl->border(0);
             row_frame->add(ssid_lbl);
 
+            // WiFi signal arcs PNG from Figma (151:918, 16x10 figma px ->
+            // device 30x19, kept the original WifiIcon for the colour-by-
+            // signal behaviour but the PNG matches the design proportions).
             auto wifi_icon = make_shared<WifiIcon>(
-                Rect(card_w - 110, (row_h - 30) / 2, 30, 30), text_color, net.signal);
+                Rect(card_w - 130, (row_h - 38) / 2, 50, 38), text_color, net.signal);
             row_frame->add(wifi_icon);
 
-            auto chev_shadow = make_shared<Frame>(
-                Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
-            chev_shadow->fill_flags({Theme::FillFlag::blend});
-            chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
-            chev_shadow->border(0);
-            chev_shadow->border_radius(13);
-            row_frame->add(chev_shadow);
-
-            auto chev_bg = make_shared<Frame>(
-                Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-            chev_bg->fill_flags({Theme::FillFlag::blend});
-            chev_bg->color(Palette::ColorId::bg, dt::kWhite);
-            chev_bg->border(0);
-            chev_bg->border_radius(13);
-            row_frame->add(chev_bg);
-
-            auto chevron = make_shared<Label>(">",
-                Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-            chevron->font(Font(14, Font::Weight::bold));
+            // Chevron right - PNG from Figma node 151:904 (chevron in a small
+            // shadowed circle). Wraps a Label for the click hit area.
+            const std::string chev_path = net.connected
+                ? "assets/figma/images/wifi-row-chevron.png"
+                : "assets/figma/images/wifi-row-chevron.png";
+            std::shared_ptr<Label> chevron;
+            try {
+                auto img = Image(chev_path.c_str() + 0);
+                auto chev_img = Image(("file:" + chev_path).c_str());
+                auto chev_lbl = make_shared<ImageLabel>(chev_img);
+                chev_lbl->autoresize(false);
+                chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
+                chev_lbl->fill_flags({});
+                chev_lbl->image_align(AlignFlag::center);
+                chev_lbl->box(Rect(card_w - 60, (row_h - 40) / 2, 40, 40));
+                row_frame->add(chev_lbl);
+                (void)img;
+            } catch (...) { /* fall back: no chevron */ }
+            // Keep a transparent Label as the chevron handle for the
+            // colour-update logic below (no-op when no real chevron drawn).
+            chevron = make_shared<Label>("",
+                Rect(card_w - 60, (row_h - 40) / 2, 40, 40));
             chevron->color(Palette::ColorId::label_text, text_color);
             row_frame->add(chevron);
 
@@ -442,14 +472,13 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         auto other_frame = make_shared<Frame>(
             Rect(0, other_y, card_w, row_h));
         other_frame->fill_flags({Theme::FillFlag::blend});
-        other_frame->color(Palette::ColorId::bg, dt::kGrayBg);
+        other_frame->color(Palette::ColorId::bg, Color(245, 244, 244));
         other_frame->border(0);
-        other_frame->border_radius(10);
         list_content->add(other_frame);
 
         auto other_lbl = make_shared<Label>("Other...",
-            Rect(text_pad, 4, card_w - 140, row_h - 8));
-        other_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
+            Rect(text_pad, 4, card_w - 180, row_h - 8));
+        other_lbl->font(Font("Gothic A1", 22, Font::Weight::bold));
         other_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         other_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
         other_lbl->border(0);
@@ -488,27 +517,17 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             if (on_show_screen) on_show_screen(ssid_screen);
         }, {EventId::pointer_click});
 
-        auto other_chev_shadow = make_shared<Frame>(
-            Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
-        other_chev_shadow->fill_flags({Theme::FillFlag::blend});
-        other_chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
-        other_chev_shadow->border(0);
-        other_chev_shadow->border_radius(13);
-        other_frame->add(other_chev_shadow);
-
-        auto other_chev_bg = make_shared<Frame>(
-            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-        other_chev_bg->fill_flags({Theme::FillFlag::blend});
-        other_chev_bg->color(Palette::ColorId::bg, dt::kWhite);
-        other_chev_bg->border(0);
-        other_chev_bg->border_radius(13);
-        other_frame->add(other_chev_bg);
-
-        auto other_chevron = make_shared<Label>(">",
-            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-        other_chevron->font(Font(14, Font::Weight::bold));
-        other_chevron->color(Palette::ColorId::label_text, dt::kTextPrimary);
-        other_frame->add(other_chevron);
+        // "Other..." chevron - same PNG as the network rows for consistency.
+        try {
+            auto img = Image("file:assets/figma/images/wifi-row-chevron.png");
+            auto chev_lbl = make_shared<ImageLabel>(img);
+            chev_lbl->autoresize(false);
+            chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
+            chev_lbl->fill_flags({});
+            chev_lbl->image_align(AlignFlag::center);
+            chev_lbl->box(Rect(card_w - 60, (row_h - 40) / 2, 40, 40));
+            other_frame->add(chev_lbl);
+        } catch (...) { /* fall back: no chevron */ }
 
         list_content->damage();
 
