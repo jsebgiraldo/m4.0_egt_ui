@@ -385,10 +385,11 @@ shared_ptr<Widget> create_settings_screen(
     const int section_x = 80;
 
     // ── 1) Screen Brightness ────────────────────────────────────────────────
-    // Title "Screen Brightness" — Figma (81, 31) 228×33  Gothic A1 Bold 14pt
+    // Title "Screen Brightness" — Figma (81, 31) 228x33  Gothic A1 Bold 14pt
+    // -> device 26 pt.
     auto bright_title = make_shared<Label>("Screen Brightness",
         Rect(section_x, 31, 300, 33));
-    bright_title->font(Font(15, Font::Weight::bold));
+    bright_title->font(Font("Gothic A1", 26, Font::Weight::bold));
     bright_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     bright_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
     container->add(bright_title);
@@ -401,12 +402,23 @@ shared_ptr<Widget> create_settings_screen(
     auto brt_card = make_section_card(brt_card_x, brt_card_y, brt_card_w, brt_card_h);
     container->add(brt_card);
 
-    // Sun icons — same geometry, different ink: pale-thin on the "low" side
-    // and dark-bold on the "high" side to read as a brightness ramp.
-    auto sun_left  = make_shared<SunIcon>(Rect( 53, 28, 28, 28), /*light=*/true);
-    auto sun_right = make_shared<SunIcon>(Rect(535, 28, 28, 28), /*light=*/false);
-    brt_card->add(sun_left);
-    brt_card->add(sun_right);
+    // Sun icons - PNG exports from Figma (left = thin "low brightness",
+    // right = bold "high brightness"). Replaces the custom SunIcon widget
+    // so the artwork is pixel-equivalent to the design.
+    auto load_sun = [&](const std::string& png, int x, int y) {
+        try {
+            auto img = Image(("file:" + png).c_str());
+            auto icon = make_shared<ImageLabel>(img);
+            icon->autoresize(false);
+            icon->border(0); icon->padding(0); icon->margin(0);
+            icon->fill_flags({});
+            icon->image_align(AlignFlag::center);
+            icon->box(Rect(x, y, 28, 28));
+            brt_card->add(icon);
+        } catch (...) { /* fall back to no icon */ }
+    };
+    load_sun("assets/figma/images/settings-sun-left.png",   53, 28);
+    load_sun("assets/figma/images/settings-sun-right.png", 535, 28);
 
     // Brightness bar — Figma slider track at card-relative (105, 32) 409×20.
     // The bar widget reserves room for a 28 px handle, so the bar height is
@@ -420,7 +432,7 @@ shared_ptr<Widget> create_settings_screen(
     // Title — Figma (81, 163) 246×33
     auto inet_title = make_shared<Label>("Internet Connection",
         Rect(section_x, 163, 320, 33));
-    inet_title->font(Font(15, Font::Weight::bold));
+    inet_title->font(Font("Gothic A1", 26, Font::Weight::bold));
     inet_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     inet_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
     container->add(inet_title);
@@ -471,11 +483,11 @@ shared_ptr<Widget> create_settings_screen(
             card->add(icon);
         } catch (...) { /* fall back to no glyph */ }
 
-        // Text - Figma "Wi-Fi" at card-relative (143, 44); fontSize 14 Bold
-        // -> device 26 pt (was Font(15) = literal 15, too small).
+        // Text - Figma "Wi-Fi" at card-relative (143, 44); fontSize 12 Bold
+        // -> device 22 pt.
         auto lbl = make_shared<Label>(title_text,
             Rect(143, 0, chip_w - 143 - 16, chip_h));
-        lbl->font(Font("Gothic A1", 26, Font::Weight::bold));
+        lbl->font(Font("Gothic A1", 22, Font::Weight::bold));
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
         card->add(lbl);
