@@ -362,15 +362,25 @@ static shared_ptr<Widget> create_gender_step(
         card->border_radius(dt::RADIUS_XS);
         container->add(card);
 
-        const char* svg_data = female_card ? kFemaleSvg : kMaleSvg;
-        const char* svg_id   = female_card ? "female-pi" : "male-pi";
-        auto ico = load_svg_icon(svg_id, svg_data, icon_sz);
-        if (!ico.empty()) {
+        // Icon from Figma PNG (Group 252 / Group 253). The custom SVG
+        // silhouettes did not match the design - swapped for the actual
+        // figma exports so the Male / Female glyphs read identically to
+        // the figma render.
+        const std::string icon_path = female_card
+            ? "assets/figma/images/patient-female-icon.png"
+            : "assets/figma/images/patient-male-icon.png";
+        try {
+            auto img = Image(("file:" + icon_path).c_str());
+            auto icon = make_shared<ImageLabel>(img);
+            icon->autoresize(false);
+            icon->border(0); icon->padding(0); icon->margin(0);
+            icon->fill_flags({});
+            icon->image_align(AlignFlag::center);
             const int icon_x = (card_w - icon_sz) / 2;
-            auto img = make_shared<ImageLabel>(ico, "",
-                Rect(icon_x, icon_y, icon_sz, icon_sz));
-            card->add(img);
-        }
+            icon->box(Rect(icon_x, icon_y, icon_sz, icon_sz));
+            card->add(icon);
+        } catch (...) { /* fall back: no icon */ }
+        (void)kMaleSvg; (void)kFemaleSvg;  // SVG constants kept but unused
 
         auto lbl = make_shared<Label>(female_card ? "Female" : "Male",
             Rect(0, icon_y + icon_sz + 8, card_w, 32), AlignFlag::center);
