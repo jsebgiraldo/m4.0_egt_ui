@@ -75,6 +75,45 @@ public:
     int signal() const { return m_signal; }
 };
 
+// ── Card gradient: rounded rect filled with the Figma "keyboard gray"
+// gradient (244 → 255 top-to-bottom), matching node 151:891. ──────────────
+class CardGradient : public Widget {
+public:
+    CardGradient(const Rect& r, float radius) : Widget(r), m_radius(radius)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& p, const Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+        const float r = m_radius;
+        const Color top{244, 244, 244};
+        const Color bot{255, 255, 255};
+        Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
+        const auto PI = static_cast<float>(M_PI);
+        p.draw(PointF(x + r, y));
+        p.line(PointF(x + w - r, y));
+        p.draw(Arc(PointF(x + w - r, y + r),     r, -PI / 2, 0.0f));
+        p.line(PointF(x + w, y + h - r));
+        p.draw(Arc(PointF(x + w - r, y + h - r), r, 0.0f,    PI / 2));
+        p.line(PointF(x + r, y + h));
+        p.draw(Arc(PointF(x + r, y + h - r),     r, PI / 2,  PI));
+        p.line(PointF(x, y + r));
+        p.draw(Arc(PointF(x + r, y + r),         r, PI,      3 * PI / 2));
+        p.set(grad);
+        p.fill();
+    }
+private:
+    float m_radius;
+};
+
 // ── Mini scan spinner: small rotating arc shown while a scan is running ────
 class MiniSpinner : public Widget {
 public:
@@ -191,11 +230,10 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         }
         nets = result;
     }
-    // Sort: connected network always first, then by signal strength desc.
-    // Keeping the connected AP pinned to the top means it doesn't "sink" in
-    // the list when a stronger neighbour appears on a later scan.
+    // Sort by signal strength descending. Figma shows the connected AP
+    // somewhere in the middle (not pinned to the top), so we don't promote
+    // it - the green text + green icons identify it well enough.
     auto net_sort = [](const WiFiNetwork& a, const WiFiNetwork& b) {
-        if (a.connected != b.connected) return a.connected;
         return a.signal > b.signal;
     };
     sort(nets->begin(), nets->end(), net_sort);
@@ -220,11 +258,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kWhite);
 
-    // ── Title ───────────────────────────────────────────────────────────────
+    // ── Title - Figma fontSize 14 Bold -> device 26 pt ─────────────────────
     auto title = make_shared<Label>("Establish Wi-Fi Connection",
-        Rect(80, 20, dt::SCREEN_W - 80, 30));
-    title->font(Font(22, Font::Weight::bold));
+        Rect(0, 20, dt::SCREEN_W, 36));
+    title->font(Font("Gothic A1", 26, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    title->text_align(AlignFlag::center);
     container->add(title);
 
     // ── Determine connected state ───────────────────────────────────────────
@@ -233,29 +272,40 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         if (net.connected) { any_connected = true; break; }
 
     // ── Card container ──────────────────────────────────────────────────────
-    const int card_x = 40;
-    const int card_y = 55;
-    const int card_w = dt::SCREEN_W - 80;  // 720
-    const int card_h = dt::SCREEN_H - 140; // 340 (leaves bottom strip for skip icon)
+    // Figma node 151:891: Rectangle 68 at (49, 46), 332×160 figma → device
+    // (91, 85, 615, 296). F1:1 with Figma TARGET.
+    const int card_x = 91;
+    const int card_y = 85;
+    const int card_w = 615;
+    const int card_h = 296;
 
+    // Card backdrop matches Figma node 151:891's "keyboard gray" gradient
+    // (244 → 255 vertical). The Frame itself is transparent; the gradient is
+    // painted by a CardGradient child so the rounded corners follow the
+    // gradient fill cleanly.
     auto card = make_shared<Frame>(Rect(card_x, card_y, card_w, card_h));
-    card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, dt::kWhite);  // blend into screen background
+    card->fill_flags({});
     card->border(0);
-    card->border_radius(dt::RADIUS_MD);
     container->add(card);
+    card->add(make_shared<CardGradient>(Rect(0, 0, card_w, card_h),
+                                        static_cast<float>(dt::RADIUS_MD)));
 
-    // ── "Choose a Network..." header ────────────────────────────────────────
+    // "Choose a Network..." header - Figma fontSize 12 Regular -> 22 pt,
+    // left-aligned as in the Figma TARGET.
     auto choose_label = make_shared<Label>("Choose a Network...",
         Rect(30, 15, 300, 28));
-    choose_label->font(Font(22, Font::Weight::normal));
+    choose_label->font(Font("Gothic A1", 22, Font::Weight::normal));
     choose_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    choose_label->text_align(AlignFlag::left | AlignFlag::center_vertical);
     card->add(choose_label);
 
-    // Scan spinner — sits just right of the header label, shown only while a
-    // background scan is in flight so the user knows the list is live.
-    auto scan_spinner = make_shared<MiniSpinner>(Rect(285, 19, 22, 22));
+    // Scan spinner — sits in the top-right corner of the card, well clear of
+    // the "Choose a Network..." text. Shown only while a background scan is in
+    // flight so the user knows the list is live. Hidden by default so the
+    // static header looks clean.
+    auto scan_spinner = make_shared<MiniSpinner>(Rect(card_w - 40, 18, 22, 22));
     card->add(scan_spinner);
+    scan_spinner->hide();
 
     auto spinner_anim = make_shared<PeriodicTimer>(chrono::milliseconds(40));
     auto spinner_angle = make_shared<float>(0.0f);
@@ -274,50 +324,63 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     card->add(hdr_line);
 
     // ── Scrollable network list ─────────────────────────────────────────────
+    // Row pitch sampled from Figma: BTWiFi at y=561, BTWiFi-With-Fon at
+    // y=591 -> 30 figma px between rows -> 56 device px.
     const int list_top = 52;
     const int list_h = card_h - list_top;
-    const int row_h = 60;
-    const int row_gap = 10;
-    const int row_pitch = row_h + row_gap;
+    // Figma row pitch is 30 figma px = 56 device. Rows have no gap; the
+    // visual separation comes from a thin divider line drawn at the bottom
+    // edge of each row (below).
+    const int row_h = 56;
+    const int row_gap = 0;
+    const int row_pitch = row_h + row_gap;     // 56 = figma 30 * SCALE
     const int text_pad = 20;
 
     // Total rows: networks + "Other..." entry
     const int total_rows = total + 1;
     const int content_h = total_rows > 0 ? (total_rows * row_pitch - row_gap) : 0;
 
-    auto scroll_view = make_shared<ScrolledView>(
-        Rect(0, list_top, card_w, list_h),
-        ScrolledView::Policy::never,     // no horizontal scroll
-        ScrolledView::Policy::as_needed  // vertical scroll when content overflows
-    );
-    scroll_view->fill_flags({Theme::FillFlag::blend});
-    scroll_view->color(Palette::ColorId::bg, dt::kTransparent);
-    scroll_view->color(Palette::ColorId::button_bg, dt::kTransparent); // hide scrollbar
-    scroll_view->color(Palette::ColorId::button_fg, dt::kTransparent);
-    scroll_view->color(Palette::ColorId::border, dt::kTransparent);
-    scroll_view->slider_dim(0);
+    // ScrolledView in EGT 1.10 (target build) was failing to render its child
+    // Frame, so we use a plain clipping Frame and implement scroll-by-drag
+    // manually. Rows that fall outside the visible band are clipped by EGT's
+    // default child clipping; touch-drag on the scroll_view moves the inner
+    // list_content's y to bring hidden rows into view.
+    auto scroll_view = make_shared<Frame>(
+        Rect(0, list_top, card_w, list_h));
+    scroll_view->fill_flags({});
     scroll_view->border(0);
     card->add(scroll_view);
 
-    // Arrow-key scrolling (simulator convenience — real device uses touch drag)
-    container->on_event([scroll_view, row_h](Event& event) {
-        auto key = event.key().keycode;
-        if (key == EKEY_DOWN)
-            scroll_view->voffset(scroll_view->voffset() - row_h);
-        else if (key == EKEY_UP)
-            scroll_view->voffset(scroll_view->voffset() + row_h);
-        else
-            return;
-        event.stop();
-    }, {EventId::keyboard_down});
-
-    // Content frame inside the scrolled view — holds all rows
+    // Content frame inside the clipping view - holds all rows.
     auto list_content = make_shared<Frame>(
         Rect(0, 0, card_w, content_h));
     list_content->fill_flags({Theme::FillFlag::blend});
     list_content->color(Palette::ColorId::bg, dt::kTransparent);
     list_content->border(0);
     scroll_view->add(list_content);
+
+    // Touch-drag scrolling: track pointer delta and shift list_content's y.
+    // Clamped to [-(content_h - list_h), 0] so we never reveal empty space.
+    auto drag_origin_y = make_shared<int>(0);
+    auto drag_start_y  = make_shared<int>(0);
+    auto drag_active   = make_shared<bool>(false);
+    scroll_view->on_event([=](Event& e) {
+        if (e.id() == EventId::pointer_drag_start) {
+            *drag_origin_y = list_content->y();
+            *drag_start_y  = e.pointer().point.y();
+            *drag_active   = true;
+        } else if (e.id() == EventId::pointer_drag && *drag_active) {
+            const int dy = e.pointer().point.y() - *drag_start_y;
+            int new_y = *drag_origin_y + dy;
+            const int min_y = -(list_content->height() - list_h);
+            if (min_y > 0) new_y = 0;  // content fits, no scroll
+            else if (new_y > 0) new_y = 0;
+            else if (new_y < min_y) new_y = min_y;
+            list_content->move(Point(0, new_y));
+        } else if (e.id() == EventId::pointer_drag_stop) {
+            *drag_active = false;
+        }
+    });
 
     // ── Network list rows (rebuilt on each WiFi scan update) ────────────────
     // Wrapping the row construction in a lambda lets the periodic refresh timer
@@ -326,7 +389,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     auto rebuild_rows = [=]() {
         // Save scroll position before wiping rows so the user's view doesn't
         // jump back to index 0 on every refresh.
-        const int saved_voffset = scroll_view->voffset();
+        const int saved_voffset = /* scroll_view->voffset() */ 0;
 
         list_content->remove_all();
 
@@ -347,52 +410,75 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
             Color text_color = net.connected ? dt::kGreen : dt::kTextPrimary;
 
+            // Row bg is transparent so the card's vertical gradient shows
+            // through. Separation comes from the thin divider line drawn at
+            // the bottom edge of each row.
             auto row_frame = make_shared<Frame>(
                 Rect(0, row_y, card_w, row_h));
-            row_frame->fill_flags({Theme::FillFlag::blend});
-            row_frame->color(Palette::ColorId::bg, dt::kGrayBg);
+            row_frame->fill_flags({});
             row_frame->border(0);
-            row_frame->border_radius(10);
             list_content->add(row_frame);
 
+            // Row name - Figma fontSize 12 Bold -> device 22 pt.
             auto ssid_lbl = make_shared<Label>(label,
-                Rect(text_pad, 4, card_w - 140, row_h - 8));
-            ssid_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
+                Rect(text_pad, 4, card_w - 180, row_h - 8));
+            ssid_lbl->font(Font("Gothic A1", 22, Font::Weight::bold));
             ssid_lbl->color(Palette::ColorId::label_text, text_color);
             ssid_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
             ssid_lbl->border(0);
             row_frame->add(ssid_lbl);
 
-            auto wifi_icon = make_shared<WifiIcon>(
-                Rect(card_w - 110, (row_h - 30) / 2, 30, 30), text_color, net.signal);
-            row_frame->add(wifi_icon);
+            // WiFi signal arcs from Figma PNG. Connected row uses the green
+            // variant (node 151:922); other rows use the gray variant
+            // (node 151:918). Both are 15x10 figma px -> device 28x19 natural,
+            // scaled to 50x33 for visual parity with figma.
+            std::shared_ptr<WifiIcon> wifi_icon;   // kept as fallback handle
+            const std::string signal_png = net.connected
+                ? "assets/figma/images/wifi-row-signal-green.png"
+                : "assets/figma/images/wifi-row-signal.png";
+            try {
+                auto img = Image(("file:" + signal_png).c_str());
+                auto wifi_lbl = make_shared<ImageLabel>(img);
+                wifi_lbl->autoresize(false);
+                wifi_lbl->border(0); wifi_lbl->padding(0); wifi_lbl->margin(0);
+                wifi_lbl->fill_flags({});
+                wifi_lbl->image_align(AlignFlag::center);
+                wifi_lbl->box(Rect(card_w - 130, (row_h - 33) / 2, 50, 33));
+                row_frame->add(wifi_lbl);
+            } catch (...) {
+                wifi_icon = make_shared<WifiIcon>(
+                    Rect(card_w - 130, (row_h - 33) / 2, 50, 33),
+                    text_color, net.signal);
+                row_frame->add(wifi_icon);
+            }
 
-            auto chev_shadow = make_shared<Frame>(
-                Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
-            chev_shadow->fill_flags({Theme::FillFlag::blend});
-            chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
-            chev_shadow->border(0);
-            chev_shadow->border_radius(13);
-            row_frame->add(chev_shadow);
-
-            auto chev_bg = make_shared<Frame>(
-                Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-            chev_bg->fill_flags({Theme::FillFlag::blend});
-            chev_bg->color(Palette::ColorId::bg, dt::kWhite);
-            chev_bg->border(0);
-            chev_bg->border_radius(13);
-            row_frame->add(chev_bg);
-
-            auto chevron = make_shared<Label>(">",
-                Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-            chevron->font(Font(14, Font::Weight::bold));
+            // Chevron right - PNG from Figma. Connected row uses the green
+            // variant (node 151:907), other rows the gray (node 151:904).
+            const std::string chev_path = net.connected
+                ? "assets/figma/images/wifi-row-chevron-green.png"
+                : "assets/figma/images/wifi-row-chevron.png";
+            std::shared_ptr<Label> chevron;
+            try {
+                auto chev_img = Image(("file:" + chev_path).c_str());
+                auto chev_lbl = make_shared<ImageLabel>(chev_img);
+                chev_lbl->autoresize(false);
+                chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
+                chev_lbl->fill_flags({});
+                chev_lbl->image_align(AlignFlag::center);
+                chev_lbl->box(Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
+                row_frame->add(chev_lbl);
+            } catch (...) { /* fall back: no chevron */ }
+            // Keep a transparent Label as the chevron handle for the
+            // colour-update logic below (no-op when no real chevron drawn).
+            chevron = make_shared<Label>("",
+                Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
             chevron->color(Palette::ColorId::label_text, text_color);
             row_frame->add(chevron);
 
             auto hover_timer = make_shared<Timer>(chrono::milliseconds(1500));
             hover_timer->on_timeout([=]() {
                 ssid_lbl->color(Palette::ColorId::label_text, text_color);
-                wifi_icon->set_color(text_color);
+                if (wifi_icon) wifi_icon->set_color(text_color);
                 chevron->color(Palette::ColorId::label_text, text_color);
                 row_frame->damage();
             });
@@ -400,7 +486,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 if (event.id() == EventId::raw_pointer_down) {
                     hover_timer->stop();
                     ssid_lbl->color(Palette::ColorId::label_text, dt::kGreen);
-                    wifi_icon->set_color(dt::kGreen);
+                    if (wifi_icon) wifi_icon->set_color(dt::kGreen);
                     chevron->color(Palette::ColorId::label_text, dt::kGreen);
                     row_frame->damage();
                 } else if (event.id() == EventId::raw_pointer_up) {
@@ -409,7 +495,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                            event.id() == EventId::pointer_drag) {
                     hover_timer->stop();
                     ssid_lbl->color(Palette::ColorId::label_text, text_color);
-                    wifi_icon->set_color(text_color);
+                    if (wifi_icon) wifi_icon->set_color(text_color);
                     chevron->color(Palette::ColorId::label_text, text_color);
                     row_frame->damage();
                 }
@@ -435,10 +521,11 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 if (on_show_screen) on_show_screen(pwd_screen);
             }, {EventId::pointer_click});
 
+            // Row divider line - matches figma's visible row separator.
             auto sep = make_shared<Frame>(
                 Rect(15, row_h - 1, card_w - 30, 1));
             sep->fill_flags({Theme::FillFlag::blend});
-            sep->color(Palette::ColorId::bg, Color(217, 217, 217, 100));
+            sep->color(Palette::ColorId::bg, Color(220, 220, 220));
             sep->border(0);
             row_frame->add(sep);
 
@@ -447,19 +534,17 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             (*row_handles)[label] = RowHandles{ssid_lbl, wifi_icon, chevron, row_frame};
         }
 
-        // "Other..." entry at the bottom — always present
+        // "Other..." entry at the bottom — always present, transparent bg.
         int other_y = cur_total * row_pitch;
         auto other_frame = make_shared<Frame>(
             Rect(0, other_y, card_w, row_h));
-        other_frame->fill_flags({Theme::FillFlag::blend});
-        other_frame->color(Palette::ColorId::bg, dt::kGrayBg);
+        other_frame->fill_flags({});
         other_frame->border(0);
-        other_frame->border_radius(10);
         list_content->add(other_frame);
 
         auto other_lbl = make_shared<Label>("Other...",
-            Rect(text_pad, 4, card_w - 140, row_h - 8));
-        other_lbl->font(Font(dt::FONT_BODY, Font::Weight::bold));
+            Rect(text_pad, 4, card_w - 180, row_h - 8));
+        other_lbl->font(Font("Gothic A1", 22, Font::Weight::bold));
         other_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         other_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
         other_lbl->border(0);
@@ -498,45 +583,22 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             if (on_show_screen) on_show_screen(ssid_screen);
         }, {EventId::pointer_click});
 
-        auto other_chev_shadow = make_shared<Frame>(
-            Rect(card_w - 54, (row_h - 26) / 2 + 1, 26, 26));
-        other_chev_shadow->fill_flags({Theme::FillFlag::blend});
-        other_chev_shadow->color(Palette::ColorId::bg, Color(0, 0, 0, 40));
-        other_chev_shadow->border(0);
-        other_chev_shadow->border_radius(13);
-        other_frame->add(other_chev_shadow);
-
-        auto other_chev_bg = make_shared<Frame>(
-            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-        other_chev_bg->fill_flags({Theme::FillFlag::blend});
-        other_chev_bg->color(Palette::ColorId::bg, dt::kWhite);
-        other_chev_bg->border(0);
-        other_chev_bg->border_radius(13);
-        other_frame->add(other_chev_bg);
-
-        auto other_chevron = make_shared<Label>(">",
-            Rect(card_w - 55, (row_h - 26) / 2, 26, 26));
-        other_chevron->font(Font(14, Font::Weight::bold));
-        other_chevron->color(Palette::ColorId::label_text, dt::kTextPrimary);
-        other_frame->add(other_chevron);
+        // "Other..." chevron - same PNG as the network rows for consistency.
+        try {
+            auto img = Image("file:assets/figma/images/wifi-row-chevron.png");
+            auto chev_lbl = make_shared<ImageLabel>(img);
+            chev_lbl->autoresize(false);
+            chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
+            chev_lbl->fill_flags({});
+            chev_lbl->image_align(AlignFlag::center);
+            chev_lbl->box(Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
+            other_frame->add(chev_lbl);
+        } catch (...) { /* fall back: no chevron */ }
 
         list_content->damage();
 
-        // Restore scroll position, clamped to the new content range.
-        // ScrolledView uses negative voffset as the user scrolls down (the
-        // content moves up). New content may be shorter → clamp so we never
-        // expose empty space below the last row.
-        const int view_h = scroll_view->size().height();
-        int restored = saved_voffset;
-        if (cur_content_h <= view_h) {
-            restored = 0;  // content fits → no scroll
-        } else {
-            const int max_neg = -(cur_content_h - view_h);
-            if (restored > 0)        restored = 0;
-            else if (restored < max_neg) restored = max_neg;
-        }
-        if (restored != saved_voffset || saved_voffset != 0)
-            scroll_view->voffset(restored);
+        // Scroll position restore is no-op while scroll_view is a plain Frame.
+        (void)saved_voffset; (void)cur_content_h;
     };
 
     // Cheap refresh path: SSID set unchanged, only signal/connected differs.
@@ -571,27 +633,63 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             if (h.row_frame) h.row_frame->damage();
         }
         list_content->damage();
+        printf("[WIFI_SETTINGS_DBG] rebuild done: list_content kids=%zu visible=%d\n",
+               list_content->count_children(), list_content->visible());
+        fflush(stdout);
     };
 
     rebuild_rows();
 
-    // ── Back button — shared layout via ui::add_back_button ────────────────
-    ui::add_back_button(*container, [alive, on_back]() {
-        *alive = false;
-        if (on_back) on_back();
-    });
+    // ── Bottom icons - F1:1 with Figma ──────────────────────────────────────
+    // Both icons are 39×39 figma → 72×72 device, matching the same gray
+    // gradient pill style on Figma (217→255). Y position = figma 206 →
+    // device 381. Gear (Group 263 inner pill at figma x=18) sits at device
+    // x=33; wifi-off (Group 248) sits at figma x=375 → device x=695.
+    const int icon_sz = 72;
+    const int icon_y  = 381;
 
-    // ── Wi-Fi-off icon (bottom-right) — goes directly to the "Not Connected"
-    // screen (screen_wifi_unavailable). The previous translucent overlay has
-    // been removed — Figma uses a dedicated screen for the override flow,
-    // not a modal. Tapping the icon fires on_connect("", "") which app.cpp
-    // routes to show_wifi_unavailable.
+    // ── Gear button (bottom-left) - Figma node 2065:870, inner pill at
+    // (7,7) 39×39 inside the 133×52 group. The pill takes the user back to
+    // wherever they came from. home-gear-icon.png already bakes in the
+    // gradient circle background + gear glyph, so we render it as the whole
+    // button (no extra pill behind it).
     {
-        // Mirror the Back button (46×46 @ y=414) on the right edge.
-        const int icon_sz = 46;
-        const int icon_x  = dt::SCREEN_W - icon_sz - 27;
-        const int icon_y  = 414;
+        auto gear_wrap = make_shared<Frame>(Rect(33, icon_y, icon_sz, icon_sz));
+        gear_wrap->fill_flags({});
+        container->add(gear_wrap);
 
+        try {
+            auto img = Image("file:assets/figma/images/home-gear-icon.png");
+            auto gear_lbl = make_shared<ImageLabel>(img);
+            gear_lbl->autoresize(false);
+            gear_lbl->border(0); gear_lbl->padding(0); gear_lbl->margin(0);
+            gear_lbl->fill_flags({});
+            gear_lbl->image_align(AlignFlag::center);
+            gear_lbl->box(Rect(0, 0, icon_sz, icon_sz));
+            gear_wrap->add(gear_lbl);
+        } catch (...) {
+            // Fallback: plain gray pill so the click target is still visible.
+            auto circle_bg = make_shared<Frame>(Rect(0, 0, icon_sz, icon_sz));
+            circle_bg->fill_flags({Theme::FillFlag::blend});
+            circle_bg->color(Palette::ColorId::bg, palette::kGray200);
+            circle_bg->border(0);
+            circle_bg->border_radius(icon_sz / 2);
+            gear_wrap->add(circle_bg);
+        }
+
+        gear_wrap->on_event([alive, on_back](Event& e) {
+            if (e.id() == EventId::pointer_click) {
+                *alive = false;
+                if (on_back) on_back();
+            }
+        });
+    }
+
+    // ── Wi-Fi-off icon (bottom-right) - Figma node 151:956 (Group 248) at
+    // figma (375, 206), 39×39 → device (695, 381), 72×72. Tapping goes to
+    // the "Not Connected" screen via on_connect("", "").
+    {
+        const int icon_x = 695;
         auto skip_btn = make_shared<SkipWiFiButton>(
             Rect(icon_x, icon_y, icon_sz, icon_sz));
         container->add(skip_btn);

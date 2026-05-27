@@ -96,3 +96,9 @@ figma_token.json
 .claude/
 CLAUDE.md
 .playwright-mcp/
+
+# PDF generator (local dev tool, vendored from sibling projects) + generated PDFs
+scripts/generate_pdf/
+*.pdf
+scripts/generate_ppt/
+docs/08-references/sop
