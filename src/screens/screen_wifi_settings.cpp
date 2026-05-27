@@ -364,7 +364,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     auto drag_origin_y = make_shared<int>(0);
     auto drag_start_y  = make_shared<int>(0);
     auto drag_active   = make_shared<bool>(false);
-    scroll_view->on_event([=](Event& e) {
+
+    // Shared drag-scroll helper. EGT does not auto-propagate pointer events
+    // from a child to its ancestor's on_event callbacks, so a drag that
+    // STARTS on a row never reaches scroll_view's handler — every row has to
+    // forward the same drag event into here for the list to actually scroll.
+    auto handle_scroll_drag = [=](Event& e) {
         if (e.id() == EventId::pointer_drag_start) {
             *drag_origin_y = list_content->y();
             *drag_start_y  = e.pointer().point.y();
@@ -380,7 +385,8 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         } else if (e.id() == EventId::pointer_drag_stop) {
             *drag_active = false;
         }
-    });
+    };
+    scroll_view->on_event([=](Event& e) { handle_scroll_drag(e); });
 
     // ── Network list rows (rebuilt on each WiFi scan update) ────────────────
     // Wrapping the row construction in a lambda lets the periodic refresh timer
@@ -492,12 +498,16 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 } else if (event.id() == EventId::raw_pointer_up) {
                     hover_timer->start();
                 } else if (event.id() == EventId::pointer_drag_start ||
-                           event.id() == EventId::pointer_drag) {
+                           event.id() == EventId::pointer_drag ||
+                           event.id() == EventId::pointer_drag_stop) {
                     hover_timer->stop();
                     ssid_lbl->color(Palette::ColorId::label_text, text_color);
                     if (wifi_icon) wifi_icon->set_color(text_color);
                     chevron->color(Palette::ColorId::label_text, text_color);
                     row_frame->damage();
+                    // Forward to the scroll-view's drag logic so dragging on a
+                    // row actually scrolls the list (EGT does not bubble).
+                    handle_scroll_drag(event);
                 }
             });
 
@@ -582,6 +592,16 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 });
             if (on_show_screen) on_show_screen(ssid_screen);
         }, {EventId::pointer_click});
+
+        // Same scroll-forwarding as the other rows so dragging starting on
+        // "Other..." actually scrolls the list (EGT does not bubble).
+        other_frame->on_event([=](Event& event) {
+            if (event.id() == EventId::pointer_drag_start ||
+                event.id() == EventId::pointer_drag ||
+                event.id() == EventId::pointer_drag_stop) {
+                handle_scroll_drag(event);
+            }
+        });
 
         // "Other..." chevron - same PNG as the network rows for consistency.
         try {
