@@ -349,6 +349,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         Rect(0, list_top, card_w, list_h));
     scroll_view->fill_flags({});
     scroll_view->border(0);
+    // EGT requires user_drag(true) for a widget to accept pointer_drag*
+    // events at all (Widget::accept_drag()), and user_track_drag(true) so the
+    // drag keeps firing once the pointer crosses outside the widget bounds.
+    // Without these flags the drag silently bails after the first event.
+    scroll_view->user_drag(true);
+    scroll_view->user_track_drag(true);
     card->add(scroll_view);
 
     // Content frame inside the clipping view - holds all rows.
@@ -357,6 +363,8 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     list_content->fill_flags({Theme::FillFlag::blend});
     list_content->color(Palette::ColorId::bg, dt::kTransparent);
     list_content->border(0);
+    list_content->user_drag(true);
+    list_content->user_track_drag(true);
     scroll_view->add(list_content);
 
     // Touch-drag scrolling: track pointer delta and shift list_content's y.
@@ -440,6 +448,10 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 Rect(0, row_y, card_w, row_h));
             row_frame->fill_flags({});
             row_frame->border(0);
+            // Required for EGT to deliver pointer_drag* to this widget — see
+            // the user_drag note on scroll_view above.
+            row_frame->user_drag(true);
+            row_frame->user_track_drag(true);
             list_content->add(row_frame);
 
             // Row name - Figma fontSize 12 Bold -> device 22 pt.
@@ -567,6 +579,8 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             Rect(0, other_y, card_w, row_h));
         other_frame->fill_flags({});
         other_frame->border(0);
+        other_frame->user_drag(true);
+        other_frame->user_track_drag(true);
         list_content->add(other_frame);
 
         auto other_lbl = make_shared<Label>("Other...",
