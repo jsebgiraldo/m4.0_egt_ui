@@ -4,6 +4,7 @@
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
 
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 
@@ -111,6 +112,61 @@ static const char* kRefreshSvg = R"svg(
 
 // Figma Group 231: Patient Information — 3 sub-screens (Gender, Age, ZIP)
 // Canvas: 432×261, screen: 800×480 → scale ≈ 1.852
+
+// ── Wheel gradient backdrop ─────────────────────────────────────────────────
+// Same widget the Technician Log-in picker uses (screen_login_v2): vertical
+// gradient from medium-gray edges to a pure-white plateau over the selected
+// slot, with rounded corners. Combined with per-slot alpha on the labels it
+// fakes the "cylinder rolling behind a curved window" look.
+class AgeWheelGradient : public egt::Widget {
+public:
+    AgeWheelGradient(const egt::Rect& r, float plateau_top, float plateau_bot,
+                     float radius = 6.0f)
+        : egt::Widget(r), m_radius(radius),
+          m_plateau_top(plateau_top), m_plateau_bot(plateau_bot)
+    {
+        fill_flags({egt::Theme::FillFlag::blend});
+        border(0);
+    }
+
+    void draw(egt::Painter& painter, const egt::Rect&) override
+    {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+
+        const egt::Color edge {212, 212, 212};
+        const egt::Color white{255, 255, 255};
+        egt::Pattern grad(egt::Pattern::StepArray{
+            {0.0f,            edge},
+            {m_plateau_top,   white},
+            {m_plateau_bot,   white},
+            {1.0f,            edge}
+        }, egt::Point(static_cast<int>(x), static_cast<int>(y)),
+           egt::Point(static_cast<int>(x), static_cast<int>(y + h)));
+
+        const float r = m_radius;
+        const auto PI = static_cast<float>(M_PI);
+        painter.draw(egt::PointF(x + r, y));
+        painter.line(egt::PointF(x + w - r, y));
+        painter.draw(egt::Arc(egt::PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
+        painter.line(egt::PointF(x + w, y + h - r));
+        painter.draw(egt::Arc(egt::PointF(x + w - r, y + h - r),   r, 0.0f,   PI / 2));
+        painter.line(egt::PointF(x + r, y + h));
+        painter.draw(egt::Arc(egt::PointF(x + r, y + h - r),       r, PI / 2, PI));
+        painter.line(egt::PointF(x, y + r));
+        painter.draw(egt::Arc(egt::PointF(x + r, y + r),           r, PI, 3 * PI / 2));
+        painter.set(grad);
+        painter.fill();
+    }
+
+private:
+    float m_radius;
+    float m_plateau_top;
+    float m_plateau_bot;
+};
 
 // ── Forward declarations ────────────────────────────────────────────────────
 static shared_ptr<Widget> create_gender_step(
@@ -473,31 +529,49 @@ static shared_ptr<Widget> create_age_step(
     const int box_h     = n_slots * slot_h + 2 * (chevron_h + padding);
     const int box_x     = (dt::SCREEN_W - box_w) / 2;
     const int box_y     = 130;
+
+    // FIXED slot layout up front so the gradient's white plateau lands exactly
+    // on the centre row (same trick as the Technician Log-in picker).
+    const int slots_top       = chevron_h + padding;
+    const int center_slot_idx = n_slots / 2;
+    const int sel_top_y     = slots_top + center_slot_idx * slot_h;
+    const float plateau_top = static_cast<float>(sel_top_y) / box_h;
+    const float plateau_bot = static_cast<float>(sel_top_y + slot_h) / box_h;
+    auto picker_bg = make_shared<AgeWheelGradient>(
+        Rect(box_x, box_y, box_w, box_h),
+        plateau_top, plateau_bot, 6.0f);
+    container->add(picker_bg);
+
+    // Inner Frame is transparent so the gradient shows through.
     auto picker_box = make_shared<Frame>(Rect(box_x, box_y, box_w, box_h));
-    picker_box->fill_flags({Theme::FillFlag::blend});
-    picker_box->color(Palette::ColorId::bg, dt::kBgWhite);
+    picker_box->fill_flags({});
     picker_box->border(0);
     container->add(picker_box);
 
-    auto up_arrow = make_shared<Label>("\u25B2",
-        Rect(0, 4, box_w, chevron_h), AlignFlag::center);
-    up_arrow->font(Font(14));
-    up_arrow->color(Palette::ColorId::label_text, palette::kGray400);
-    picker_box->add(up_arrow);
-
-    auto down_arrow = make_shared<Label>("\u25BC",
-        Rect(0, box_h - chevron_h - 4, box_w, chevron_h), AlignFlag::center);
-    down_arrow->font(Font(14));
-    down_arrow->color(Palette::ColorId::label_text, palette::kGray400);
-    picker_box->add(down_arrow);
+    // Up / down PNG arrows from Figma \u2014 same assets the login picker uses.
+    auto load_arrow = [&](const std::string& png_path, int y) {
+        auto wrap = make_shared<Frame>(Rect(0, y, box_w, chevron_h));
+        wrap->fill_flags({});
+        try {
+            auto img = Image(("file:" + png_path).c_str());
+            auto lbl = make_shared<ImageLabel>(img);
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, box_w, chevron_h));
+            wrap->add(lbl);
+        } catch (...) { /* fall back: no arrow */ }
+        return wrap;
+    };
+    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-up.png", 4));
+    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-down.png",
+                               box_h - chevron_h - 4));
 
     // FIXED slot frames render the wheel. They never move; a transparent
     // vertical Slider on top drives `sel` with live_update — same pattern
     // we used for brightness, which is the only way EGT emits continuous
     // value-change events during a drag.
-    const int slots_top       = chevron_h + padding;
-    const int center_slot_idx = n_slots / 2;
-
     auto slot_labels = make_shared<vector<shared_ptr<Label>>>();
 
     for (int k = 0; k < n_slots; k++) {
@@ -516,6 +590,11 @@ static shared_ptr<Widget> create_age_step(
     }
 
     // Slot k displays ranges[sel + (k - center_slot_idx)] when in range.
+    // Per-slot alpha makes the top/bottom rows dissolve into the gradient
+    // edges (same effect as the login picker). 5-slot symmetric ramp:
+    //   k=0 / k=4: very faint   (alpha 60)
+    //   k=1 / k=3: half visible (alpha 180)
+    //   k=2:       selected     (alpha 255, bold)
     auto redraw = [=](int state) {
         for (int k = 0; k < n_slots; k++) {
             const int idx = state + (k - center_slot_idx);
@@ -524,15 +603,22 @@ static shared_ptr<Widget> create_age_step(
                 continue;
             }
             const bool is_sel = (k == center_slot_idx);
-            const int  dist   = std::abs(k - center_slot_idx);
             (*slot_labels)[k]->text(ranges[idx].label);
             (*slot_labels)[k]->font(Font(
                 is_sel ? 28 : 22,
                 is_sel ? Font::Weight::bold : Font::Weight::normal));
-            const Color c =
-                is_sel        ? dt::kTextPrimary
-              : (dist == 1)   ? palette::kGray500
-                              : palette::kGray400;
+
+            int alpha;
+            switch (k) {
+                case 0:  alpha =  60; break;
+                case 1:  alpha = 180; break;
+                case 2:  alpha = 255; break;
+                case 3:  alpha = 180; break;
+                default: alpha =  60; break;   // k == 4
+            }
+            const auto base = dt::kTextPrimary;
+            const Color c(base.red(), base.green(), base.blue(),
+                          static_cast<uint8_t>(alpha));
             (*slot_labels)[k]->color(Palette::ColorId::label_text, c);
         }
         picker_box->damage();
