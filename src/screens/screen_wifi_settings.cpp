@@ -369,23 +369,40 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     // from a child to its ancestor's on_event callbacks, so a drag that
     // STARTS on a row never reaches scroll_view's handler — every row has to
     // forward the same drag event into here for the list to actually scroll.
+    // Incremental delta tracking instead of "origin + cumulative dy" because
+    // the row that captured the press can be destroyed mid-gesture by the
+    // periodic rebuild_rows() pass on a mock-data tick — in that case EGT
+    // delivers pointer_drag events to the NEW row without re-firing the
+    // drag_start. Storing only the previous y and computing delta per event
+    // is robust to that.
+    auto last_y = make_shared<int>(0);
     auto handle_scroll_drag = [=](Event& e) {
         if (e.id() == EventId::pointer_drag_start) {
-            *drag_origin_y = list_content->y();
-            *drag_start_y  = e.pointer().point.y();
-            *drag_active   = true;
-        } else if (e.id() == EventId::pointer_drag && *drag_active) {
-            const int dy = e.pointer().point.y() - *drag_start_y;
-            int new_y = *drag_origin_y + dy;
+            *last_y      = e.pointer().point.y();
+            *drag_active = true;
+        } else if (e.id() == EventId::pointer_drag) {
+            if (!*drag_active) {
+                // Missed drag_start (likely a mid-gesture row rebuild). Use
+                // this event as the new anchor and start scrolling on the
+                // next one.
+                *last_y      = e.pointer().point.y();
+                *drag_active = true;
+                return;
+            }
+            const int cur_y = e.pointer().point.y();
+            const int dy    = cur_y - *last_y;
+            int new_y = list_content->y() + dy;
             const int min_y = -(list_content->height() - list_h);
-            if (min_y > 0) new_y = 0;  // content fits, no scroll
+            if (min_y > 0) new_y = 0;          // content fits, no scroll
             else if (new_y > 0) new_y = 0;
             else if (new_y < min_y) new_y = min_y;
             list_content->move(Point(0, new_y));
+            *last_y = cur_y;
         } else if (e.id() == EventId::pointer_drag_stop) {
             *drag_active = false;
         }
     };
+    (void)drag_origin_y; (void)drag_start_y;   // kept above for ABI parity
     scroll_view->on_event([=](Event& e) { handle_scroll_drag(e); });
 
     // ── Network list rows (rebuilt on each WiFi scan update) ────────────────
@@ -856,6 +873,15 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                             return out;
                         };
                         bool set_changed = ssid_set(*nets) != ssid_set(*fresh);
+                        // Defer the destructive rebuild while the user is
+                        // mid-drag — destroying their currently-pressed row
+                        // breaks the gesture. Leave nets / last_fingerprint
+                        // untouched so the next scan tick (2 s) re-tries the
+                        // comparison and rebuilds once the drag has ended.
+                        if (set_changed && *drag_active) {
+                            printf("[WIFI_SETTINGS] rebuild deferred (drag in progress)\n");
+                            fflush(stdout);
+                        } else {
                         *nets = *fresh;
                         *last_fingerprint = fp;
                         if (set_changed) {
@@ -869,6 +895,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                             fflush(stdout);
                             update_rows_in_place();
                         }
+                    }
                     }
                 }
             }
