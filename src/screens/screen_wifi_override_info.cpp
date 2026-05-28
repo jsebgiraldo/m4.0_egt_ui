@@ -259,13 +259,15 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     // with a clear margin from the screen edges, not a full-bleed overlay.
     // The dimmed area outside the popup (between popup edge and screen
     // edge) lets the underlying card show through.
+    // Sized so the orange banner peeks above and the Back/Retry/Setting row
+    // peeks below — matches Figma 2079:2300's modal-over-a-screen framing
+    // instead of fully covering the underlying card.
     const int popup_margin_x = 22;
     const int popup_margin_top = 6;
-    const int popup_margin_bot = 14;
     const int popup_x = popup_margin_x;
     const int popup_y = card_y + banner_h + popup_margin_top;
     const int popup_w = dt::SCREEN_W - 2 * popup_margin_x;
-    const int popup_h = dt::SCREEN_H - popup_y - popup_margin_bot;
+    const int popup_h = 270;   // tuned so bottom row (y≈380) stays visible
     auto popup = make_shared<Frame>(Rect(popup_x, popup_y, popup_w, popup_h));
     popup->fill_flags({Theme::FillFlag::blend});
     popup->color(Palette::ColorId::bg, Color(45, 45, 45, 235));
@@ -311,26 +313,26 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             popup->add(info_lbl);
         } catch (...) { /* fall back to no icon */ }
 
-        // X close — Painter-drawn, top-right of the popup card. The popup IS
-        // the screen for the user, so X exits the override flow entirely and
-        // returns to the WiFi-unavailable screen they came from. It does NOT
-        // just dismiss to a popup-less "card view" (that was the surprise
-        // jump that made it look like a different screen).
+        // X close — Painter-drawn, top-right of the popup card. Per Figma
+        // 2079:2300, X dismisses the popup to reveal the underlying card
+        // (which carries the blue Continue button for the override-password
+        // path and the Back/Retry/Setting row).
         popup->add(make_shared<CloseX>(
             Rect(popup_w - 60, 18, 44, 44), dt::kWhite,
-            [on_back]() { if (on_back) on_back(); }));
+            [popup]() { popup->hide(); }));
 
-        // The green "N calendar day(s)" sits inline; render as stacked lines
-        // with the day-count line green. All centred within the popup.
-        const int y0 = (H - 260) / 2;
+        // The green "N calendar day(s)" sits inline in Figma; without rich
+        // text we render the green phrase on its own line, tightly packed.
+        (void)H;
+        const int y0 = 60;
         auto l1 = make_shared<Label>("Please note that on",
-            Rect(M, y0, tw, 34), AlignFlag::center);
-        l1->font(Font(22)); l1->color(Palette::ColorId::label_text, dt::kWhite);
+            Rect(M, y0, tw, 28), AlignFlag::center);
+        l1->font(Font(19)); l1->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l1);
 
         auto l2 = make_shared<Label>(to_string(days) + " calendar day(s) from today,",
-            Rect(M, y0 + 38, tw, 34), AlignFlag::center);
-        l2->font(Font(22, Font::Weight::bold));
+            Rect(M, y0 + 30, tw, 28), AlignFlag::center);
+        l2->font(Font(19, Font::Weight::bold));
         l2->color(Palette::ColorId::label_text, dt::kGreen);
         popup->add(l2);
 
@@ -338,25 +340,16 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             "a Wi-Fi/Network Connection must be established,\n"
             "or an Override Password must be entered for the\n"
             "device to continue to operate.",
-            Rect(M, y0 + 80, tw, 90), AlignFlag::center);
-        l3->font(Font(20)); l3->color(Palette::ColorId::label_text, dt::kWhite);
+            Rect(M, y0 + 62, tw, 70), AlignFlag::center);
+        l3->font(Font(17)); l3->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l3);
 
         auto l4 = make_shared<Label>(
             "(An Override Password is provided by Larada Sciences,\n"
             "please contact your Clinic Success contact for more details).",
-            Rect(M, y0 + 180, tw, 70), AlignFlag::center);
-        l4->font(Font(18)); l4->color(Palette::ColorId::label_text, palette::kGray200);
+            Rect(M, y0 + 140, tw, 56), AlignFlag::center);
+        l4->font(Font(15)); l4->color(Palette::ColorId::label_text, palette::kGray200);
         popup->add(l4);
-
-        // Continue button inside the popup so the override path stays
-        // reachable without dismissing to the underlying card view.
-        const int btn_w = 240, btn_h = 56;
-        const int btn_x = (popup_w - btn_w) / 2;
-        const int btn_y = H - btn_h - 22;
-        auto btn_cont = ui::create_filled_button("Continue",
-            Rect(btn_x, btn_y, btn_w, btn_h), on_continue);
-        popup->add(btn_cont);
     }
     container->add(popup);
 
