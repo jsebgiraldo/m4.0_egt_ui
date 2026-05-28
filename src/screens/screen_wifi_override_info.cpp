@@ -169,6 +169,74 @@ shared_ptr<Frame> make_icon_button(int x, int y, int w, int h,
     return frame;
 }
 
+// ── Continue button with vertical cyan→blue gradient ──────────────────────
+// Matches Figma 2073:1808 — bg linear-gradient(#30a3c4 → #305fc4), rounded
+// 4 px, "Continue" white Gothic A1 Bold centered. Same gradient family as
+// the HOME Start button (palette::kStartTop / kStartBottom).
+class ContinueGradientButton : public Widget {
+public:
+    ContinueGradientButton(const Rect& rect, function<void()> on_click)
+        : Widget(rect), m_on_click(std::move(on_click)) {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        on_event([this](Event& e) {
+            switch (e.id()) {
+                case EventId::raw_pointer_down: m_pressed = true;  damage(); break;
+                case EventId::raw_pointer_up:   m_pressed = false; damage(); break;
+                case EventId::pointer_click:    if (m_on_click) m_on_click(); break;
+                default: break;
+            }
+        });
+    }
+    void draw(Painter& painter, const Rect&) override {
+        auto b = content_area();
+        const float x = static_cast<float>(b.x());
+        const float y = static_cast<float>(b.y());
+        const float w = static_cast<float>(b.width());
+        const float h = static_cast<float>(b.height());
+        const float r = 7.0f;
+
+        // Drop shadow (Figma 0px 4px 4px rgba(0,0,0,0.2))
+        rounded_rect(painter, x, y + 4.0f, w, h, r);
+        painter.set(Color(0, 0, 0, 50));
+        painter.fill();
+
+        // Cyan→blue vertical gradient
+        Color top = m_pressed ? Color(palette::kStartTopPress) : Color(palette::kStartTop);
+        Color bot = m_pressed ? Color(palette::kStartBotPress) : Color(palette::kStartBottom);
+        Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
+        rounded_rect(painter, x, y, w, h, r);
+        painter.set(grad);
+        painter.fill();
+
+        // Centered white label, painted in-widget so it never intercepts the
+        // click (same trick as StartButton).
+        painter.set(Color(255, 255, 255));
+        painter.set(Font(28, Font::Weight::bold));
+        const auto ts = painter.text_size("Continue");
+        painter.draw(PointF(x + (w - ts.width()) / 2.0f,
+                            y + (h - ts.height()) / 2.0f));
+        painter.draw(string("Continue"));
+    }
+private:
+    bool m_pressed{false};
+    function<void()> m_on_click;
+    static void rounded_rect(Painter& p, float x, float y, float w, float h, float r) {
+        const auto PI = static_cast<float>(M_PI);
+        p.draw(PointF(x + r, y));
+        p.line(PointF(x + w - r, y));
+        p.draw(Arc(PointF(x + w - r, y + r), r, -PI / 2, 0.0f));
+        p.line(PointF(x + w, y + h - r));
+        p.draw(Arc(PointF(x + w - r, y + h - r), r, 0.0f, PI / 2));
+        p.line(PointF(x + r, y + h));
+        p.draw(Arc(PointF(x + r, y + h - r), r, PI / 2, PI));
+        p.line(PointF(x, y + r));
+        p.draw(Arc(PointF(x + r, y + r), r, PI, 3 * PI / 2));
+    }
+};
+
 } // namespace
 
 shared_ptr<Widget> create_wifi_override_info_screen(
@@ -245,63 +313,52 @@ shared_ptr<Widget> create_wifi_override_info_screen(
     save->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(save);
 
-    // ── Continue button (blue) + (!) info badge ─────────────────────────────
-    // Lifted up with a clear gap above the Back/Retry/Setting row.
-    const int cont_w = 300, cont_h = 58;
-    const int cont_x = (card_w - cont_w) / 2 - 20;
-    const int cont_y = banner_h + 158;
-    auto btn_continue = ui::create_filled_button("Continue",
+    // ── Continue button (cyan→blue gradient) + (!) info badge ───────────────
+    // Figma 2073:1808: 231×43.682 figma px at (100, 154) → 428×80 device px at
+    // screen (185, 283). Card has padding (40, 22), so card-local = (145, 261).
+    const int cont_w = 428, cont_h = 80;
+    const int cont_x = 145;            // = 185 (screen) - card_x (40)
+    const int cont_y = 261;            // = 283 (screen) - card_y (22)
+    auto btn_continue = make_shared<ContinueGradientButton>(
         Rect(cont_x, cont_y, cont_w, cont_h), on_continue);
     card->add(btn_continue);
 
-    // Rounded-rectangle popup card that floats over the screen below the
-    // banner. Figma node 2079:2300 shows it as a soft-cornered rectangle
-    // with a clear margin from the screen edges, not a full-bleed overlay.
-    // The dimmed area outside the popup (between popup edge and screen
-    // edge) lets the underlying card show through.
-    // Sized so the orange banner peeks above and the Back/Retry/Setting row
-    // peeks below — matches Figma 2079:2300's modal-over-a-screen framing
-    // instead of fully covering the underlying card.
-    const int popup_margin_x = 22;
-    const int popup_margin_top = 6;
-    const int popup_x = popup_margin_x;
-    const int popup_y = card_y + banner_h + popup_margin_top;
-    const int popup_w = dt::SCREEN_W - 2 * popup_margin_x;
-    const int popup_h = 270;   // tuned so bottom row (y≈380) stays visible
+    // Figma 2079:2300 popup: bg rect 396×225 figma at local (16, 17) → device
+    // 733×413 at (30, 31). Rounded 8 figma → 15 device. Color
+    // rgba(100,101,105,0.9). Added DIRECTLY to container (not to card) since
+    // it overlays the whole screen and the bottom row is meant to be drawn
+    // on top of it (added after).
+    const int popup_x = 30;
+    const int popup_y = 31;
+    const int popup_w = 740;           // 733 figma + small symmetric rounding
+    const int popup_h = 413;
     auto popup = make_shared<Frame>(Rect(popup_x, popup_y, popup_w, popup_h));
     popup->fill_flags({Theme::FillFlag::blend});
-    popup->color(Palette::ColorId::bg, Color(45, 45, 45, 235));
+    popup->color(Palette::ColorId::bg, Color(100, 101, 105, 230));
     popup->border(0);
-    popup->border_radius(18);
+    popup->border_radius(15);
 
     auto badge = make_shared<InfoBadge>(
         Rect(cont_x + cont_w + 16, cont_y + (cont_h - 36) / 2, 36, 36),
         [popup]() { popup->show(); });
     card->add(badge);
 
-    // ── Bottom row: Back / Retry WiFi / Setting ─────────────────────────────
-    // Pulled up from the card's bottom edge so it doesn't hug it.
+    // ── Bottom row geometry (added after popup, see below) ──────────────────
     const int row_y = banner_h + 262;
     const int row_h = 60, row_gap = 14;
     const int row_w = (card_w - 30 * 2 - 2 * row_gap) / 3;
     auto back_icon  = load_icon("chev",    kChevronSvg, 22);
     auto rfsh_icon  = load_icon("refresh", kRefreshSvg, 22);
     auto gear_icon  = load_icon("gear",    kGearSvg,    22);
-    card->add(make_icon_button(30, row_y, row_w, row_h,
-        "Back", back_icon, on_back));
-    card->add(make_icon_button(30 + row_w + row_gap, row_y, row_w, row_h,
-        "Retry WiFi", rfsh_icon, on_retry_wifi));
-    card->add(make_icon_button(30 + 2 * (row_w + row_gap), row_y, row_w, row_h,
-        "Setting", gear_icon, on_settings));
 
     // ── Info popup content (sits inside the rounded popup card) ───────────
-    // All coordinates here are LOCAL to the popup Frame.
+    // All coordinates here are LOCAL to the popup Frame. Figma 2073:1850:
+    // text box 310×160 figma at frame-local (67, 51) → popup-local (51, 34)
+    // → device popup-local (94, 62). Font 16 figma px ≈ 23 device, leading
+    // 20 figma ≈ 37 device.
     {
-        const int M  = 42;                  // side margin inside the popup
-        const int tw = popup_w - 2 * M;     // text width
-        const int H  = popup_h;             // popup height
-
-        // Orange info icon top-left (Figma 2073:1852).
+        // Orange info icon top-left (Figma 2073:1852: 21×21.5 at frame-local
+        // (26, 24) → popup-local (10, 7) → device (18, 13)).
         try {
             auto img = Image("file:assets/figma/images/wifi-info-icon.png");
             auto info_lbl = make_shared<ImageLabel>(img);
@@ -309,30 +366,34 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             info_lbl->border(0); info_lbl->padding(0); info_lbl->margin(0);
             info_lbl->fill_flags({});
             info_lbl->image_align(AlignFlag::center);
-            info_lbl->box(Rect(18, 18, 44, 44));
+            info_lbl->box(Rect(18, 13, 44, 44));
             popup->add(info_lbl);
         } catch (...) { /* fall back to no icon */ }
 
-        // X close — Painter-drawn, top-right of the popup card. Per Figma
-        // 2079:2300, X dismisses the popup to reveal the underlying card
-        // (which carries the blue Continue button for the override-password
-        // path and the Back/Retry/Setting row).
+        // X close (Figma 2073:1861: 15×15 at frame-local (380, 28) →
+        // popup-local (364, 11) → device (674, 20)). Drawn larger (44×44)
+        // than Figma for a usable touch target. Per Figma 2079:2300, X
+        // dismisses the popup to reveal the underlying card (with the blue
+        // Continue button and Back/Retry/Setting row).
         popup->add(make_shared<CloseX>(
-            Rect(popup_w - 60, 18, 44, 44), dt::kWhite,
+            Rect(popup_w - 64, 14, 44, 44), dt::kWhite,
             [popup]() { popup->hide(); }));
 
-        // The green "N calendar day(s)" sits inline in Figma; without rich
-        // text we render the green phrase on its own line, tightly packed.
-        (void)H;
-        const int y0 = 60;
+        // Body text — Figma 2073:1850 is a single text node with an inline
+        // green span on "7 calendar day(s)". Without rich-text we split into
+        // sequential Labels and put the green phrase on its own line.
+        const int M  = 94;                  // left margin (device from popup edge)
+        const int tw = popup_w - 2 * M;     // text width (~552)
+
+        const int y0 = 70;                  // first text line baseline
         auto l1 = make_shared<Label>("Please note that on",
-            Rect(M, y0, tw, 28), AlignFlag::center);
-        l1->font(Font(19)); l1->color(Palette::ColorId::label_text, dt::kWhite);
+            Rect(M, y0, tw, 38), AlignFlag::center);
+        l1->font(Font(22)); l1->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l1);
 
         auto l2 = make_shared<Label>(to_string(days) + " calendar day(s) from today,",
-            Rect(M, y0 + 30, tw, 28), AlignFlag::center);
-        l2->font(Font(19, Font::Weight::bold));
+            Rect(M, y0 + 44, tw, 38), AlignFlag::center);
+        l2->font(Font(22, Font::Weight::bold));
         l2->color(Palette::ColorId::label_text, dt::kGreen);
         popup->add(l2);
 
@@ -340,18 +401,34 @@ shared_ptr<Widget> create_wifi_override_info_screen(
             "a Wi-Fi/Network Connection must be established,\n"
             "or an Override Password must be entered for the\n"
             "device to continue to operate.",
-            Rect(M, y0 + 62, tw, 70), AlignFlag::center);
-        l3->font(Font(17)); l3->color(Palette::ColorId::label_text, dt::kWhite);
+            Rect(M, y0 + 90, tw, 110), AlignFlag::center);
+        l3->font(Font(20)); l3->color(Palette::ColorId::label_text, dt::kWhite);
         popup->add(l3);
 
         auto l4 = make_shared<Label>(
             "(An Override Password is provided by Larada Sciences,\n"
             "please contact your Clinic Success contact for more details).",
-            Rect(M, y0 + 140, tw, 56), AlignFlag::center);
-        l4->font(Font(15)); l4->color(Palette::ColorId::label_text, palette::kGray200);
+            Rect(M, y0 + 215, tw, 68), AlignFlag::center);
+        l4->font(Font(17)); l4->color(Palette::ColorId::label_text, palette::kGray200);
         popup->add(l4);
     }
     container->add(popup);
+
+    // Re-add the Back/Retry/Setting bottom-row icons in z-order ABOVE the
+    // popup so they remain crisp instead of dimming behind the dark overlay
+    // (matches the Figma 2079:2300 render where those buttons sit on top).
+    auto card_after = make_shared<Frame>(
+        Rect(card_x, card_y, card_w, card_h));
+    card_after->fill_flags({});
+    card_after->border(0);
+    card_after->color(Palette::ColorId::bg, dt::kTransparent);
+    card_after->add(make_icon_button(30, row_y, row_w, row_h,
+        "Back", back_icon, on_back));
+    card_after->add(make_icon_button(30 + row_w + row_gap, row_y, row_w, row_h,
+        "Retry WiFi", rfsh_icon, on_retry_wifi));
+    card_after->add(make_icon_button(30 + 2 * (row_w + row_gap), row_y, row_w, row_h,
+        "Setting", gear_icon, on_settings));
+    container->add(card_after);
 
     return container;
 }
