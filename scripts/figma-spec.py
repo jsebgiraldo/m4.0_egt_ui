@@ -170,6 +170,16 @@ def walk(node: dict, origin: tuple, indent: int = 0) -> None:
         walk(c, origin, indent + 1)
 
 
+def find_node(node: dict, target_id: str):
+    if node.get("id") == target_id:
+        return node
+    for c in node.get("children", []):
+        r = find_node(c, target_id)
+        if r:
+            return r
+    return None
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print(__doc__, file=sys.stderr)
@@ -178,17 +188,32 @@ def main() -> int:
     ids = sys.argv[2:]
     token = load_token()
 
-    # Fetch all node specs in one call to stay under the rate limit.
-    data = api_get(token, f"/v1/files/{file_key}/nodes?ids={','.join(ids)}")
+    # Strategy: cache the whole file at depth=4 (one request) instead of
+    # hitting /v1/files/.../nodes (which rate-limits very aggressively).
+    # /v1/files/{key}?depth=N has a separate, looser limit, so this is the
+    # only way to reliably extract specs once we've burned the /nodes quota.
+    cache = f"/tmp/figma-spec-cache-{file_key}.json"
+    if os.environ.get("FIGMA_NO_CACHE") or not os.path.exists(cache):
+        print(f"[figma-spec] fetching /v1/files/{file_key}?depth=4 ...",
+              file=sys.stderr)
+        data = api_get(token, f"/v1/files/{file_key}?depth=4")
+        with open(cache, "w") as f:
+            json.dump(data, f)
+    else:
+        print(f"[figma-spec] using cache {cache} "
+              f"(set FIGMA_NO_CACHE=1 to refresh)", file=sys.stderr)
+        with open(cache) as f:
+            data = json.load(f)
 
-    for nid, payload in data.get("nodes", {}).items():
-        doc = payload["document"]
-        # Use this node's own top-left as the origin so all positions print
-        # relative to the node, not the absolute canvas.
-        bbox = doc.get("absoluteBoundingBox") or {}
+    for nid in ids:
+        node = find_node(data["document"], nid)
+        if not node:
+            print(f"\n══════ {nid} ── NOT FOUND ──────────")
+            continue
+        bbox = node.get("absoluteBoundingBox") or {}
         origin = (bbox.get("x", 0), bbox.get("y", 0))
-        print(f"\n══════ {nid} ── {doc.get('name','')} ──────────")
-        walk(doc, origin)
+        print(f"\n══════ {nid} ── {node.get('name','')} ──────────")
+        walk(node, origin)
     return 0
 
 
