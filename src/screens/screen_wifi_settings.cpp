@@ -709,24 +709,35 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         gear_wrap->fill_flags({});
         container->add(gear_wrap);
 
+        // Crisp solid-gray circle background. We used to render
+        // home-gear-icon.png which has a SOFT GRADIENT circle baked in; at
+        // 72×72 the gradient edges faded out so the background didn't read
+        // as a clean sphere. Draw a filled Frame with border_radius=d/2 and
+        // overlay the bare gear glyph on top instead.
+        auto circle_bg = make_shared<Frame>(Rect(0, 0, icon_sz, icon_sz));
+        circle_bg->fill_flags({Theme::FillFlag::blend});
+        circle_bg->color(Palette::ColorId::bg, palette::kGray200);
+        circle_bg->border(0);
+        circle_bg->border_radius(icon_sz / 2);
+        gear_wrap->add(circle_bg);
+
         try {
-            auto img = Image("file:assets/figma/images/home-gear-icon.png");
+            // wifi-settings-gear.png is the bare gear glyph (no background),
+            // sized 57×57 source → render at ~40 device px centred.
+            const int glyph_sz = 40;
+            auto img = Image("file:assets/figma/images/wifi-settings-gear.png",
+                             static_cast<float>(glyph_sz) / 57.0f,
+                             static_cast<float>(glyph_sz) / 57.0f);
             auto gear_lbl = make_shared<ImageLabel>(img);
             gear_lbl->autoresize(false);
             gear_lbl->border(0); gear_lbl->padding(0); gear_lbl->margin(0);
             gear_lbl->fill_flags({});
             gear_lbl->image_align(AlignFlag::center);
-            gear_lbl->box(Rect(0, 0, icon_sz, icon_sz));
+            gear_lbl->box(Rect((icon_sz - glyph_sz) / 2,
+                               (icon_sz - glyph_sz) / 2,
+                               glyph_sz, glyph_sz));
             gear_wrap->add(gear_lbl);
-        } catch (...) {
-            // Fallback: plain gray pill so the click target is still visible.
-            auto circle_bg = make_shared<Frame>(Rect(0, 0, icon_sz, icon_sz));
-            circle_bg->fill_flags({Theme::FillFlag::blend});
-            circle_bg->color(Palette::ColorId::bg, palette::kGray200);
-            circle_bg->border(0);
-            circle_bg->border_radius(icon_sz / 2);
-            gear_wrap->add(circle_bg);
-        }
+        } catch (...) { /* circle alone is enough as a tap target */ }
 
         gear_wrap->on_event([alive, on_back](Event& e) {
             if (e.id() == EventId::pointer_click) {

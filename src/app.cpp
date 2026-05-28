@@ -13,7 +13,7 @@
 #include "screens/screen_wifi_connected.h"
 #include "screens/screen_wifi_connecting.h"
 #include "screens/screen_wifi_unavailable.h"
-#include "screens/screen_wifi_override_info.h"
+#include "screens/screen_wifi_not_found.h"
 #include "screens/screen_home.h"
 #include "screens/screen_login_v2.h"
 #include "screens/screen_patient_info.h"
@@ -241,7 +241,14 @@ void run_app(int argc, char** argv)
                         }
                     ));
                 } else {
-                    show_wifi_unavailable(back);
+                    // No SSID/password supplied → show the "Wi-Fi Network
+                    // not found" intro (3 buttons) instead of jumping
+                    // straight to the override-info screen.
+                    screens.show(create_wifi_not_found_screen(
+                        [&, back]() { show_wifi_unavailable(back); },         // Operate without WiFi -> override info
+                        [&, back]() { show_wifi_setup(nullptr, back); },      // Retry WiFi -> rescan
+                        [&, back]() { show_settings(back); }                   // Setting -> Settings menu
+                    ));
                 }
             },
             [&](const egt_wifi::WiFiNetwork& net) { (void)net; },
@@ -268,30 +275,31 @@ void run_app(int argc, char** argv)
         ));
     };
 
-    // ── WIFI UNAVAILABLE — "Not Connected" screen (Figma) ────────────
-    show_wifi_unavailable = [&](std::function<void()> on_exit) {
-        printf("[NAV] -> WIFI_UNAVAILABLE\n"); fflush(stdout);
+    // ── WIFI UNAVAILABLE / OVERRIDE INFO — single Figma screen (2079:2300)
+    // with an optional explanatory popup overlay. Two entry points share the
+    // same factory; the only difference is whether the popup is open on
+    // first render.
+    std::function<void(std::function<void()>, bool)> show_wifi_unavail;
+    show_wifi_unavail = [&](std::function<void()> on_exit, bool show_popup) {
         screens.show(create_wifi_unavailable_screen(
-            // Retry WiFi → back to the network list, keeping the exit target
-            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },
-            // Setting → open device Settings (Back returns here)
-            [&, on_exit]() { show_settings([&, on_exit]() { show_wifi_unavailable(on_exit); }); },
-            // Override → existing override-info flow (7-day countdown / password)
-            [&, on_exit]() { show_wifi_override_info(on_exit); },
-            // Back → previous screen (the WiFi list), keeping the exit target
-            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); }
+            [&, on_exit]() { show_override_prompt(on_exit); },              // Continue -> override password
+            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },          // Back -> WiFi list
+            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },          // Retry WiFi -> rescan
+            [&, on_exit]() { show_settings([&, on_exit]() {                 // Setting -> Settings (Back returns here, no popup)
+                show_wifi_unavail(on_exit, false);
+            }); },
+            show_popup
         ));
     };
 
-    // ── WIFI OVERRIDE INFO (Figma: WIFI_OVERRIDE_INFO) ──────────────
+    show_wifi_unavailable = [&](std::function<void()> on_exit) {
+        printf("[NAV] -> WIFI_UNAVAILABLE\n"); fflush(stdout);
+        show_wifi_unavail(on_exit, /*show_popup=*/false);
+    };
+
     show_wifi_override_info = [&](std::function<void()> on_exit) {
         printf("[NAV] -> WIFI_OVERRIDE_INFO\n"); fflush(stdout);
-        screens.show(create_wifi_override_info_screen(
-            [&, on_exit]() { show_override_prompt(on_exit); },             // Continue -> Override Password
-            [&, on_exit]() { show_wifi_unavailable(on_exit); },            // Back -> WiFi Unavailable
-            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },         // Retry WiFi -> rescan
-            [&, on_exit]() { show_settings([&, on_exit]() { show_wifi_override_info(on_exit); }); } // Setting -> Settings (Back returns here)
-        ));
+        show_wifi_unavail(on_exit, /*show_popup=*/true);
     };
 
     // ── Boot: start with WiFi Init (or a specific screen for diagnostics) ─
@@ -314,6 +322,13 @@ void run_app(int argc, char** argv)
     // wifi-unavailable now takes on_exit (subtree was rethreaded so Back
     // never skips Login). Diagnostic launches just send it to Home.
     else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable([&]() { show_home(); });
+    else if (start && std::string(start) == "wifi-not-found") {
+        screens.show(create_wifi_not_found_screen(
+            [&]() { show_wifi_unavailable([&]() { show_home(); }); },
+            [&]() { show_wifi_setup(nullptr, [&]() { show_home(); }); },
+            [&]() { show_settings([&]() { show_home(); }); }
+        ));
+    }
     else if (start && std::string(start) == "login")             show_login(false);
     else if (start && std::string(start) == "setup")             show_setup();
     else if (start && std::string(start) == "demo-info")         show_demo_info(true);

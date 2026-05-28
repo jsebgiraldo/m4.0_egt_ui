@@ -2,8 +2,10 @@
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
 #include "../ui/palette.h"
+#include "../ui/override_config.h"
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <string>
 
@@ -49,6 +51,36 @@ shared_ptr<Frame> make_image_button(
     return wrap;
 }
 
+// X close glyph (two crossed Painter strokes — independent of the device
+// font's ✕ glyph). Used by the popup overlay's top-right close button.
+class CloseX : public Widget {
+public:
+    CloseX(const Rect& rect, const Color& col, function<void()> on_click)
+        : Widget(rect), m_col(col), m_on_click(std::move(on_click)) {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        if (m_on_click)
+            on_event([this](Event&){ if (m_on_click) m_on_click(); },
+                     {EventId::pointer_click});
+    }
+    void draw(Painter& painter, const Rect&) override {
+        auto b = content_area();
+        const float sz = static_cast<float>(min(b.width(), b.height()));
+        const float cx = b.x() + b.width()  / 2.0f;
+        const float cy = b.y() + b.height() / 2.0f;
+        const float r  = sz * 0.30f;
+        painter.set(m_col);
+        painter.line_width(std::max(3.0f, sz * 0.09f));
+        painter.draw(Line(PointF(cx - r, cy - r), PointF(cx + r, cy + r)));
+        painter.stroke();
+        painter.draw(Line(PointF(cx + r, cy - r), PointF(cx - r, cy + r)));
+        painter.stroke();
+    }
+private:
+    Color m_col;
+    function<void()> m_on_click;
+};
+
 } // namespace
 
 // ── WIFI_UNAVAILABLE screen (Figma node 2079:2300, "Group 308" - M4-19) ─────
@@ -73,14 +105,17 @@ shared_ptr<Frame> make_image_button(
 //   5. Text centring and colour - banner text centred, countdown text in
 //      kGreen, body in kTextPrimary.
 shared_ptr<Widget> create_wifi_unavailable_screen(
+    function<void()> on_continue,
+    function<void()> on_back,
     function<void()> on_retry_wifi,
     function<void()> on_settings,
-    function<void()> on_override,
-    function<void()> on_back)
+    bool initially_show_popup)
 {
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
     container->color(Palette::ColorId::bg, dt::kBgWhite);
+
+    const int days = ui::get_override_days();
 
     // ── 1) Orange banner (Figma Union 2073:1785, 432x66 @ top of frame) ────
     // Spans the full screen width. Height 66 figma px -> 122 device px.
@@ -127,7 +162,7 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     const int countdown_y  = 142;
     const int countdown_w  = 415;  // covers "6" + label + ample air
 
-    auto count_num = make_shared<Label>("6",
+    auto count_num = make_shared<Label>(to_string(days),
         Rect(countdown_x, countdown_y, 45, 60), AlignFlag::center);
     count_num->font(Font("Gothic A1", 44, Font::Weight::bold));
     count_num->color(Palette::ColorId::label_text, dt::kGreen);
@@ -166,18 +201,19 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     auto btn_continue = make_image_button(
         "assets/figma/images/wifi-continue-btn.png",
         Rect(178, 284, 443, 96),
-        on_override);
+        on_continue);
     container->add(btn_continue);
 
     // Orange info "!" icon (Figma Group 125 = 2073:1802, 21.5x21.5 @
     // frame-local (342,168.8) -> device (633,313). PNG 44x44 -> natural 40x40.
-    // Wired to on_override too so users have a second affordance for the
-    // override flow (matches the "info-explains-the-override" relationship
-    // shown in the Figma modal overlay).
+    // Wired to OPEN the explanatory popup overlay (the (!) is the affordance
+    // for the modal that explains the override countdown — see popup below).
+    // Forward-declared shared_ptr so the click handler can refer to it.
+    auto popup_ref = make_shared<shared_ptr<Frame>>();
     auto info_icon = make_image_button(
         "assets/figma/images/wifi-info-icon.png",
         Rect(633, 313, 40, 40),
-        on_override);
+        [popup_ref]() { if (*popup_ref) (*popup_ref)->show(); });
     container->add(info_icon);
 
     // ── 5) Bottom button row: Back, Retry WiFi, Setting ────────────────────
@@ -203,6 +239,74 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
         Rect(579, 393, 210, 91),
         on_settings);
     container->add(btn_setting);
+
+    // ── Explanatory popup overlay (Figma 2079:2300 modal layer) ─────────────
+    // Dark semi-transparent rounded card that floats over the whole screen.
+    // Underlying card elements (Continue, bottom row, banner text) get dimmed
+    // through the overlay — same as Figma. Shown/hidden via the (!) badge
+    // above (popup_ref captures the pointer so the click handler can flip it).
+    const int popup_x = 30;
+    const int popup_y = 31;
+    const int popup_w = 740;
+    const int popup_h = 413;
+    auto popup = make_shared<Frame>(Rect(popup_x, popup_y, popup_w, popup_h));
+    popup->fill_flags({Theme::FillFlag::blend});
+    popup->color(Palette::ColorId::bg, Color(100, 101, 105, 230));
+    popup->border(0);
+    popup->border_radius(15);
+    *popup_ref = popup;
+
+    // Orange (!) icon inside popup (Figma 2073:1852, top-left of overlay)
+    auto popup_info = make_image_button(
+        "assets/figma/images/wifi-info-icon.png",
+        Rect(18, 13, 44, 44),
+        nullptr);
+    popup->add(popup_info);
+
+    // X close — top-right of popup; hides the overlay back to the card view.
+    popup->add(make_shared<CloseX>(
+        Rect(popup_w - 64, 14, 44, 44), dt::kWhite,
+        [popup]() { popup->hide(); }));
+
+    // Body — Figma 2073:1850. Single text block with an inline green span on
+    // "N calendar day(s)"; without rich text we render the green phrase on
+    // its own line. Layout tuned to match the larger popup (740×413).
+    {
+        const int M  = 94;
+        const int tw = popup_w - 2 * M;
+        const int y0 = 70;
+
+        auto l1 = make_shared<Label>("Please note that on",
+            Rect(M, y0, tw, 38), AlignFlag::center);
+        l1->font(Font(22)); l1->color(Palette::ColorId::label_text, dt::kWhite);
+        popup->add(l1);
+
+        auto l2 = make_shared<Label>(
+            to_string(days) + " calendar day(s) from today,",
+            Rect(M, y0 + 44, tw, 38), AlignFlag::center);
+        l2->font(Font(22, Font::Weight::bold));
+        l2->color(Palette::ColorId::label_text, dt::kGreen);
+        popup->add(l2);
+
+        auto l3 = make_shared<Label>(
+            "a Wi-Fi/Network Connection must be established,\n"
+            "or an Override Password must be entered for the\n"
+            "device to continue to operate.",
+            Rect(M, y0 + 90, tw, 110), AlignFlag::center);
+        l3->font(Font(20)); l3->color(Palette::ColorId::label_text, dt::kWhite);
+        popup->add(l3);
+
+        auto l4 = make_shared<Label>(
+            "(An Override Password is provided by Larada Sciences,\n"
+            "please contact your Clinic Success contact for more details).",
+            Rect(M, y0 + 215, tw, 68), AlignFlag::center);
+        l4->font(Font(17));
+        l4->color(Palette::ColorId::label_text, palette::kGray200);
+        popup->add(l4);
+    }
+
+    if (!initially_show_popup) popup->hide();
+    container->add(popup);
 
     return container;
 }
