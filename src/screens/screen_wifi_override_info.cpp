@@ -343,13 +343,20 @@ shared_ptr<Widget> create_wifi_override_info_screen(
         [popup]() { popup->show(); });
     card->add(badge);
 
-    // ── Bottom row geometry (added after popup, see below) ──────────────────
+    // ── Bottom row: Back / Retry WiFi / Setting (added BEFORE popup so the
+    // dark overlay dims them per Figma 2079:2300) ──────────────────────────
     const int row_y = banner_h + 262;
     const int row_h = 60, row_gap = 14;
     const int row_w = (card_w - 30 * 2 - 2 * row_gap) / 3;
     auto back_icon  = load_icon("chev",    kChevronSvg, 22);
     auto rfsh_icon  = load_icon("refresh", kRefreshSvg, 22);
     auto gear_icon  = load_icon("gear",    kGearSvg,    22);
+    card->add(make_icon_button(30, row_y, row_w, row_h,
+        "Back", back_icon, on_back));
+    card->add(make_icon_button(30 + row_w + row_gap, row_y, row_w, row_h,
+        "Retry WiFi", rfsh_icon, on_retry_wifi));
+    card->add(make_icon_button(30 + 2 * (row_w + row_gap), row_y, row_w, row_h,
+        "Setting", gear_icon, on_settings));
 
     // ── Info popup content (sits inside the rounded popup card) ───────────
     // All coordinates here are LOCAL to the popup Frame. Figma 2073:1850:
@@ -413,22 +420,6 @@ shared_ptr<Widget> create_wifi_override_info_screen(
         popup->add(l4);
     }
     container->add(popup);
-
-    // Re-add the Back/Retry/Setting bottom-row icons in z-order ABOVE the
-    // popup so they remain crisp instead of dimming behind the dark overlay
-    // (matches the Figma 2079:2300 render where those buttons sit on top).
-    auto card_after = make_shared<Frame>(
-        Rect(card_x, card_y, card_w, card_h));
-    card_after->fill_flags({});
-    card_after->border(0);
-    card_after->color(Palette::ColorId::bg, dt::kTransparent);
-    card_after->add(make_icon_button(30, row_y, row_w, row_h,
-        "Back", back_icon, on_back));
-    card_after->add(make_icon_button(30 + row_w + row_gap, row_y, row_w, row_h,
-        "Retry WiFi", rfsh_icon, on_retry_wifi));
-    card_after->add(make_icon_button(30 + 2 * (row_w + row_gap), row_y, row_w, row_h,
-        "Setting", gear_icon, on_settings));
-    container->add(card_after);
 
     return container;
 }
