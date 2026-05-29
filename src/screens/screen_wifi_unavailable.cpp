@@ -129,7 +129,7 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     // Wifi-off icon (Figma Group 289, 36x36 @ frame-local (23,15) -> (43,28))
     // PNG 72x72 -> natural device 66x66, centred on the figma bbox.
     auto banner_icon = make_image_button(
-        "assets/figma/images/wifi-banner-icon.png",
+        ui::asset_path("wifi-banner-icon"),
         Rect(43, 28, 67, 67),
         nullptr);
     container->add(banner_icon);
@@ -199,7 +199,7 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     // PNG 478x104 -> natural device 443x96. Top-left such that the button
     // portion of the PNG centres on the figma button centre.
     auto btn_continue = make_image_button(
-        "assets/figma/images/wifi-continue-btn.png",
+        ui::asset_path("wifi-continue-btn"),
         Rect(178, 284, 443, 96),
         on_continue);
     container->add(btn_continue);
@@ -211,7 +211,7 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     // Forward-declared shared_ptr so the click handler can refer to it.
     auto popup_ref = make_shared<shared_ptr<Frame>>();
     auto info_icon = make_image_button(
-        "assets/figma/images/wifi-info-icon.png",
+        ui::asset_path("wifi-info-icon"),
         Rect(633, 313, 40, 40),
         [popup_ref]() { if (*popup_ref) (*popup_ref)->show(); });
     container->add(info_icon);
@@ -223,19 +223,19 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     // centred on its figma bbox centre so the visible button portion lands
     // at the right place.
     auto btn_back = make_image_button(
-        "assets/figma/images/wifi-back-btn.png",
+        ui::asset_path("wifi-back-btn"),
         Rect(7, 393, 241, 91),
         on_back);
     container->add(btn_back);
 
     auto btn_retry = make_image_button(
-        "assets/figma/images/wifi-retry-btn.png",
+        ui::asset_path("wifi-retry-btn"),
         Rect(293, 393, 241, 91),
         on_retry_wifi);
     container->add(btn_retry);
 
     auto btn_setting = make_image_button(
-        "assets/figma/images/wifi-setting-btn.png",
+        ui::asset_path("wifi-setting-btn"),
         Rect(579, 393, 210, 91),
         on_settings);
     container->add(btn_setting);
@@ -258,7 +258,7 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
 
     // Orange (!) icon inside popup (Figma 2073:1852, top-left of overlay)
     auto popup_info = make_image_button(
-        "assets/figma/images/wifi-info-icon.png",
+        ui::asset_path("wifi-info-icon"),
         Rect(18, 13, 44, 44),
         nullptr);
     popup->add(popup_info);

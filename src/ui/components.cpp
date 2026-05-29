@@ -4,6 +4,7 @@
 #include "../generated/embedded_assets.h"
 #include <cmath>
 #include <fstream>
+#include <map>
 
 using namespace egt;
 using namespace std;
@@ -94,6 +95,42 @@ static string get_logo_path()
         fflush(stdout);
     }
     return path;
+}
+
+// ── ui::asset_path ─────────────────────────────────────────────────────────
+// Look up an embedded asset by its basename (no extension), write its bytes
+// to /tmp once, and return the file path. Returns "" if the asset isn't in
+// the embedded table — callers should handle that as "asset missing".
+// (This file already lives inside `namespace ui` opened above, so the
+// definition uses the short name without re-opening the namespace.)
+string asset_path(const string& name)
+{
+    static std::map<string, string> cache;
+    auto it = cache.find(name);
+    if (it != cache.end())
+        return it->second;
+
+    for (size_t i = 0; i < embedded_assets::kCount; ++i)
+    {
+        const auto& a = embedded_assets::kAll[i];
+        if (name == a.name)
+        {
+            string path = string("/tmp/egt-asset-") + a.name + "." + a.ext;
+            ofstream f(path, ios::binary);
+            f.write(reinterpret_cast<const char*>(a.data), a.len);
+            if (!f.good())
+            {
+                printf("[ASSET] failed to write %s\n", path.c_str());
+                fflush(stdout);
+                return "";
+            }
+            cache.emplace(name, path);
+            return path;
+        }
+    }
+    printf("[ASSET] not bundled: %s\n", name.c_str());
+    fflush(stdout);
+    return "";
 }
 
 // ── Logo ────────────────────────────────────────────────────────────────────
@@ -628,7 +665,7 @@ shared_ptr<Frame> add_back_button(Frame& container, function<void()> on_click)
     // left chevron, and the "Back" text with its drop shadow padding; its
     // natural device size (PNG_px * SCALE / 2) is 209x98. Top-left placed
     // so the visible button portion centres on the figma button centre.
-    const std::string png_path = "assets/figma/images/demo-info-btn-back.png";
+    const std::string png_path = ui::asset_path("demo-info-btn-back");
     auto wrap = make_shared<Frame>(Rect(0, 381, 209, 98));
     wrap->fill_flags({});
 

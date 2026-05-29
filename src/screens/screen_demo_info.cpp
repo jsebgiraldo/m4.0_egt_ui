@@ -103,7 +103,7 @@ shared_ptr<Widget> create_demo_info_screen(
     // PNG 128x56 -> natural device 119x52, centred on figma button centre
     // (frame-local (393, 64) -> device (728, 119)) -> top-left (669, 93).
     auto btn_exit = make_image_button(
-        "assets/figma/images/demo-info-btn-exit.png",
+        ui::asset_path("demo-info-btn-exit"),
         Rect(669, 93, 119, 52),
         on_back);
     container->add(btn_exit);
@@ -151,7 +151,7 @@ shared_ptr<Widget> create_demo_info_screen(
     // -> natural device 209x98. Top-left = centre - half-PNG = (-0.5, 381).
     // Clip x to 0; the left 1 px of shadow falls off-screen, invisible.
     auto btn_back = make_image_button(
-        "assets/figma/images/demo-info-btn-back.png",
+        ui::asset_path("demo-info-btn-back"),
         Rect(0, 381, 209, 98),
         on_back);
     container->add(btn_back);
@@ -160,7 +160,7 @@ shared_ptr<Widget> create_demo_info_screen(
     // Frame-local (304, 216) -> device button centre (671, 430). PNG 274x106
     // -> natural device 254x98. Top-left = (544, 381).
     auto btn_continue = make_image_button(
-        "assets/figma/images/demo-info-btn-continue.png",
+        ui::asset_path("demo-info-btn-continue"),
         Rect(544, 381, 254, 98),
         on_continue);
     container->add(btn_continue);

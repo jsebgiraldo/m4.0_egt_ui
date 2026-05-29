@@ -260,14 +260,14 @@ shared_ptr<Widget> create_home_screen(
     // Setting card  (Figma 359,377 147x52)  -> (496, 365) 272x96 scaled.
     auto btn_demo = make_card_button(
         Rect(20, 365, 272, 96),
-        "assets/figma/images/home-demo-icon.png",
+        ui::asset_path("home-demo-icon"),
         "Demo Mode",
         on_demo_mode);
     container->add(btn_demo);
 
     auto btn_setting = make_card_button(
         Rect(496, 365, 272, 96),
-        "assets/figma/images/home-gear-icon.png",
+        ui::asset_path("home-gear-icon"),
         "Setting",
         on_settings);
     container->add(btn_setting);

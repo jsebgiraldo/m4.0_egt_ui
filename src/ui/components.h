@@ -15,6 +15,14 @@ std::shared_ptr<egt::Frame> create_header_bar(
     const std::string& title,
     bool demo_mode = false);
 
+// ── Embedded asset path ────────────────────────────────────────────────────
+/// Materialise an embedded PNG/SVG asset into /tmp on first call and return
+/// its path. The asset bytes live in src/generated/embedded_assets.h so the
+/// target binary needs no external assets/ directory. `name` is the file's
+/// basename without extension (e.g. "wifi-settings-gear" or "Lice-logo").
+/// Returns the empty string if no such asset is bundled.
+std::string asset_path(const std::string& name);
+
 // ── Shadowed card ───────────────────────────────────────────────────────────
 /// White rounded-rectangle card with a soft drop shadow on every side.
 /// Matches Figma's DROP_SHADOW(offset 0,0, radius 10, rgba(0,0,0,0.10)).

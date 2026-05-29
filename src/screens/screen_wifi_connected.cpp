@@ -25,7 +25,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     constexpr int check_sz = 65;
     try {
         const float check_scale = static_cast<float>(check_sz) / 148.0f;  // PNG 148x148
-        auto check_img = Image("file:assets/figma/images/check-circle-green.png",
+        auto check_img = Image(("file:" + ui::asset_path("check-circle-green")).c_str(),
                                check_scale, check_scale);
         auto check = make_shared<ImageLabel>(check_img);
         check->autoresize(false);
@@ -136,7 +136,7 @@ shared_ptr<Widget> create_wifi_connected_screen(
     try {
         const float hscale = static_cast<float>(chev_w) / 35.0f;  // PNG src 35x52
         const float vscale = static_cast<float>(chev_h) / 52.0f;
-        auto chev_img = Image("file:assets/figma/images/chevron-right.png", hscale, vscale);
+        auto chev_img = Image(("file:" + ui::asset_path("chevron-right")).c_str(), hscale, vscale);
         auto chevron = make_shared<ImageLabel>(chev_img);
         chevron->autoresize(false);
         chevron->border(0); chevron->padding(0); chevron->margin(0);

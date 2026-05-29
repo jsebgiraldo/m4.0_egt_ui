@@ -7,6 +7,7 @@
 #include <cctype>
 
 #include "../ui/design_tokens.h"
+#include "../ui/components.h"
 
 using namespace egt;
 using namespace std;
@@ -174,13 +175,13 @@ shared_ptr<Widget> create_password_prompt_screen(
     // Cancel at global x=459 - card x=10 -> input_row x=449
     // Join   at global x=611 - card x=10 -> input_row x=601
     auto btn_cancel = make_img_btn(
-        "assets/figma/images/pwd-btn-cancel.png",
+        ui::asset_path("pwd-btn-cancel"),
         Rect(449, 0, 148, 70),
         [=]() { if (on_cancel) on_cancel(); });
     input_row->add(btn_cancel);
 
     auto btn_join = make_img_btn(
-        "assets/figma/images/pwd-btn-join.png",
+        ui::asset_path("pwd-btn-join"),
         Rect(601, 0, 172, 70),
         [=]() { if (on_join) on_join(pwd->text()); });
     input_row->add(btn_join);

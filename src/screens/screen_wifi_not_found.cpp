@@ -383,7 +383,7 @@ shared_ptr<Widget> create_wifi_not_found_screen(
     const int s_ic_d = 72;
     auto gear_icon = make_icon_circle_png(
         12, (set_h - s_ic_d) / 2, s_ic_d,
-        "assets/figma/images/wifi-settings-gear.png", 48);
+        ui::asset_path("wifi-settings-gear"), 48);
     set_card->add(gear_icon);
 
     // "Setting" text (2071:1197: CENTER aligned in its 68×18 bbox at

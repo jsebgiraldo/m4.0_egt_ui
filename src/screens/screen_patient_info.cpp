@@ -297,7 +297,7 @@ static shared_ptr<Frame> make_patient_step(
     // Small profile icon to the right of the title (Figma node 115:961,
     // 15x15 figma px at frame-local (323, 14) -> device (598, 26, 28x28).
     try {
-        auto img = Image("file:assets/figma/images/patient-title-profile.png");
+        auto img = Image(("file:" + ui::asset_path("patient-title-profile")).c_str());
         auto profile = make_shared<ImageLabel>(img);
         profile->autoresize(false);
         profile->border(0); profile->padding(0); profile->margin(0);
@@ -422,9 +422,8 @@ static shared_ptr<Widget> create_gender_step(
         // silhouettes did not match the design - swapped for the actual
         // figma exports so the Male / Female glyphs read identically to
         // the figma render.
-        const std::string icon_path = female_card
-            ? "assets/figma/images/patient-female-icon.png"
-            : "assets/figma/images/patient-male-icon.png";
+        const std::string icon_path = ui::asset_path(
+            female_card ? "patient-female-icon" : "patient-male-icon");
         try {
             auto img = Image(("file:" + icon_path).c_str());
             auto icon = make_shared<ImageLabel>(img);
@@ -564,8 +563,8 @@ static shared_ptr<Widget> create_age_step(
         } catch (...) { /* fall back: no arrow */ }
         return wrap;
     };
-    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-up.png", 4));
-    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-down.png",
+    picker_box->add(load_arrow(ui::asset_path("wheel-arrow-up"), 4));
+    picker_box->add(load_arrow(ui::asset_path("wheel-arrow-down"),
                                box_h - chevron_h - 4));
 
     // FIXED slot frames render the wheel. They never move; a transparent

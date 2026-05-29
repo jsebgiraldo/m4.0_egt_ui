@@ -509,8 +509,8 @@ shared_ptr<Widget> create_settings_screen(
             brt_card->add(icon);
         } catch (...) { /* fall back to no icon */ }
     };
-    load_sun("assets/figma/images/settings-sun-left.png",   53, 28);
-    load_sun("assets/figma/images/settings-sun-right.png", 535, 28);
+    load_sun(ui::asset_path("settings-sun-left"),   53, 28);
+    load_sun(ui::asset_path("settings-sun-right"), 535, 28);
 
     // Brightness bar — Figma slider track at card-relative (105, 32) 409×20.
     // The bar widget reserves room for a 28 px handle, so the bar height is
@@ -554,9 +554,8 @@ shared_ptr<Widget> create_settings_screen(
         // Glyph from Figma PNG (settings-wifi.png / settings-ethernet.png).
         // Custom Painter-drawn glyphs rendered as "briefcase-ish" shapes that
         // did not match the Figma art; the PNG exports are pixel-equivalent.
-        const std::string icon_path = is_wifi
-            ? "assets/figma/images/settings-wifi.png"
-            : "assets/figma/images/settings-ethernet.png";
+        const std::string icon_path = ui::asset_path(
+            is_wifi ? "settings-wifi" : "settings-ethernet");
         try {
             auto img = Image(("file:" + icon_path).c_str());
             auto icon = make_shared<ImageLabel>(img);

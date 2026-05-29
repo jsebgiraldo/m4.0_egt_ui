@@ -161,8 +161,8 @@ shared_ptr<Widget> create_login_screen_v2(
         }
         return wrap;
     };
-    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-up.png", 4));
-    picker_box->add(load_arrow("assets/figma/images/wheel-arrow-down.png",
+    picker_box->add(load_arrow(ui::asset_path("wheel-arrow-up"), 4));
+    picker_box->add(load_arrow(ui::asset_path("wheel-arrow-down"),
                                box_h - 16 - 4));
 
     // The selected index is shared between the slider driver, the slot

@@ -468,9 +468,8 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             // (node 151:918). Both are 15x10 figma px -> device 28x19 natural,
             // scaled to 50x33 for visual parity with figma.
             std::shared_ptr<WifiIcon> wifi_icon;   // kept as fallback handle
-            const std::string signal_png = net.connected
-                ? "assets/figma/images/wifi-row-signal-green.png"
-                : "assets/figma/images/wifi-row-signal.png";
+            const std::string signal_png = ui::asset_path(net.connected
+                ? "wifi-row-signal-green" : "wifi-row-signal");
             try {
                 auto img = Image(("file:" + signal_png).c_str());
                 auto wifi_lbl = make_shared<ImageLabel>(img);
@@ -489,9 +488,8 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
             // Chevron right - PNG from Figma. Connected row uses the green
             // variant (node 151:907), other rows the gray (node 151:904).
-            const std::string chev_path = net.connected
-                ? "assets/figma/images/wifi-row-chevron-green.png"
-                : "assets/figma/images/wifi-row-chevron.png";
+            const std::string chev_path = ui::asset_path(net.connected
+                ? "wifi-row-chevron-green" : "wifi-row-chevron");
             std::shared_ptr<Label> chevron;
             try {
                 auto chev_img = Image(("file:" + chev_path).c_str());
@@ -636,7 +634,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
         // "Other..." chevron - same PNG as the network rows for consistency.
         try {
-            auto img = Image("file:assets/figma/images/wifi-row-chevron.png");
+            auto img = Image(("file:" + ui::asset_path("wifi-row-chevron")).c_str());
             auto chev_lbl = make_shared<ImageLabel>(img);
             chev_lbl->autoresize(false);
             chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
@@ -725,7 +723,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             // wifi-settings-gear.png is the bare gear glyph (no background),
             // sized 57×57 source → render at ~40 device px centred.
             const int glyph_sz = 40;
-            auto img = Image("file:assets/figma/images/wifi-settings-gear.png",
+            auto img = Image(("file:" + ui::asset_path("wifi-settings-gear")).c_str(),
                              static_cast<float>(glyph_sz) / 57.0f,
                              static_cast<float>(glyph_sz) / 57.0f);
             auto gear_lbl = make_shared<ImageLabel>(img);
