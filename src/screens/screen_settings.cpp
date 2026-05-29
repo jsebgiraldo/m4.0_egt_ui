@@ -598,25 +598,21 @@ shared_ptr<Widget> create_settings_screen(
     // label, full tap target), so it reads as part of the Settings grid rather
     // than a stray button. Tapping it returns to the Technician Login screen.
     if (on_login) {
-        // Section title — match Internet Connection / Screen Brightness font.
         const int acc_title_y = 335;
         auto acc_title = make_shared<Label>("Account",
             Rect(section_x, acc_title_y, 320, 33));
-        acc_title->font(Font("Gothic A1", 26, Font::Weight::bold));
+        acc_title->font(Font(15, Font::Weight::bold));
         acc_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
         acc_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
         content->add(acc_title);
 
-        // Full-width card. HEIGHT matches the Internet cards (113 px) so the
-        // Technician Login row reads at the same visual weight as Wi-Fi /
-        // Ethernet rather than as a smaller "extra" item.
-        const int acc_card_x = 78, acc_card_y = 371, acc_card_w = 628, acc_card_h = 113;
+        // Full-width card (matches the brightness card geometry: x=78, w=628).
+        const int acc_card_x = 78, acc_card_y = 371, acc_card_w = 628, acc_card_h = 84;
         auto acc_card = make_section_card(acc_card_x, acc_card_y, acc_card_w, acc_card_h);
         content->add(acc_card);
 
-        // Gray icon circle — same diameter as the Wi-Fi / Ethernet cards (72)
-        // for consistent visual weight across the Settings grid.
-        const int circle_d = 72;
+        // Gray circle + person glyph, vertically centred (mirrors Wi-Fi card).
+        const int circle_d = 56;
         const int circle_x = 24;
         const int circle_y = (acc_card_h - circle_d) / 2;
         auto circle_bg = make_shared<Frame>(Rect(circle_x, circle_y, circle_d, circle_d));
@@ -626,10 +622,9 @@ shared_ptr<Widget> create_settings_screen(
         circle_bg->border_radius(circle_d / 2);
         acc_card->add(circle_bg);
 
-        // Person glyph scaled up to match the larger icon circle.
-        const int isz = 44;
-        auto person = load_person(isz);
+        auto person = load_person(34);
         if (!person.empty()) {
+            const int isz = 34;
             auto pl = make_shared<ImageLabel>(person);
             pl->fill_flags({});
             pl->color(Palette::ColorId::bg, palette::kGray200);
@@ -640,10 +635,9 @@ shared_ptr<Widget> create_settings_screen(
             acc_card->add(pl);
         }
 
-        // Label — same font (Gothic A1 22 Bold) as Wi-Fi / Ethernet labels.
         auto acc_lbl = make_shared<Label>("Technician Login",
             Rect(circle_x + circle_d + 20, 0, acc_card_w - (circle_x + circle_d + 20) - 16, acc_card_h));
-        acc_lbl->font(Font("Gothic A1", 22, Font::Weight::bold));
+        acc_lbl->font(Font(15, Font::Weight::bold));
         acc_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         acc_lbl->text_align(AlignFlag::left | AlignFlag::center_vertical);
         acc_card->add(acc_lbl);
@@ -655,11 +649,10 @@ shared_ptr<Widget> create_settings_screen(
     // Two-column key/value list with everything we can read off the device.
     // Lives at the bottom of the scroll, so it never crowds the controls above.
     {
-        // Account card now ends at 371+113=484, so push About below that.
-        const int about_title_y = (on_login ? 510 : 335);
+        const int about_title_y = (on_login ? 478 : 335);
         auto about_title = make_shared<Label>("About this device",
             Rect(section_x, about_title_y, 320, 33));
-        about_title->font(Font("Gothic A1", 26, Font::Weight::bold));
+        about_title->font(Font(15, Font::Weight::bold));
         about_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
         about_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
         content->add(about_title);
