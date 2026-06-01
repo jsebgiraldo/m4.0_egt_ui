@@ -78,6 +78,11 @@ struct TreatmentState {
 
     bool is_paused = false;
 
+    // Hold mode for figma-vs-sim screenshots. When true, the per-screen
+    // countdown timers are not started so the screen stays put for a capture.
+    // Set by start_treatment_flow when EGT_MOCK_TREATMENT is in the env.
+    bool freeze = false;
+
     // Process-limit warnings fire once each as cumulative time crosses the
     // 5-min and 1-min-remaining thresholds. Tracked here so they don't
     // re-fire when a screen rebuilds between cycles.
@@ -179,16 +184,16 @@ static constexpr int CUM_WIDTH      = 400;  // width of cumulative area (up to d
 // the buttons sit higher (32 px bottom margin → BTN_Y=368).
 static constexpr int CONTENT_Y      = 110;  // y for large number/percentage
 static constexpr int CONTENT_H      = 130;  // height of large number area
-static constexpr int STATUS_Y       = 250;  // y for status text below countdown
-static constexpr int DOTS_Y         = 296;  // y for segmented progress dots
+static constexpr int STATUS_Y       = 240;  // Figma 130px * SCALE = 241
+static constexpr int DOTS_Y         = 285;  // Figma 154px * SCALE = 285
 // Standard bottom margin for action buttons across screens (≈32 px). All
 // bottom buttons share the same bottom edge (SCREEN_H - BTN_BOTTOM_MARGIN).
-static constexpr int BTN_BOTTOM_MARGIN = 32;
-static constexpr int BTN_W          = 220;  // button width
-static constexpr int BTN_H          = 80;   // button height
+static constexpr int BTN_BOTTOM_MARGIN = 21;  // Figma button bottom y≈459
+static constexpr int BTN_W          = 244;  // Figma 131px * SCALE
+static constexpr int BTN_H          = 100;  // Figma 54px  * SCALE
 static constexpr int BTN_Y          = 480 - BTN_BOTTOM_MARGIN - BTN_H;  // = 368
-static constexpr int BTN_LEFT_X     = 40;   // left button x
-static constexpr int BTN_RIGHT_X    = 540;  // right button x
+static constexpr int BTN_LEFT_X     = 39;   // Figma 21px  * SCALE
+static constexpr int BTN_RIGHT_X    = 537;  // Figma 290px * SCALE
 
 // Shared bottom edge so non-treatment screens can align their (shorter)
 // buttons to the same line. (e.g. y = STD_BTN_BOTTOM - height)
@@ -241,8 +246,9 @@ static TreatmentScreen make_treatment_container(
 
     // Demo mode badge (top-right, vertical: DEMO MODE label + Exit below)
     if (state->config.demo_mode) {
+        // Figma 66:524: DEMO MODE text centred ~x=727, top y≈17 (scaled).
         auto badge = ui::create_demo_mode_badge(
-            dt::SCREEN_W - 180, 24, state->callbacks.on_leave_to_home);
+            dt::SCREEN_W - 155, 14, state->callbacks.on_leave_to_home);
         container->add(badge.frame);
     }
 
@@ -265,14 +271,14 @@ static TreatmentScreen make_treatment_container(
         auto desc1 = make_shared<Label>("CUMULATIVE",
             Rect(group_x, hdr_y, desc_w, 24),
             AlignFlag::right | AlignFlag::center_vertical);
-        desc1->font(Font(15, Font::Weight::normal));
+        desc1->font(Font(18, Font::Weight::normal));  // Figma 10pt * SCALE
         desc1->color(Palette::ColorId::label_text, text_color);
         container->add(desc1);
 
         auto desc2 = make_shared<Label>("TREATMENT TIME",
             Rect(group_x, hdr_y + 22, desc_w, 24),
             AlignFlag::right | AlignFlag::center_vertical);
-        desc2->font(Font(15, Font::Weight::normal));
+        desc2->font(Font(18, Font::Weight::normal));  // Figma 10pt * SCALE
         desc2->color(Palette::ColorId::label_text, text_color);
         container->add(desc2);
 
@@ -281,7 +287,7 @@ static TreatmentScreen make_treatment_container(
             TreatmentState::format_time(state->cumulative_seconds),
             Rect(group_x + desc_w + gap, hdr_y, time_w, 46),
             AlignFlag::left | AlignFlag::center_vertical);
-        cum_time_lbl->font(Font(28, Font::Weight::bold));
+        cum_time_lbl->font(Font(40, Font::Weight::normal));  // Figma 24pt * SCALE
         cum_time_lbl->color(Palette::ColorId::label_text, text_color);
         container->add(cum_time_lbl);
 
@@ -322,27 +328,51 @@ static shared_ptr<Frame> make_action_button(
     const ActionBtnStyle& style,
     function<void()> on_click)
 {
-    auto frame = make_shared<Frame>(rect);
+    // Wrapper so the soft drop shadow has room to render outside the card
+    // (EGT clips painting to a widget box). The card sits PAD in from the
+    // wrapper edges; the shadow is a few translucent black rounded rects
+    // nudged down ~2px (Figma effect_UDY3OL: boxShadow 0 2 2 rgba(0,0,0,0.2)).
+    constexpr int PAD = 10;
+    auto wrap = make_shared<Frame>(
+        Rect(rect.x() - PAD, rect.y() - PAD,
+             rect.width() + 2 * PAD, rect.height() + 2 * PAD));
+    wrap->fill_flags({});  // transparent
+
+    for (int i = 2; i >= 0; --i) {
+        auto sh = make_shared<Frame>(
+            Rect(PAD - i, PAD + 2 + i, rect.width() + 2 * i, rect.height() + 2 * i));
+        sh->fill_flags({Theme::FillFlag::blend});
+        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 26));  // ~10% black / layer
+        sh->border_radius(dt::RADIUS_MD + i);
+        sh->border(0);
+        wrap->add(sh);
+    }
+
+    auto frame = make_shared<Frame>(Rect(PAD, PAD, rect.width(), rect.height()));
     frame->fill_flags({Theme::FillFlag::blend});
     frame->color(Palette::ColorId::bg, style.bg);
     frame->color(Palette::ColorId::border, style.border);
     frame->border(style.border_width);
     frame->border_radius(dt::RADIUS_MD);
-    frame->border_flags({Theme::BorderFlag::drop_shadow});
+    wrap->add(frame);
 
-    // Big verb (top) — 30 pt bold dominates the visual weight.
+    // Figma 66:524 "bt new": verb 18pt→33 bold over qualifier 11pt→20
+    // regular. Centre the two-line group vertically so it stays balanced for
+    // any button height (Figma button is 54px→100px tall).
+    const int grp_h   = 64;
+    const int grp_top = (rect.height() - grp_h) / 2;
+
     auto big = make_shared<Label>(big_text,
-        Rect(0, 10, rect.width(), 38),
+        Rect(0, grp_top, rect.width(), 40),
         AlignFlag::center);
-    big->font(Font(30, Font::Weight::bold));
+    big->font(Font(33, Font::Weight::bold));
     big->color(Palette::ColorId::label_text, style.fg);
     frame->add(big);
 
-    // Small qualifier — 14 pt regular, sits below the verb.
     auto small = make_shared<Label>(small_text,
-        Rect(0, 48, rect.width(), 22),
+        Rect(0, grp_top + 40, rect.width(), 24),
         AlignFlag::center);
-    small->font(Font(14, Font::Weight::normal));
+    small->font(Font(20, Font::Weight::normal));
     small->color(Palette::ColorId::label_text, style.fg);
     frame->add(small);
 
@@ -351,7 +381,7 @@ static shared_ptr<Frame> make_action_button(
             if (e.id() == EventId::pointer_click) on_click();
         }, {EventId::pointer_click});
     }
-    return frame;
+    return wrap;
 }
 
 // Overall treatment progress as a 0..1 fraction of the process time limit.
@@ -371,11 +401,9 @@ static shared_ptr<Frame> add_segmented_progress(
     shared_ptr<TreatmentState> state,
     int y = DOTS_Y)
 {
-    const int seg_display = dt::SEGMENT_COUNT;
+    const int seg_bar_w = 373;   // Figma 202px * SCALE (see create_segmented_progress)
     auto seg_bar = ui::create_segmented_progress(
-        (dt::SCREEN_W - (seg_display * (dt::SEGMENT_W + dt::SEGMENT_GAP) - dt::SEGMENT_GAP)) / 2,
-        y,
-        seg_display);
+        (dt::SCREEN_W - seg_bar_w) / 2, y, 0);
     ui::update_segmented_progress_fraction(seg_bar, treatment_progress(state));
     container->add(seg_bar);
     return seg_bar;
@@ -407,6 +435,44 @@ void start_treatment_flow(
     state->callbacks.on_leave_to_home        = wrap_exit(state->callbacks.on_leave_to_home);
     state->callbacks.on_treatment_completed  = wrap_exit(state->callbacks.on_treatment_completed);
     state->callbacks.on_treatment_ended_early= wrap_exit(state->callbacks.on_treatment_ended_early);
+
+    // Hold mode for the figma-vs-sim loop: EGT_MOCK_TREATMENT=<screen> boots
+    // straight onto one treatment screen with its countdown frozen, so the
+    // capture step gets a stable frame. Values:
+    //   warming | ready | position | reposition | active | nearly
+    //   paused  | end-confirm | completed | ended
+    if (const char* hold = std::getenv("EGT_MOCK_TREATMENT")) {
+        const string s = hold;
+        state->freeze = true;
+        // Use sane non-demo timings so demo mode's tiny limits don't break the
+        // progress math while a frame is held for a screenshot. Values chosen
+        // to mirror the Figma mockups (00:05 header, 25 s countdown).
+        state->config.process_limit_seconds    = 2700;
+        state->config.cycle_seconds            = 25;
+        state->config.first_warning_remaining  = 300;
+        state->config.second_warning_remaining = 60;
+        state->cumulative_seconds = 5;     // Figma header shows 00:05
+        state->cycles_completed   = 0;
+        state->current_cycle      = 0;
+
+        if      (s == "warming")     show_warming(state);
+        else if (s == "ready")       show_ready(state);
+        else if (s == "position")    show_position_tip(state);
+        else if (s == "reposition") { state->cycles_completed = 2; state->current_cycle = 2;
+                                       show_position_tip(state); }
+        else if (s == "active")      show_treatment_active(state);
+        else if (s == "nearly")      show_treatment_nearly_done(state, 3);
+        else if (s == "paused")      show_treatment_paused(state);
+        else if (s == "end-confirm") show_end_confirmation(state);
+        else if (s == "completed") { state->config.process_limit_seconds = 30;  // Figma header 00:30
+                                      state->cumulative_seconds = 30;            // == limit -> full green bar
+                                      state->cycles_completed = state->total_cycles();
+                                      show_treatment_completed(state, false); }
+        else if (s == "ended")     { state->cumulative_seconds = 600;
+                                      show_treatment_completed(state, true); }
+        else                         show_warming(state);
+        return;
+    }
 
     show_warming(state);
 }
@@ -515,6 +581,14 @@ static void show_warming(shared_ptr<TreatmentState> state)
 
     state->callbacks.on_show_screen(container);
 
+    // Hold mode: freeze at a representative mid-warming value and skip the
+    // animation timer so the screen holds for a screenshot.
+    if (state->freeze) {
+        pct_display->set_value(45);
+        ui::update_linear_progress(progress_bar, 45.0f);
+        return;
+    }
+
     // ── Animate warming over configured seconds ───────────────────────────
     auto progress_val = make_shared<float>(0.0f);
     auto elapsed_ms = make_shared<int>(0);
@@ -543,7 +617,7 @@ static void show_warming(shared_ptr<TreatmentState> state)
             show_ready(state);
         }
     });
-    timer->start();
+    if (!state->freeze) timer->start();
 }
 
 // ── READY SCREEN ────────────────────────────────────────────────────────────
@@ -667,7 +741,7 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
             show_treatment_active(state);
         }
     });
-    timer->start();
+    if (!state->freeze) timer->start();
 }
 
 // ── TREATMENT ACTIVE SCREEN ────────────────────────────────────────────────
@@ -687,19 +761,21 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     auto countdown_label = make_shared<Label>(
         to_string(*remaining),
         Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
-    countdown_label->font(dt::fontHuge());
+    countdown_label->font(Font(116, Font::Weight::normal));  // Figma 64pt * SCALE, regular
     countdown_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(countdown_label);
 
     // Status text below countdown (Figma: y=130)
     auto status = make_shared<Label>("Treatment started",
-        Rect(0, STATUS_Y, dt::SCREEN_W, 30));
-    status->font(dt::fontBody());
+        Rect(0, STATUS_Y, dt::SCREEN_W, 34));
+    status->font(Font(28, Font::Weight::normal));  // Figma 16pt * SCALE
     status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status);
 
     // Segmented progress dots (Figma: y=154) — tracks cumulative time
     auto seg_bar = add_segmented_progress(container, state);
+    if (state->freeze)   // representative fill so the held frame shows progress
+        ui::update_segmented_progress_fraction(seg_bar, 0.16f);
 
     // ── MVP process-limit warning banner ──────────────────────────────
     // Hidden until cumulative time enters a warning window; amber at the
@@ -748,10 +824,10 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
         });
     container->add(btn_pause);
 
-    // End Treatment: green fill + white text (Figma green/white palette)
+    // Figma 66:524: End matches Pause — white card, gray text, soft shadow.
     auto btn_end = make_action_button("End", "Treatment",
         Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
-        BTN_GREEN_FILLED,
+        BTN_OUTLINED,
         [=]() {
             if (*timer_ref) (*timer_ref)->cancel();
             show_end_confirmation(state);
@@ -816,7 +892,7 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
             show_position_tip(state);
         }
     });
-    timer->start();
+    if (!state->freeze) timer->start();
 }
 
 // ── TREATMENT NEARLY DONE SCREEN ───────────────────────────────────────────
@@ -913,7 +989,7 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
             show_position_tip(state);
         }
     });
-    timer->start();
+    if (!state->freeze) timer->start();
 }
 
 // ── TREATMENT PAUSED SCREEN ────────────────────────────────────────────────
@@ -1031,6 +1107,50 @@ static void show_end_confirmation(shared_ptr<TreatmentState> state)
 // "Treatment Completed", segmented dots (all filled), checkmark icon.
 static void show_treatment_completed(shared_ptr<TreatmentState> state, bool early)
 {
+    if (!early) {
+        // Strict Figma 67:628 (Group 152): green glow band, big "0", full green
+        // progress bar, green circle check. No title, no Home button — the Figma
+        // frame has none. (Demo mode still shows the exit button top-right.)
+        auto [container, _cdone] = make_treatment_container(state, true, /*green=*/true);
+
+        // Big "0" — Figma Group 42 "0": 64pt Regular at (196,60) -> y=111.
+        auto zero = make_shared<Label>("0",
+            Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
+        zero->font(Font(116, Font::Weight::normal));   // Figma 64pt * SCALE, regular
+        zero->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        container->add(zero);
+
+        // Full green progress bar — Figma Group 156 at y=154 -> 285. At completion
+        // treatment_progress() is 1.0, so every block is green.
+        add_segmented_progress(container, state);
+
+        // Green circle check — Figma Group 175 35x35 @(196,176) -> 65x65 @(363,326).
+        // Downloaded PNG, never drawn.
+        const int chk = 65, chk_x = 363, chk_y = 326;
+        auto chk_wrap = make_shared<Frame>(Rect(chk_x, chk_y, chk, chk));
+        chk_wrap->fill_flags({});
+        try {
+            const std::string path = "assets/figma/images/treatment-check-green.png";
+            auto probe = Image(("file:" + path).c_str());
+            const float hs = static_cast<float>(chk) / probe.width();
+            const float vs = static_cast<float>(chk) / probe.height();
+            auto img = Image(("file:" + path).c_str(), hs, vs);
+            auto lbl = make_shared<ImageLabel>(img);
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, chk, chk));
+            chk_wrap->add(lbl);
+        } catch (const std::exception& e) {
+            printf("[TREATMENT] check icon missing: %s\n", e.what()); fflush(stdout);
+        }
+        container->add(chk_wrap);
+
+        state->callbacks.on_show_screen(container);
+        return;
+    }
+
     string title = early ? "Treatment Ended" : "Treatment Completed";
     auto [container, _cum_lbl5] = make_treatment_container(state, true);
 

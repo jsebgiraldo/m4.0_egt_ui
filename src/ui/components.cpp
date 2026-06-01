@@ -219,35 +219,30 @@ shared_ptr<Button> create_text_button(
 }
 
 // ── Segmented Progress Bar ──────────────────────────────────────────────────
-shared_ptr<Frame> create_segmented_progress(int x, int y, int total_segments)
+shared_ptr<Frame> create_segmented_progress(int x, int y, int /*total_segments*/)
 {
-    // Each segment is a group of 5 small dots. In Figma: 32px wide per group, 5 dots of 5×5.
-    // At 800×480 scale: each group ~60px wide, dots ~9×9.
-    const int grp_w = dt::SEGMENT_W;
-    const int gap_between_groups = dt::SEGMENT_GAP;
-    const int total_w = total_segments * grp_w + (total_segments - 1) * gap_between_groups;
+    // Figma 66:524 Group 156: a 202x5 progress bar drawn as a near-continuous
+    // row of small 5px squares (square corners, ~2px gaps). Scaled x1.852 to
+    // the panel. Each square is one child; update_segmented_progress_fraction()
+    // colours the leading width green (so the first squares light up first).
+    const int tick  = 9;                 // Figma 5px * SCALE
+    const int gap   = 4;                 // Figma ~2px * SCALE
+    const int pitch = tick + gap;        // 13
+    const int n     = 29;                // fills ~374px (Figma 202 * SCALE)
+    const int bar_w = n * pitch - gap;   // 373
+    const int bar_h = tick;
 
-    auto bar = make_shared<Frame>(Rect(x, y, total_w, dt::SEGMENT_DOT_SZ));
+    auto bar = make_shared<Frame>(Rect(x, y, bar_w, bar_h));
     bar->color(Palette::ColorId::bg, dt::kTransparent);
     bar->border(0);
 
-    const int dots_per_segment = 5;
-    const int dot_sz = dt::SEGMENT_DOT_SZ;
-    const int dot_gap = (grp_w - dots_per_segment * dot_sz) / (dots_per_segment - 1);
-
-    for (int seg = 0; seg < total_segments; seg++)
+    for (int i = 0; i < n; ++i)
     {
-        int seg_x = seg * (grp_w + gap_between_groups);
-        for (int d = 0; d < dots_per_segment; d++)
-        {
-            auto dot = make_shared<Frame>(
-                Rect(seg_x + d * (dot_sz + dot_gap), 0, dot_sz, dot_sz));
-            dot->fill_flags({Theme::FillFlag::blend});
-            dot->color(Palette::ColorId::bg, dt::kGrayLight);  // default: gray
-            dot->border_radius(dot_sz / 2);
-            dot->border(0);
-            bar->add(dot);
-        }
+        auto sq = make_shared<Frame>(Rect(i * pitch, 0, tick, tick));
+        sq->fill_flags({Theme::FillFlag::blend});
+        sq->color(Palette::ColorId::bg, dt::kGrayLight);  // default: gray
+        sq->border(0);            // square corners (no border_radius)
+        bar->add(sq);
     }
 
     return bar;
@@ -283,15 +278,18 @@ void update_segmented_progress_fraction(shared_ptr<Frame> bar, float fraction)
     if (fraction < 0.0f) fraction = 0.0f;
     if (fraction > 1.0f) fraction = 1.0f;
 
-    const int total = static_cast<int>(bar->children().size());
-    const int filled = static_cast<int>(std::lround(fraction * total));
-    int i = 0;
+    // Width-proportional fill: a block is green if its centre falls within the
+    // filled width. The leading fine ticks (narrow) light up first, then the
+    // coarse blocks — matching Figma 66:524 where the fine ticks read as the
+    // granular leading edge of progress.
+    const float bar_w  = static_cast<float>(bar->content_area().width());
+    const float fill_x = fraction * bar_w;
     for (auto& child : bar->children()) {
         auto* frame = dynamic_cast<Frame*>(child.get());
-        if (frame)
-            frame->color(Palette::ColorId::bg,
-                         (i < filled) ? dt::kGreen : dt::kGrayLight);
-        i++;
+        if (!frame) continue;
+        const float cx = frame->box().x() + frame->box().width() / 2.0f;
+        frame->color(Palette::ColorId::bg,
+                     (cx <= fill_x) ? dt::kGreen : dt::kGrayLight);
     }
 }
 
@@ -408,41 +406,51 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
                                      DemoBadgeStyle style)
 {
     if (style == DemoBadgeStyle::Card) {
+        // Figma 66:524: "DEMO MODE" floats as 50%-opacity cyan text (no card
+        // chrome), with a separate white exit button (cyan border + cyan
+        // arrow) below it. Sizes are Figma values * SCALE.
         const int badge_w = 150;
-        const int badge_h = 134;
+        const int badge_h = 140;
         auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
-        frame->fill_flags({Theme::FillFlag::blend});
-        frame->color(Palette::ColorId::bg, dt::kWhite);
-        frame->color(Palette::ColorId::border, palette::kGray400);
-        frame->border(1);
-        frame->border_radius(dt::RADIUS_SM);
-        frame->border_flags({Theme::BorderFlag::drop_shadow});
+        frame->fill_flags({});          // transparent — no card behind the text
+        frame->border(0);
+
+        const Color cyan_50(48, 163, 196, 128);   // Figma cyan @ 50% opacity
 
         auto demo = make_shared<Label>("DEMO",
-            Rect(0, 10, badge_w, 28), AlignFlag::center);
-        demo->font(Font(22, Font::Weight::bold));
-        demo->color(Palette::ColorId::label_text, dt::kAccentCyan);
+            Rect(0, 0, badge_w, 40), AlignFlag::center);
+        demo->font(Font(37, Font::Weight::normal));   // Figma 20pt Medium * SCALE
+        demo->color(Palette::ColorId::label_text, cyan_50);
         frame->add(demo);
 
         auto mode = make_shared<Label>("MODE",
-            Rect(0, 38, badge_w, 28), AlignFlag::center);
-        mode->font(Font(22, Font::Weight::bold));
-        mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
+            Rect(0, 38, badge_w, 40), AlignFlag::center);
+        mode->font(Font(37, Font::Weight::normal));
+        mode->color(Palette::ColorId::label_text, cyan_50);
         frame->add(mode);
 
-        // Frame + centered Label, click handler - same approach as
-        // Compact to avoid egt::Button's notch artifact at small sizes.
-        const int btn_w = 84, btn_h = 42;
+        // Exit button — the real Figma "bt leave" PNG (84:565), the same asset
+        // the Demo Info screen uses. Never draw the arrow by hand.
+        const int btn_w = 119, btn_h = 52;       // PNG 128x56 -> device px
         const int btn_x = (badge_w - btn_w) / 2;
-        auto leave_btn = make_shared<Frame>(Rect(btn_x, 78, btn_w, btn_h));
-        leave_btn->fill_flags({Theme::FillFlag::blend});
-        leave_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
-        leave_btn->color(Palette::ColorId::border, dt::kAccentCyan);
-        leave_btn->border_radius(dt::RADIUS_SM);
-        leave_btn->border(0);
-
-        leave_btn->add(make_shared<ExitArrow>(
-            Rect(0, 0, btn_w, btn_h), dt::kWhite));
+        auto leave_btn = make_shared<Frame>(Rect(btn_x, 88, btn_w, btn_h));
+        leave_btn->fill_flags({});               // transparent — PNG carries box + shadow
+        try {
+            const std::string path = "assets/figma/images/demo-info-btn-exit.png";
+            auto probe = Image(("file:" + path).c_str());
+            const float hs = static_cast<float>(btn_w) / probe.width();
+            const float vs = static_cast<float>(btn_h) / probe.height();
+            auto img = Image(("file:" + path).c_str(), hs, vs);
+            auto lbl = make_shared<ImageLabel>(img);
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, btn_w, btn_h));
+            leave_btn->add(lbl);
+        } catch (const std::exception& e) {
+            printf("[BADGE] exit icon missing: %s\n", e.what()); fflush(stdout);
+        }
 
         if (on_leave) {
             leave_btn->on_event([on_leave](Event& e) {
@@ -455,40 +463,53 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     }
 
     // ── Compact variant ────────────────────────────────────────────────
-    const int badge_w = 90;
-    const int badge_h = 80;
+    // Figma 2009:1156 (demo-mode patient steps): "DEMO MODE" in cyan @ 50%
+    // opacity over the real "bt leave" PNG button (white box, cyan border,
+    // cyan leave glyph). Smaller than the treatment Card badge. Never draw
+    // the glyph by hand - use the downloaded PNG.
+    const int badge_w = 104;
+    const int badge_h = 112;
     auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
-    frame->color(Palette::ColorId::bg, dt::kTransparent);
+    frame->fill_flags({});            // transparent - no card behind the text
     frame->border(0);
 
+    const Color cyan_50(48, 163, 196, 128);   // Figma cyan #30A3C4 @ 50%
+
     auto demo = make_shared<Label>("DEMO",
-        Rect(0, 0, badge_w, 20), AlignFlag::center);
-    demo->font(Font(14, Font::Weight::bold));
-    demo->color(Palette::ColorId::label_text, dt::kAccentCyan);
+        Rect(0, 0, badge_w, 34), AlignFlag::center);
+    demo->font(Font(26, Font::Weight::normal));   // Figma 13.92pt Medium * SCALE
+    demo->color(Palette::ColorId::label_text, cyan_50);
     frame->add(demo);
 
     auto mode = make_shared<Label>("MODE",
-        Rect(0, 18, badge_w, 20), AlignFlag::center);
-    mode->font(Font(14, Font::Weight::bold));
-    mode->color(Palette::ColorId::label_text, dt::kAccentCyan);
+        Rect(0, 32, badge_w, 34), AlignFlag::center);
+    mode->font(Font(26, Font::Weight::normal));
+    mode->color(Palette::ColorId::label_text, cyan_50);
     frame->add(mode);
 
-    // Exit button - built from a Frame (full radius/fill control) with
-    // a Label glyph on top, instead of egt::Button. The Button widget
-    // draws extra theme passes (focus ring + active overlay) that don't
-    // respect border_radius at small sizes, producing a "bite" in the
-    // bottom-right corner.
-    const int btn_w = 56, btn_h = 32;
+    // Exit button - the real Figma "bt leave" PNG (84:565), the same asset the
+    // Demo Info screen and the treatment Card badge use. The PNG already
+    // carries the white box, cyan border and cyan leave glyph.
+    const int btn_w = 78, btn_h = 34;
     const int btn_x = (badge_w - btn_w) / 2;
-    auto leave_btn = make_shared<Frame>(Rect(btn_x, 44, btn_w, btn_h));
-    leave_btn->fill_flags({Theme::FillFlag::blend});
-    leave_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
-    leave_btn->color(Palette::ColorId::border, dt::kAccentCyan);
-    leave_btn->border_radius(dt::RADIUS_SM);
-    leave_btn->border(0);
-
-    leave_btn->add(make_shared<ExitArrow>(
-        Rect(0, 0, btn_w, btn_h), dt::kWhite));
+    auto leave_btn = make_shared<Frame>(Rect(btn_x, 72, btn_w, btn_h));
+    leave_btn->fill_flags({});               // transparent - PNG carries box + border
+    try {
+        const std::string path = "assets/figma/images/demo-info-btn-exit.png";
+        auto probe = Image(("file:" + path).c_str());
+        const float hs = static_cast<float>(btn_w) / probe.width();
+        const float vs = static_cast<float>(btn_h) / probe.height();
+        auto img = Image(("file:" + path).c_str(), hs, vs);
+        auto lbl = make_shared<ImageLabel>(img);
+        lbl->autoresize(false);
+        lbl->border(0); lbl->padding(0); lbl->margin(0);
+        lbl->fill_flags({});
+        lbl->image_align(AlignFlag::center);
+        lbl->box(Rect(0, 0, btn_w, btn_h));
+        leave_btn->add(lbl);
+    } catch (const std::exception& e) {
+        printf("[BADGE] exit icon missing: %s\n", e.what()); fflush(stdout);
+    }
 
     if (on_leave) {
         leave_btn->on_event([on_leave](Event& e) {
@@ -498,7 +519,7 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     frame->add(leave_btn);
 
     // Compact returns the Frame in the leave_btn slot - caller treats it
-    // as an opaque handle, doesn't care it's not a Button anymore.
+    // as an opaque handle.
     return {frame, nullptr};
 }
 

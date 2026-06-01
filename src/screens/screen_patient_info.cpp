@@ -37,6 +37,40 @@ static egt::Color flow_accent(bool demo) {
     return demo ? dt::kAccentCyan : dt::kGreen;
 }
 
+// Vertical wheel-picker backdrop (Figma 2009:1208 Rectangles 73/74): two
+// stacked vertical gradients that darken the top and bottom edges and fade to
+// near-white in the middle, giving the age wheel its cylinder look. Drawn by
+// hand because EGT's flat Palette fill can't express a multi-stop gradient.
+class WheelBackdrop : public Widget {
+public:
+    explicit WheelBackdrop(const Rect& r) : Widget(r) {
+        fill_flags({});   // fully custom-drawn, no theme fill
+    }
+    void draw(Painter& painter, const Rect&) override {
+        const auto b = content_area();
+        const int x = b.x(), y = b.y(), w = b.width(), h = b.height();
+        // Rectangle 74: light-gray fade - opaque at top/bottom, clear middle.
+        painter.draw(Pattern(Pattern::StepArray{
+            {0.00f, Color(217, 217, 217, 210)},
+            {0.33f, Color(217, 217, 217, 0)},
+            {0.58f, Color(217, 217, 217, 0)},
+            {1.00f, Color(217, 217, 217, 210)}},
+            Point(x, y), Point(x, y + h)),
+            RectF(x, y, w, h));
+        // Rectangle 73: subtle cylinder shading over the top/bottom edges.
+        // Figma uses 0.9 alpha here, but stacked over the light-gray layer
+        // above that reads near-black on our display; a low alpha matches the
+        // soft gray the Figma frame actually renders.
+        painter.draw(Pattern(Pattern::StepArray{
+            {0.00f, Color(100, 101, 105, 40)},
+            {0.38f, Color(255, 255, 255, 20)},
+            {0.55f, Color(255, 255, 255, 20)},
+            {1.00f, Color(100, 101, 105, 40)}},
+            Point(x, y), Point(x, y + h)),
+            RectF(x, y, w, h));
+    }
+};
+
 // Male / Female silhouettes — disc + glyph composition.
 // Source SVGs live in assets/icons/{male,female}.svg; these inlined copies
 // keep the binary self-contained.
@@ -69,11 +103,13 @@ static const char* kFemaleSvg = R"svg(
 // Disc + arrow-left — Back / Reset glyph: light gray disc, dark gray glyph.
 // Same proportions as Male/Female: glyph translate(3,3) scale(0.75) — fills
 // the disc generously (Material Symbols arrow_back).
+// Disc + chevron-left — Figma "bt EXIT"/Back uses a plain chevron ("<"),
+// not a full shafted arrow.
 static const char* kArrowBackSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
   <g transform="translate(3,3) scale(0.75)">
-    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="#646469"/>
+    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="#646469"/>
   </g>
 </svg>)svg";
 
@@ -90,13 +126,13 @@ static const char* kSkipNextSvg = R"svg(
   </g>
 </svg>)svg";
 
-// Disc + arrow-right — Continue glyph on green bg: white translucent disc,
-// white glyph (Material Symbols arrow_forward)
+// Disc + chevron-right — Continue glyph: white translucent disc, white
+// chevron (">"). Figma "bt continue" uses a chevron, not a shafted arrow.
 static const char* kArrowFwdSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
   <circle cx="12" cy="12" r="12" fill="#FFFFFF" fill-opacity="0.30"/>
   <g transform="translate(3,3) scale(0.75)">
-    <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="#FFFFFF"/>
+    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="#FFFFFF"/>
   </g>
 </svg>)svg";
 
@@ -153,6 +189,28 @@ static shared_ptr<Button> create_green_button(
     btn->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
     btn->color(Palette::ColorId::button_bg, dt::kGreen);
     btn->color(Palette::ColorId::button_text, dt::kWhite);
+    btn->border(0);
+    btn->border_radius(dt::RADIUS_SM);
+    if (on_click) {
+        btn->on_click([on_click](Event&) { on_click(); });
+    }
+    return btn;
+}
+
+// Inactive ZIP keypad key: soft gray vertical gradient (Figma "number bt"
+// fill, 217 -> 255 top to bottom), no border. Matches the "key number"
+// component default state used on node 2009:1060.
+static shared_ptr<Button> create_gradient_key(
+    const string& text, const Rect& rect, function<void()> on_click)
+{
+    auto btn = make_shared<Button>(text, rect);
+    btn->font(Font(24, Font::Weight::bold));
+    Pattern grad(Pattern::StepArray{{0.0f, Color(217, 217, 217)},
+                                    {1.0f, Color(255, 255, 255)}},
+                 Point(rect.x(), rect.y()),
+                 Point(rect.x(), rect.y() + rect.height()));
+    btn->color(Palette::ColorId::button_bg, grad);
+    btn->color(Palette::ColorId::button_text, dt::kTextPrimary);
     btn->border(0);
     btn->border_radius(dt::RADIUS_SM);
     if (on_click) {
@@ -220,7 +278,8 @@ static shared_ptr<ImageButton> make_continue_btn(
 // nav_to_step: optional callback to navigate when a tab is clicked
 static shared_ptr<Frame> make_patient_step(
     int step, bool demo_mode, function<void()> on_leave_demo,
-    function<void(int)> nav_to_step = nullptr)
+    function<void(int)> nav_to_step = nullptr,
+    bool as_pills = false)
 {
     auto container = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, dt::SCREEN_H));
     container->fill_flags({Theme::FillFlag::blend});
@@ -257,22 +316,43 @@ static shared_ptr<Frame> make_patient_step(
     const int tab_w[] = {70, 40, 90};
     const int green_bar_x[] = {189, 352, 509};
 
-    for (int i = 0; i <= step; i++) {
-        auto tab = make_shared<Label>(tab_names[i],
-            Rect(tab_x[i], 70, tab_w[i], 30),
-            AlignFlag::center_vertical | AlignFlag::left);
-        tab->font(Font(18, (i == step) ? Font::Weight::bold : Font::Weight::normal));
-        tab->color(Palette::ColorId::label_text, dt::kTextPrimary);
-        container->add(tab);
+    if (as_pills) {
+        // Summary step (Figma 2009:962): all three steps shown as completed
+        // white pill tabs, each with a small radius + 1px outline.
+        const int pill_x[] = {202, 367, 531};
+        const int pill_w = 107, pill_y = 72, pill_h = 36;
+        for (int i = 0; i < 3; i++) {
+            auto pill = make_shared<Frame>(Rect(pill_x[i], pill_y, pill_w, pill_h));
+            pill->fill_flags({Theme::FillFlag::blend});
+            pill->color(Palette::ColorId::bg, dt::kBgWhite);
+            pill->color(Palette::ColorId::border, dt::kGrayLight);
+            pill->border(1);
+            pill->border_radius(dt::RADIUS_XS);
+            auto lbl = make_shared<Label>(tab_names[i],
+                Rect(0, 0, pill_w, pill_h), AlignFlag::center);
+            lbl->font(Font(18, Font::Weight::normal));
+            lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+            pill->add(lbl);
+            container->add(pill);
+        }
+    } else {
+        for (int i = 0; i <= step; i++) {
+            auto tab = make_shared<Label>(tab_names[i],
+                Rect(tab_x[i], 70, tab_w[i], 30),
+                AlignFlag::center_vertical | AlignFlag::left);
+            tab->font(Font(18, (i == step) ? Font::Weight::bold : Font::Weight::normal));
+            tab->color(Palette::ColorId::label_text, dt::kTextPrimary);
+            container->add(tab);
 
-        // Make previous tabs clickable for navigation
-        if (i < step && nav_to_step) {
-            int target = i;
-            tab->on_event([nav_to_step, target](Event& event) {
-                if (event.id() == EventId::pointer_click) {
-                    nav_to_step(target);
-                }
-            });
+            // Make previous tabs clickable for navigation
+            if (i < step && nav_to_step) {
+                int target = i;
+                tab->on_event([nav_to_step, target](Event& event) {
+                    if (event.id() == EventId::pointer_click) {
+                        nav_to_step(target);
+                    }
+                });
+            }
         }
     }
 
@@ -283,12 +363,21 @@ static shared_ptr<Frame> make_patient_step(
     divider->border(0);
     container->add(divider);
 
-    // Green indicator bar under active tab @(green_bar_x, 109, 133×6)
-    auto indicator = make_shared<Frame>(Rect(green_bar_x[step], 109, 133, 6));
-    indicator->fill_flags({Theme::FillFlag::blend});
-    indicator->color(Palette::ColorId::bg, dt::kGreen);
-    indicator->border(0);
-    container->add(indicator);
+    if (as_pills) {
+        // Full-width green bar: every step complete (Figma Rectangle 32).
+        auto green = make_shared<Frame>(Rect(2, 109, 796, 6));
+        green->fill_flags({Theme::FillFlag::blend});
+        green->color(Palette::ColorId::bg, dt::kGreen);
+        green->border(0);
+        container->add(green);
+    } else {
+        // Green indicator bar under active tab @(green_bar_x, 109, 133×6)
+        auto indicator = make_shared<Frame>(Rect(green_bar_x[step], 109, 133, 6));
+        indicator->fill_flags({Theme::FillFlag::blend});
+        indicator->color(Palette::ColorId::bg, dt::kGreen);
+        indicator->border(0);
+        container->add(indicator);
+    }
 
     // Demo badge (vertical: DEMO MODE label + Exit below)
     if (demo_mode && on_leave_demo) {
@@ -479,6 +568,12 @@ static shared_ptr<Widget> create_age_step(
     picker_box->border(0);
     container->add(picker_box);
 
+    // Cylinder gradient backdrop (Figma Rectangles 73/74), drawn behind the
+    // wheel text. Added first so it sits under the slot labels and arrows.
+    const int bd_w = 192;   // Figma 103px gradient rect * SCALE
+    picker_box->add(make_shared<WheelBackdrop>(
+        Rect((box_w - bd_w) / 2, 0, bd_w, box_h)));
+
     auto up_arrow = make_shared<Label>("\u25B2",
         Rect(0, 4, box_w, chevron_h), AlignFlag::center);
     up_arrow->font(Font(14));
@@ -574,6 +669,15 @@ static shared_ptr<Widget> create_age_step(
             // changing their mind.
         }
     });
+
+    // "Years Old" caption to the right of the wheel (Figma 2009:1177, Bold
+    // 10pt #646569, vertically aligned with the selected row).
+    auto years_lbl = make_shared<Label>("Years Old",
+        Rect(box_x + box_w + 5, box_y + box_h / 2 - 16, 120, 32),
+        AlignFlag::left | AlignFlag::center_vertical);
+    years_lbl->font(Font(18, Font::Weight::bold));
+    years_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(years_lbl);
 
     // Bottom buttons
     auto btn_back = make_icon_outlined_btn(
@@ -679,7 +783,7 @@ static shared_ptr<Widget> create_zip_step(
             key->border_radius(dt::RADIUS_SM);
             container->add(key);
         } else {
-            auto key = ui::create_outlined_button(to_string(digit),
+            auto key = create_gradient_key(to_string(digit),
                 Rect(x, y, key_sz, key_sz),
                 [=]() {
                     if (info->zip_code.length() < 5) {
@@ -689,8 +793,6 @@ static shared_ptr<Widget> create_zip_step(
                                 on_back, on_show_screen, on_leave_demo));
                     }
                 });
-            key->font(Font(24, Font::Weight::bold));
-            key->border_radius(dt::RADIUS_SM);
             container->add(key);
         }
     }
@@ -752,71 +854,61 @@ static shared_ptr<Widget> create_summary_step(
     function<void(shared_ptr<Widget>)> on_show_screen,
     function<void()> on_leave_demo)
 {
-    auto container = make_patient_step(2, demo_mode, on_leave_demo);
+    // Summary uses the "all steps complete" header: three pill tabs + a
+    // full-width green bar (Figma 2009:962).
+    auto container = make_patient_step(2, demo_mode, on_leave_demo,
+                                       nullptr, /*as_pills=*/true);
 
-    // Summary card background
-    auto card = make_shared<Frame>(Rect(90, 145, 620, 215));
-    card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, dt::kBgWhite);
-    card->border(1);
-    card->color(Palette::ColorId::border, dt::kGrayLight);
-    card->border_radius(dt::RADIUS_MD);
-    container->add(card);
-
-    // Row: label + bold value. Skipped fields show "-" so the summary
-    // honestly reflects what the user actually provided.
+    // Borderless review block (Figma Group 225): label + bold value rows
+    // with two thin divider lines, no surrounding card. Skipped fields show
+    // "-" so the summary honestly reflects what the user provided.
     struct SummaryRow { const char* label; string value; int y; };
     SummaryRow rows[] = {
-        {"Gender :",  info->gender.empty() ? "-" : info->gender,
-                      165},
-        {"Age:",      info->age > 0 ? to_string(info->age) : "-",
-                      225},
-        {"ZIP Code:", info->zip_code.empty() ? "-" : info->zip_code,
-                      285},
+        {"Gender :",  info->gender.empty()   ? "-" : info->gender,    176},
+        {"Age:",      info->age > 0          ? to_string(info->age) : "-", 232},
+        {"ZIP Code:", info->zip_code.empty() ? "-" : info->zip_code,  288},
     };
 
-    // Centre the label+value group within the card. Card is at x=90, w=620
-    // → centre x = 400. Group: label(180) + gap(20) + value(220) = 420
-    // wide. Left edge: 400 - 420/2 = 190. Earlier the labels started at
-    // x=160 which left ~70px on the left and ~130px on the right — visibly
-    // off-centre. Now the padding is balanced inside the card.
-    const int lbl_x = 190, lbl_w = 180;
-    const int val_x = lbl_x + lbl_w + 20, val_w = 220;
+    // label (regular) + value (bold), Font 14pt * SCALE, centred as a pair
+    // under the dividers (dividers span x=166..633, centre ~400).
+    const int lbl_x = 210, lbl_w = 180;
+    const int val_x = lbl_x + lbl_w + 16, val_w = 200;
     for (auto& r : rows) {
         auto lbl = make_shared<Label>(r.label,
-            Rect(lbl_x, r.y, lbl_w, 40),
+            Rect(lbl_x, r.y, lbl_w, 44),
             AlignFlag::center_vertical | AlignFlag::right);
-        lbl->font(Font(20, Font::Weight::normal));
+        lbl->font(Font(26, Font::Weight::normal));
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         container->add(lbl);
 
         auto val = make_shared<Label>(r.value,
-            Rect(val_x, r.y, val_w, 40),
+            Rect(val_x, r.y, val_w, 44),
             AlignFlag::center_vertical | AlignFlag::left);
-        val->font(Font(20, Font::Weight::bold));
+        val->font(Font(26, Font::Weight::bold));
         val->color(Palette::ColorId::label_text, dt::kTextPrimary);
         container->add(val);
     }
 
-    // Dividers between rows
-    for (int dy : {218, 278}) {
-        auto div = make_shared<Frame>(Rect(100, dy, 600, 1));
+    // Two divider lines (Figma Line 2 / Line 3), black @ 10%, full block width.
+    for (int dy : {222, 281}) {
+        auto div = make_shared<Frame>(Rect(166, dy, 467, 1));
         div->fill_flags({Theme::FillFlag::blend});
-        div->color(Palette::ColorId::bg, dt::kGrayLight);
+        div->color(Palette::ColorId::bg, Color(0, 0, 0, 26));
         div->border(0);
         container->add(div);
     }
 
-    // Back button
+    // Back + GO sit together in the centre-bottom (Figma: Back x=233, GO
+    // x=424, both 156x61).
     auto btn_back = make_icon_outlined_btn(
         "arrow-back-sum", kArrowBackSvg, "  Back",
-        Rect(42, 387, 156, 61),
+        Rect(233, 394, 156, 61),
         [=]() { if (on_back_to_zip) on_back_to_zip(); });
     container->add(btn_back);
 
     // GO button — flow accent (green in real flow, blue in demo)
     const Color go_accent = flow_accent(demo_mode);
-    auto btn_go = make_shared<Button>("GO", Rect(541, 387, 217, 61));
+    auto btn_go = make_shared<Button>("GO", Rect(424, 394, 156, 61));
     btn_go->color(Palette::ColorId::button_bg, go_accent);
     btn_go->color(Palette::ColorId::button_text, dt::kWhite);
     btn_go->color(Palette::ColorId::border, go_accent);

@@ -270,9 +270,12 @@ void run_app(int argc, char** argv)
     };
 
     // ── Boot: start with WiFi Init (or a specific screen for diagnostics) ─
-    // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable|demo-info|password}
+    // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable|demo-info|password
+    //                   |treatment|treatment-demo}
     // lets the simulator skip the normal boot flow when iterating on a single
-    // screen.
+    // screen. For treatment, pair with EGT_MOCK_TREATMENT=<screen> to hold on
+    // a specific sub-screen (warming|ready|position|reposition|active|nearly|
+    // paused|end-confirm|completed|ended).
     const char* start = std::getenv("EGT_START_SCREEN");
     if      (start && std::string(start) == "settings")          show_settings();
     else if (start && std::string(start) == "home")              show_home();
@@ -305,6 +308,8 @@ void run_app(int argc, char** argv)
     else if (start && std::string(start) == "wifi-override-info") show_wifi_override_info();
     else if (start && std::string(start) == "patient-info")       show_patient_info(false);
     else if (start && std::string(start) == "patient-info-demo")  show_patient_info(true);
+    else if (start && std::string(start) == "treatment")          launch_treatment(false);
+    else if (start && std::string(start) == "treatment-demo")     launch_treatment(true);
     else                                                         show_wifi_init();
 
     win.show();

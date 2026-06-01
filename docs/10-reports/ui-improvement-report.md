@@ -100,6 +100,54 @@ Rebuilt to F1:1 with Figma: rounded card with the 244→255 keyboard-gray gradie
 
 ---
 
+### Treatment - Active (`TREATMENT_ACTIVE` - node `66:524`)
+
+Matched the Figma design: the End button is now a white card like Pause instead of a green block, with the countdown, cumulative timer, and buttons resized to the Figma layout.
+
+![TREATMENT_ACTIVE](treatment-active-figma-match/comparison.png)
+
+---
+
+### Treatment - Completed (`TREATMENT_COMPLETED` - node `67:628`)
+
+Rebuilt to the minimal Figma completed screen: a big "0", a full green progress bar, a green checkmark, and the green success border around the edge.
+
+![TREATMENT_COMPLETED](treatment-completed-figma-match/comparison.png)
+
+---
+
+### Patient Info - Gender, Demo Mode (`PATIENT_INFO` demo - node `2009:1262`)
+
+Swapped the demo badge's hand-drawn solid-cyan exit arrow for the real Figma "bt leave" PNG (white box, cyan border) and set "DEMO MODE" to the cyan 50%-opacity two-line label.
+
+![PATIENT_GENDER_DEMO](patient-info-gender-demo-figma-match/comparison.png)
+
+---
+
+### Patient Info - Age, Demo Mode (`PATIENT_INFO` demo - node `2009:1173`)
+
+Added the soft gray cylinder gradient behind the age wheel and the "Years Old" caption to the right of it, both missing before.
+
+![PATIENT_AGE_DEMO](patient-info-age-demo-figma-match/comparison.png)
+
+---
+
+### Patient Info - ZIP Code, Demo Mode (`PATIENT_INFO` demo - node `2009:1060`)
+
+Gave the inactive keypad keys the soft gray gradient fill (no border) instead of white-with-border, and switched the Continue/Back glyphs to the Figma chevrons across all patient steps.
+
+![PATIENT_ZIP_DEMO](patient-info-zip-demo-figma-match/comparison.png)
+
+---
+
+### Patient Info - Summary, Demo Mode (`PATIENT_INFO` demo - node `2009:962`)
+
+Reworked the review step to the Figma layout: the three steps now show as outlined pill tabs with a full-width green bar, the summary is borderless (two divider lines instead of a card), and Back + GO sit together centre-bottom.
+
+![PATIENT_SUMMARY_DEMO](patient-info-summary-demo-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 

@@ -331,6 +331,85 @@ Before / Target / After horizontally, with 1 px gray dividers (per `figma-vs-sim
 
 ---
 
+## Treatment flow screens (reusable findings)
+
+Findings from the Treatment Active screen (Figma 66:524) that the other treatment
+screens (Completed, Paused, Position, Nearly-done, End-confirm) should reuse, so each
+one needs fewer iterations.
+
+**Park on a screen with the hold mode.** The treatment screens auto-advance on timers.
+`EGT_START_SCREEN=treatment-demo EGT_MOCK_TREATMENT=<screen>` boots straight onto one
+screen with its countdown frozen. Screens: `warming | ready | position | reposition |
+active | nearly | paused | end-confirm | completed | ended`. Use `treatment-demo` (not
+`treatment`) so the DEMO MODE badge shows - the Figma treatment frames are the demo
+variant. The freeze sets sane timings (process limit 2700 s, 25 s cycle, 00:05
+cumulative) so demo mode's tiny limits don't drive the countdown negative.
+
+**Treatment font tokens are unscaled - scale every font by 1.852 yourself.** `dt::FONT_*`
+in design_tokens.h hold small raw values (FONT_BODY=18, FONT_HUGE=100) that are *not*
+Figma px x SCALE. On treatment screens, set fonts from the Figma pt directly:
+
+| Element | Figma | Code |
+|---|---|---|
+| Big countdown number | 64 pt **Regular** | `Font(116, normal)` - NOT `dt::fontHuge()` (it's bold + small) |
+| Status line ("Treatment started") | 16 pt | `Font(28, normal)` |
+| Cumulative time value | 24 pt | `Font(40, normal)` |
+| "CUMULATIVE TREATMENT TIME" label | 10 pt | `Font(18, normal)` |
+| Action button verb ("Pause"/"End") | 18 pt bold | `Font(33, bold)` |
+| Action button qualifier ("Treatment") | 11 pt | `Font(20, normal)` |
+
+**The shared treatment widgets now match Figma - reuse, don't rebuild:**
+
+- `make_action_button()` (treatment_controller.cpp) renders the Figma "bt new" button:
+  white card 131x54->244x100, gray text #646569, two-line verb+qualifier centred
+  vertically, soft layered drop shadow (Figma `boxShadow 0 2 2 rgba(0,0,0,0.2)`).
+  **Both Pause and End are this same white card** - End is NOT green. Pass
+  `BTN_OUTLINED` style.
+- `ui::create_segmented_progress()` is the Figma 202x5 bar: a near-continuous row of
+  small 5px **squares** (square corners, ~2px gaps), filled green by width via
+  `update_segmented_progress_fraction()`. The "32px segments" in the spec JSON are group
+  bounding boxes, each holding 5 small squares - they are NOT 5 long blocks.
+- `create_demo_mode_badge(..., Card)` is the Figma demo badge: 50%-opacity cyan "DEMO
+  MODE" text (no card behind it) + the real `demo-info-btn-exit.png` exit button (the
+  Figma `bt leave` 84:565). Shared layout constants: `STATUS_Y=240`, `DOTS_Y=285`,
+  `BTN_W=244`, `BTN_H=100`, `BTN_BOTTOM_MARGIN=21`, `BTN_LEFT_X=39`, `BTN_RIGHT_X=537`.
+
+## Patient Info wizard screens (reusable findings)
+
+Findings from the demo-mode Patient Info steps (Gender `2009:1262`, Age `2009:1173`,
+ZIP `2009:1060`, Summary `2009:962`). These four share `make_patient_step()` and the
+helpers below, so a fix on one lands on all four (and on the non-demo flow too).
+
+**Reach each step in the simulator.** Only `EGT_START_SCREEN=patient-info-demo` exists
+(it boots the Gender step). For Age/ZIP/Summary, click through with `xdotool` against the
+`^EGT$` window: Female card `(503,250)`, Continue `(650,417)`; ZIP keys are at column x
+`{215,311,407,503,598}` / row y `{213,302}`. Screen rebuilds on each tap but positions
+stay fixed, so chained clicks work.
+
+**Multi-stop vertical gradients - two ways, both verified:**
+- Custom `Widget::draw`: `painter.draw(Pattern(Pattern::StepArray{{0,c0},{0.33f,c1},...},
+  Point(x,y), Point(x,y+h)), RectF(x,y,w,h))`. Used for the age-wheel cylinder backdrop
+  (`WheelBackdrop`). Figma's 0.9-alpha edge shading reads near-black stacked on our panel;
+  drop it to ~0.15-0.27 alpha to match the soft gray the Figma frame actually renders.
+- Button fill: `btn->color(Palette::ColorId::button_bg, Pattern(StepArray, p0, p1))` with
+  the points in the button's absolute rect coords. Respects `border_radius`. Used for the
+  inactive ZIP keys (gray `217->255` "number bt" gradient, no border).
+
+**The shared patient widgets now match Figma - reuse, don't rebuild:**
+- Back/Continue glyphs `kArrowBackSvg` / `kArrowFwdSvg` are **chevrons** (`<` / `>`), not
+  shafted arrows. Figma "bt continue" / "bt EXIT" use a chevron-in-circle.
+- `create_demo_mode_badge(..., Compact)` is the patient-step badge: 50%-opacity cyan
+  "DEMO MODE" (Font 26) over the real `demo-info-btn-exit.png` (`bt leave`). Smaller than
+  the treatment `Card` variant. Never draw the arrow.
+- Age wheel: `WheelBackdrop` cylinder gradient + a "Years Old" caption (Bold `Font(18)`,
+  `#646569`) to the right of the wheel.
+- ZIP keypad: pressed digits use `create_green_button` (#5BC500, white text); unpressed
+  use `create_gradient_key` (gray gradient, no border).
+- Summary header: call `make_patient_step(2, ..., /*as_pills=*/true)` - all three steps
+  render as outlined white pill tabs with a **full-width** green bar (not a partial
+  under-tab indicator). The review block is **borderless** - two `rgba(0,0,0,0.1)` divider
+  lines, no card. Back + GO sit together centre-bottom (both `156x61`, x=233 / x=424).
+
 ## What did not work (do not repeat)
 
 ### Manual icon drawing via `Painter`
