@@ -238,6 +238,7 @@ static void show_treatment_paused(shared_ptr<TreatmentState> state);
 static void show_end_confirmation(shared_ptr<TreatmentState> state);
 static void show_treatment_completed(shared_ptr<TreatmentState> state, bool early);
 static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int remaining_seconds);
+static void show_treatment_zero(shared_ptr<TreatmentState> state);
 
 // ── Container result with dynamic labels ────────────────────────────────────
 struct TreatmentScreen {
@@ -502,7 +503,7 @@ void start_treatment_flow(
     // straight onto one treatment screen with its countdown frozen, so the
     // capture step gets a stable frame. Values:
     //   warming | ready | position | reposition | active | nearly
-    //   paused  | end-confirm | completed | ended
+    //   paused  | zero | end-confirm | completed | ended
     if (const char* hold = std::getenv("EGT_MOCK_TREATMENT")) {
         const string s = hold;
         state->freeze = true;
@@ -527,6 +528,9 @@ void start_treatment_flow(
                                       state->cumulative_seconds = 25;            // dots ~full green
                                       show_treatment_nearly_done(state, 5); }
         else if (s == "paused")      show_treatment_paused(state);
+        else if (s == "zero")      { state->config.process_limit_seconds = 30;  // Figma header 00:30
+                                      state->cumulative_seconds = 30;            // == limit -> full green bar
+                                      show_treatment_zero(state); }
         else if (s == "end-confirm") show_end_confirmation(state);
         else if (s == "completed") { state->config.process_limit_seconds = 30;  // Figma header 00:30
                                       state->cumulative_seconds = 30;            // == limit -> full green bar
@@ -959,7 +963,7 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
         if (state->is_complete()) {
             timer->cancel();
             state->cycles_completed++;
-            show_treatment_completed(state, false);
+            show_treatment_zero(state);   // "0 + check" screen, then auto-advance
             return;
         }
 
@@ -974,12 +978,44 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     if (!state->freeze) timer->start();
 }
 
+// Breathing green glow used by the nearly-done and "0" screens (Figma 67:723:
+// "the green is to reflect the effect of flashing light"). Eases the glow
+// intensity up and down on a cosine (~2.6 s per breath). If hold_ticks > 0 the
+// breath runs for that many 50 ms ticks then fires on_done (used by the "0"
+// screen to hold ~3 s and auto-advance). Frozen screenshots hold a mid-bright
+// glow; EGT_FLASH_TEST forces the breathing while held so it can be captured.
+static void start_green_breathing(shared_ptr<TreatmentState> state,
+                                  int hold_ticks = 0,
+                                  function<void()> on_done = nullptr)
+{
+    if (state->flash_timer) state->flash_timer->cancel();
+    auto glow_timer = make_shared<PeriodicTimer>(chrono::milliseconds(50));
+    state->flash_timer = glow_timer;
+    weak_ptr<GreenGlow> w_glow = state->green_glow;
+    auto phase = make_shared<float>(0.0f);
+    auto ticks = make_shared<int>(0);
+    glow_timer->on_timeout([=]() {
+        if (!*state->alive) { glow_timer->cancel(); return; }
+        auto g = w_glow.lock();
+        if (!g) { glow_timer->cancel(); return; }
+        *phase += 0.12f;   // 0.12 rad/tick * 20 ticks/s -> ~2.6 s per breath
+        g->set_intensity(0.12f + 0.88f * (0.5f - 0.5f * std::cos(*phase)));
+        if (hold_ticks > 0 && ++*ticks >= hold_ticks) {
+            glow_timer->cancel();
+            if (on_done) on_done();
+        }
+    });
+    if (!state->freeze || std::getenv("EGT_FLASH_TEST"))
+        glow_timer->start();
+    else if (auto g = state->green_glow)
+        g->set_intensity(0.85f);
+}
+
 // ── TREATMENT NEARLY DONE SCREEN ───────────────────────────────────────────
-// Figma 67:578: the last few seconds of a cycle are signalled purely as an
-// ALERT — a green border band around the otherwise-normal cycle screen.
-// The overall progress dots keep filling (they are NOT replaced by a
-// draining bar): the green frame is the alert, the progress stays
-// consistent so the user never sees the indicator run backwards.
+// Figma 67:578: the last few seconds of a cycle are signalled as an ALERT - a
+// breathing green glow around the otherwise-normal cycle screen. The overall
+// progress dots keep filling (they are NOT replaced by a draining bar) so the
+// indicator never runs backwards.
 static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int remaining_seconds)
 {
     auto [container, cum_time_lbl] = make_treatment_container(state, true, true);
@@ -1030,28 +1066,7 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
 
     state->callbacks.on_show_screen(container);
 
-    // Breathing green glow (Figma 67:723: "the green is to reflect the effect
-    // of flashing light"). Smoothly ease the glow intensity up and down with a
-    // cosine, ~2.6 s per breath, instead of a hard on/off border.
-    if (state->flash_timer) state->flash_timer->cancel();
-    auto glow_timer = make_shared<PeriodicTimer>(chrono::milliseconds(50));
-    state->flash_timer = glow_timer;
-    weak_ptr<GreenGlow> w_glow = state->green_glow;
-    auto phase = make_shared<float>(0.0f);
-    glow_timer->on_timeout([=]() {
-        if (!*state->alive) { glow_timer->cancel(); return; }
-        auto g = w_glow.lock();
-        if (!g) { glow_timer->cancel(); return; }
-        *phase += 0.12f;   // 0.12 rad/tick * 20 ticks/s -> ~2.6 s per breath
-        const float inten = 0.12f + 0.88f * (0.5f - 0.5f * std::cos(*phase));
-        g->set_intensity(inten);
-    });
-    // Frozen (screenshot) holds a representative mid-bright glow; live breathes.
-    // EGT_FLASH_TEST forces the breathing even while held, for capturing a GIF.
-    if (!state->freeze || std::getenv("EGT_FLASH_TEST"))
-        glow_timer->start();
-    else if (auto g = state->green_glow)
-        g->set_intensity(0.85f);
+    start_green_breathing(state);   // breathes until Pause/End or cycle change
 
     auto timer = make_shared<PeriodicTimer>(chrono::seconds(1));
     *timer_ref = timer;
@@ -1082,7 +1097,7 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
             timer->cancel();
             if (state->flash_timer) state->flash_timer->cancel();
             state->cycles_completed++;
-            show_treatment_completed(state, false);
+            show_treatment_zero(state);   // "0 + check" screen, then auto-advance
             return;
         }
 
@@ -1096,6 +1111,56 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
         }
     });
     if (!state->freeze) timer->start();
+}
+
+// ── TREATMENT "0" SCREEN ────────────────────────────────────────────────────
+// Figma 67:628: the moment the countdown reaches 0. Same breathing-glow screen
+// as nearly-finished but with a big "0", a full green progress bar and a green
+// check. Per the 67:728 note, it breathes + holds ~3 s to signal completion,
+// then auto-advances to the Completed (Back to Home) screen.
+static void show_treatment_zero(shared_ptr<TreatmentState> state)
+{
+    auto [container, _cz] = make_treatment_container(state, true, /*green=*/true);
+
+    // Big "0" — Figma Group 42 (64pt regular, thin).
+    auto zero = make_shared<Label>("0",
+        Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
+    zero->font(Font(116, Font::Weight::normal));
+    zero->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    container->add(zero);
+
+    // Full green progress bar (treatment_progress == 1.0 at completion).
+    add_segmented_progress(container, state);
+
+    // Green circle check — Figma Group 175 35x35 @(196,176) -> 65x65 @(363,326).
+    // Downloaded PNG, never drawn.
+    const int chk = 65, chk_x = 363, chk_y = 326;
+    auto chk_wrap = make_shared<Frame>(Rect(chk_x, chk_y, chk, chk));
+    chk_wrap->fill_flags({});
+    try {
+        const std::string path = "assets/figma/images/treatment-check-green.png";
+        auto probe = Image(("file:" + path).c_str());
+        const float hs = static_cast<float>(chk) / probe.width();
+        const float vs = static_cast<float>(chk) / probe.height();
+        auto img = Image(("file:" + path).c_str(), hs, vs);
+        auto lbl = make_shared<ImageLabel>(img);
+        lbl->autoresize(false);
+        lbl->border(0); lbl->padding(0); lbl->margin(0);
+        lbl->fill_flags({});
+        lbl->image_align(AlignFlag::center);
+        lbl->box(Rect(0, 0, chk, chk));
+        chk_wrap->add(lbl);
+    } catch (const std::exception& e) {
+        printf("[TREATMENT] check icon missing: %s\n", e.what()); fflush(stdout);
+    }
+    container->add(chk_wrap);
+
+    state->callbacks.on_show_screen(container);
+
+    // Breathe, hold ~3 s (60 ticks @ 50 ms), then auto-advance to Completed.
+    start_green_breathing(state, /*hold_ticks=*/60, [=]() {
+        show_treatment_completed(state, false);
+    });
 }
 
 // ── TREATMENT PAUSED SCREEN ────────────────────────────────────────────────

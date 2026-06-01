@@ -407,6 +407,13 @@ Figma px x SCALE. On treatment screens, set fonts from the Figma pt directly:
   `EGT_FLASH_TEST=1` forces breathing while held so you can capture a GIF.
   Verify by sampling an edge pixel across frames - it should ramp smoothly, not
   jump between two values.
+- Countdown-zero (67:628) reuses the same breathing glow: big "0", full green
+  bar, green check PNG @ `Rect(363,326,65,65)`. Per the 67:728 note it holds
+  ~3 s then auto-advances to Completed - done by passing `hold_ticks`/`on_done`
+  to the shared `start_green_breathing(state, hold_ticks, on_done)` helper, so
+  the breathing timer doubles as the 3 s hold (no separate timer). Natural
+  completion (`is_complete()`) in the active and nearly countdowns routes
+  through `show_treatment_zero` instead of jumping straight to Completed.
 
 ## Patient Info wizard screens (reusable findings)
 

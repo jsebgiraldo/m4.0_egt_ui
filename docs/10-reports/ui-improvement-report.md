@@ -180,6 +180,14 @@ Made the countdown thin and enlarged the status text, and added a green gradient
 
 ---
 
+### Treatment - Countdown Zero (`TREATMENT` demo - node `67:628`)
+
+The moment the countdown reaches 0: the same breathing-green-glow screen as nearly-finished, now with a big "0", a full green progress bar and a green check. Per the `67:728` note, it breathes and holds ~3 seconds to signal completion, then auto-advances to the Completed (Back to Home) screen.
+
+![TREATMENT_ZERO](treatment-zero-figma-match/comparison.png)
+
+---
+
 <!--
 TEMPLATE FOR THE NEXT ENTRY - copy, fill in, and slot above this comment.
 
