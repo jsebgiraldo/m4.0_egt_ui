@@ -108,11 +108,11 @@ Matched the Figma design: the End button is now a white card like Pause instead 
 
 ---
 
-### Treatment - Completed (`TREATMENT_COMPLETED` - node `67:628`)
+### Treatment - Completed (`TREATMENT_COMPLETED` - node `75:320`)
 
-Rebuilt to the minimal Figma completed screen: a big "0", a full green progress bar, a green checkmark, and the green success border around the edge.
+Redesigned to the Figma "Back to Home" completed screen: a blue check beside "Treatment Completed", the cumulative-time header, and a cyan Back to Home button - replacing the earlier minimal big-"0" layout, which left no way off the screen.
 
-![TREATMENT_COMPLETED](treatment-completed-figma-match/comparison.png)
+![TREATMENT_COMPLETED](treatment-completed-redesign-figma-match/comparison.png)
 
 ---
 
@@ -145,6 +145,38 @@ Gave the inactive keypad keys the soft gray gradient fill (no border) instead of
 Reworked the review step to the Figma layout: the three steps now show as outlined pill tabs with a full-width green bar, the summary is borderless (two divider lines instead of a card), and Back + GO sit together centre-bottom.
 
 ![PATIENT_SUMMARY_DEMO](patient-info-summary-demo-figma-match/comparison.png)
+
+---
+
+### Treatment - Warming up (`TREATMENT` demo - node `37:1626`)
+
+Made the big percentage thin (was bold), tucked the "Warming up for Treatment" label under it, and replaced the thick rounded bar with the thin near-full-width Figma bar.
+
+![TREATMENT_WARMING](treatment-warming-figma-match/comparison.png)
+
+---
+
+### Treatment - Position Tip (`TREATMENT` demo - node `100:772`)
+
+Removed the cumulative-time header (Figma has none here), made the countdown thin and single-minute "M:SS", and enlarged the gray two-line "Position the Applicator Tip" label.
+
+![TREATMENT_POSITION](treatment-position-figma-match/comparison.png)
+
+---
+
+### Treatment - Paused (`TREATMENT` demo - node `67:773`)
+
+Made the paused timer thin and gave the tip its two cyan lines flanked by cyan chevrons, matching the Figma copy.
+
+![TREATMENT_PAUSED](treatment-paused-figma-match/comparison.png)
+
+---
+
+### Treatment - Nearly Finished (`TREATMENT` demo - node `67:578`)
+
+Made the countdown thin and enlarged the status text, and added a green gradient glow that fades inward from all four edges (like the age-wheel backdrop, full-screen) and **breathes** smoothly in and out, matching the Figma note that the green reflects a flashing-light effect (node `67:723`). The held screenshot shows the glow at mid brightness.
+
+![TREATMENT_NEARLY](treatment-nearly-figma-match/comparison.png)
 
 ---
 

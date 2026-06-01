@@ -374,6 +374,40 @@ Figma px x SCALE. On treatment screens, set fonts from the Figma pt directly:
   Figma `bt leave` 84:565). Shared layout constants: `STATUS_Y=240`, `DOTS_Y=285`,
   `BTN_W=244`, `BTN_H=100`, `BTN_BOTTOM_MARGIN=21`, `BTN_LEFT_X=39`, `BTN_RIGHT_X=537`.
 
+**More treatment-screen findings (warming / position / paused / completed):**
+- Big numbers are **thin**: `Font(116, Font::Weight::normal)` for countdowns,
+  `Font(120, normal)` inside `PercentDisplay`. EGT has no Light (300) weight, so
+  `normal` is the floor - the Figma render is a hair thinner and that gap is an
+  accepted EGT limitation (same on the Active screen).
+- Number format is per-screen: Active shows bare seconds ("25"), Position shows
+  "M:SS" with a single minute digit ("0:05" - not `format_time`'s "00:05"),
+  Paused/Completed show the cumulative "MM:SS".
+- Position (100:772) has **no** cumulative-time header - call
+  `make_treatment_container(state, false)`. Its status is two gray `Font(28)`
+  lines ("Position the" / "Applicator Tip"); a single small `fontBody` line read
+  brownish from subpixel rendering.
+- Paused (67:773) tip: two centred cyan `Font(18,bold)` lines flanked by cyan
+  chevron SVGs. When writing an SVG to /tmp then loading it with `SvgImage`,
+  **scope the `ofstream` in braces** so it flushes before the read - otherwise
+  the icon renders blank.
+- Completed (75:320) is the "Back to Home" screen: cumulative header + a centred
+  blue `ResultGlyph` check beside blue "Treatment Completed" + a cyan
+  `make_back_home_button()`. The Figma blue is a cyan->blue gradient; EGT can't
+  gradient-fill text, so use the midpoint `Color(48,129,196)` as a solid.
+- Nearly-finished (67:578) has a **breathing green glow** (Figma note 67:723:
+  "the green is to reflect the effect of flashing light"). A hard on/off rounded
+  border looked cheap - use a `GreenGlow` custom widget instead: four edge
+  gradients (green -> transparent, ~90 px inward) drawn BEHIND the content
+  (same idea as the age-wheel `WheelBackdrop`, applied full-screen), with an
+  `m_intensity` (0..1) scaling the alpha. Animate it with a 50 ms timer easing
+  intensity along `0.12 + 0.88*(0.5 - 0.5*cos(phase))` (~2.6 s per breath) - a
+  cosine ease reads as breathing; a square toggle reads as a cheap blink. Make
+  the widget `readonly(true)` and keep it the first child so it never eats
+  button taps. Gate `start()` on `!freeze` (the still holds a mid-bright glow);
+  `EGT_FLASH_TEST=1` forces breathing while held so you can capture a GIF.
+  Verify by sampling an edge pixel across frames - it should ramp smoothly, not
+  jump between two values.
+
 ## Patient Info wizard screens (reusable findings)
 
 Findings from the demo-mode Patient Info steps (Gender `2009:1262`, Age `2009:1173`,
