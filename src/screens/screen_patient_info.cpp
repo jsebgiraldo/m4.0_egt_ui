@@ -100,39 +100,45 @@ static const char* kFemaleSvg = R"svg(
   </g>
 </svg>)svg";
 
-// Disc + arrow-left — Back / Reset glyph: light gray disc, dark gray glyph.
-// Same proportions as Male/Female: glyph translate(3,3) scale(0.75) — fills
-// the disc generously (Material Symbols arrow_back).
-// Disc + chevron-left — Figma "bt EXIT"/Back uses a plain chevron ("<"),
-// not a full shafted arrow.
+// Bottom-button glyphs (Figma 2009:1262 Back/Skip/Continue). Each is a disc
+// with the 217->255 vertical gradient (Figma Ellipse 4 "fill_1SIERY") plus the
+// exact glyph path downloaded from Figma. Glyph fill is #646569 on all three
+// (yes, including Continue — Figma "Subtract" is gray, not white). The disc
+// gradient + glyph match the design 1:1 instead of the old hand-drawn discs.
+
+// Back: Figma "Subtract" chevron, native 9x13, centred in the 24x24 disc.
 static const char* kArrowBackSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
-  <g transform="translate(3,3) scale(0.75)">
-    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="#646469"/>
+  <defs><linearGradient id="d" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#D9D9D9"/><stop offset="100%" stop-color="#FFFFFF"/>
+  </linearGradient></defs>
+  <circle cx="12" cy="12" r="12" fill="url(#d)"/>
+  <g transform="translate(7.4,5.5)">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M5.45559 0.541444C6.53804 -0.468095 8.19841 0.0266318 8.68352 1.26245L4.63786 5.03651C3.78963 5.8276 3.78963 7.17243 4.63786 7.96353L8.68352 11.7366C8.1988 12.973 6.53827 13.4683 5.45559 12.4586L0.636172 7.96353C-0.212057 7.17243 -0.212057 5.8276 0.636172 5.03651L5.45559 0.541444Z" fill="#646569"/>
   </g>
 </svg>)svg";
 
-// Disc + Skip glyph — Figma "Vector 3980" (curved-arrow loop + chevron).
-// Stroked path, no rotation (the 180° in Figma is already baked into how
-// we read the path here so the chevron points down-right as in the design).
+// Skip: Figma "Vector 3980" (curved-arrow loop), native 15x14 stroked path.
 static const char* kSkipNextSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
-  <g transform="translate(3.04,3.36) scale(0.32)"
-     fill="none" stroke="#646469" stroke-width="5"
-     stroke-linecap="round" stroke-linejoin="round">
-    <path d="M4.72 49.28 C4.72 22.05 2.70 4.66 22.51 4.66 C42.32 4.66 37.13 31.89 37.13 49.28 M22.51 33.84 L37.13 49.28 L53.34 29.95"/>
+  <defs><linearGradient id="d" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#D9D9D9"/><stop offset="100%" stop-color="#FFFFFF"/>
+  </linearGradient></defs>
+  <circle cx="12" cy="12" r="12" fill="url(#d)"/>
+  <g transform="translate(4.5,5)">
+    <path d="M1.22135 12.7448C1.22135 5.7028 0.697507 1.20632 5.82135 1.20632C10.9452 1.20632 9.6029 8.24831 9.6029 12.7448M5.82135 8.75131L9.6029 12.7448L13.7937 7.74531" stroke="#646569" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   </g>
 </svg>)svg";
 
-// Disc + chevron-right — Continue glyph: white translucent disc, white
-// chevron (">"). Figma "bt continue" uses a chevron, not a shafted arrow.
+// Continue: Figma "Subtract" chevron (">"), native 9x13, centred in the disc.
 static const char* kArrowFwdSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <circle cx="12" cy="12" r="12" fill="#FFFFFF" fill-opacity="0.30"/>
-  <g transform="translate(3,3) scale(0.75)">
-    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" fill="#FFFFFF"/>
+  <defs><linearGradient id="d" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#D9D9D9"/><stop offset="100%" stop-color="#FFFFFF"/>
+  </linearGradient></defs>
+  <circle cx="12" cy="12" r="12" fill="url(#d)"/>
+  <g transform="translate(7.8,5.5)">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M3.22796 12.4586C2.14551 13.4681 0.48513 12.9734 2.18335e-05 11.7375L4.0457 7.96347C4.89393 7.17237 4.89393 5.82754 4.0457 5.03644L2.09178e-05 1.26334C0.484738 0.0269478 2.14528 -0.468401 3.22796 0.541353L8.0474 5.03644C8.89564 5.82754 8.89564 7.17237 8.04741 7.96347L3.22796 12.4586Z" fill="#646569"/>
   </g>
 </svg>)svg";
 
@@ -144,6 +150,56 @@ static const char* kRefreshSvg = R"svg(
     <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="#646469"/>
   </g>
 </svg>)svg";
+
+// ── Soft drop shadow ────────────────────────────────────────────────────────
+// Figma boxShadow 0px 0px 10px rgba(0,0,0,0.1) on the gender cards and the
+// Back/Skip/Continue buttons. EGT has no blur, so (like ui::ShadowedCard) we
+// fake it with 16 concentric translucent-black rounded rects. Unlike
+// ShadowedCard this draws NO card fill, so it sits behind any colour card
+// (white, green, or the blue Continue). Add it to the parent BEFORE the card.
+static void pi_rounded_path(Painter& p, float x, float y, float w, float h, float r)
+{
+    const float PI = static_cast<float>(M_PI);
+    p.draw(PointF(x + r,         y));
+    p.line(PointF(x + w - r,     y));
+    p.draw(Arc(PointF(x + w - r, y + r),       r, -PI / 2, 0.0f));
+    p.line(PointF(x + w,         y + h - r));
+    p.draw(Arc(PointF(x + w - r, y + h - r),   r, 0.0f,    PI / 2));
+    p.line(PointF(x + r,         y + h));
+    p.draw(Arc(PointF(x + r,     y + h - r),   r, PI / 2,  PI));
+    p.line(PointF(x,             y + r));
+    p.draw(Arc(PointF(x + r,     y + r),       r, PI,    3 * PI / 2));
+}
+
+class SoftShadow : public Widget {
+public:
+    static constexpr int PAD = 12;
+    SoftShadow(const Rect& card, float radius)
+        : Widget(Rect(card.x() - PAD, card.y() - PAD,
+                      card.width() + 2 * PAD, card.height() + 2 * PAD)),
+          m_radius(radius), m_card(card) {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        readonly(true);            // never interactive — taps fall to the card
+    }
+    void draw(Painter& p, const Rect&) override {
+        const float x = m_card.x(), y = m_card.y();
+        const float w = m_card.width(), h = m_card.height(), r = m_radius;
+        // Softer than ShadowedCard: alpha 1 per layer (vs 2) over a slightly
+        // wider 10px spread, so the edge reads as a faint halo, not a dark rim.
+        constexpr int steps = 18; constexpr float extent = 10.0f;
+        for (int i = steps; i >= 1; --i) {
+            const float grow = i * (extent / steps);
+            pi_rounded_path(p, x - grow, y - grow,
+                            w + 2.0f * grow, h + 2.0f * grow, r + grow * 0.5f);
+            p.set(Color(0, 0, 0, 1));
+            p.fill();
+        }
+    }
+private:
+    float m_radius;
+    Rect  m_card;
+};
 
 // Figma Group 231: Patient Information — 3 sub-screens (Gender, Age, ZIP)
 // Canvas: 432×261, screen: 800×480 → scale ≈ 1.852
@@ -228,7 +284,10 @@ static shared_ptr<ImageButton> make_icon_outlined_btn(
     auto ico = load_svg_icon(icon_name, icon_svg, 44);
     auto btn = make_shared<ImageButton>(ico, text, rect, AlignFlag::center);
     btn->image_align(AlignFlag::left | AlignFlag::center_vertical);
-    btn->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    // Pin the min size to the rect so the 44px icon doesn't auto-grow the
+    // button past the Figma 33px(->61) height.
+    btn->min_size_hint(Size(rect.width(), rect.height()));
+    btn->font(Font(22, Font::Weight::bold));   // Figma 14pt bold, same as Male/Female labels
     btn->color(Palette::ColorId::button_bg, Color(0xFA, 0xFA, 0xFA));
     btn->color(Palette::ColorId::button_text, dt::kTextPrimary);
     btn->color(Palette::ColorId::border, dt::kGrayLight);
@@ -247,7 +306,8 @@ static shared_ptr<ImageButton> make_icon_filled_btn(
     auto ico = load_svg_icon(icon_name, icon_svg, 44);
     auto btn = make_shared<ImageButton>(ico, text, rect, AlignFlag::center);
     btn->image_align(AlignFlag::left | AlignFlag::center_vertical);
-    btn->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    btn->min_size_hint(Size(rect.width(), rect.height()));
+    btn->font(Font(22, Font::Weight::bold));   // Figma 14pt bold, same as Male/Female labels
     btn->color(Palette::ColorId::button_bg, bg);
     btn->color(Palette::ColorId::button_text, dt::kWhite);
     btn->border(0);
@@ -429,14 +489,19 @@ static shared_ptr<Widget> create_gender_step(
                 on_back, on_show_screen, on_leave_demo));
     };
 
-    const int card_w = 176, card_h = 150, gap = 30;
+    // Figma Group 254/255: 92.84x73 -> 172x135 (was 176x150, a touch too tall/wide).
+    const int card_w = 172, card_h = 135, gap = 30;
     const int start_x = (800 - 2 * card_w - gap) / 2;
-    const int card_y = 175;
-    const int icon_sz = 66, icon_y = 18;
+    const int card_y = 182;
+    const int icon_sz = 66, icon_y = 14;
 
     auto build_card = [&](bool female_card) {
         const bool selected = has_gender && (female_card == is_female);
         const int x = start_x + (female_card ? (card_w + gap) : 0);
+
+        // Soft drop shadow behind the card (Figma Group 7 boxShadow).
+        container->add(make_shared<SoftShadow>(
+            Rect(x, card_y, card_w, card_h), dt::RADIUS_XS));
 
         auto card = make_shared<Frame>(Rect(x, card_y, card_w, card_h));
         card->fill_flags({Theme::FillFlag::blend});
@@ -486,15 +551,20 @@ static shared_ptr<Widget> create_gender_step(
     build_card(false); // Male
     build_card(true);  // Female
 
-    // Bottom buttons: Back @(42,400) Skip @(292,400) Continue @(541,400)
+    // Bottom buttons: Back @(42,400) Skip @(292,400) Continue @(541,400).
+    // Each gets a soft drop shadow behind it (Figma Group 7 boxShadow).
+    const Rect back_r(42, 387, 156, 61);
+    const Rect skip_r(292, 387, 156, 61);
+    const Rect cont_r(541, 387, 217, 61);
+
+    container->add(make_shared<SoftShadow>(back_r, dt::RADIUS_XS));
     auto btn_back = make_icon_outlined_btn(
-        "arrow-back-pi", kArrowBackSvg, "  Back",
-        Rect(42, 387, 156, 61), on_back);
+        "arrow-back-pi", kArrowBackSvg, "  Back", back_r, on_back);
     container->add(btn_back);
 
+    container->add(make_shared<SoftShadow>(skip_r, dt::RADIUS_XS));
     auto btn_skip = make_icon_outlined_btn(
-        "skip-next-pi", kSkipNextSvg, "  Skip",
-        Rect(292, 387, 156, 61),
+        "skip-next-pi", kSkipNextSvg, "  Skip", skip_r,
         [=]() {
             info->gender.clear();   // skip => no value collected
             if (on_show_screen)
@@ -504,9 +574,9 @@ static shared_ptr<Widget> create_gender_step(
     container->add(btn_skip);
 
     // Continue gated on a gender being selected (task 5).
+    container->add(make_shared<SoftShadow>(cont_r, dt::RADIUS_XS));
     auto btn_continue = make_continue_btn(
-        !info->gender.empty(), demo_mode,
-        Rect(541, 387, 217, 61),
+        !info->gender.empty(), demo_mode, cont_r,
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_age_step(demo_mode, info, on_complete,

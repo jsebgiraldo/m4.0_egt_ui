@@ -467,8 +467,10 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     // opacity over the real "bt leave" PNG button (white box, cyan border,
     // cyan leave glyph). Smaller than the treatment Card badge. Never draw
     // the glyph by hand - use the downloaded PNG.
+    // Figma block (2009:1353): 55x49.43 -> 102x92, DEMO/MODE lines ~28 apart
+    // (line height 15.32px * SCALE), leave button right under them at y~61.
     const int badge_w = 104;
-    const int badge_h = 112;
+    const int badge_h = 92;
     auto frame = make_shared<Frame>(Rect(x, y, badge_w, badge_h));
     frame->fill_flags({});            // transparent - no card behind the text
     frame->border(0);
@@ -476,13 +478,13 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     const Color cyan_50(48, 163, 196, 128);   // Figma cyan #30A3C4 @ 50%
 
     auto demo = make_shared<Label>("DEMO",
-        Rect(0, 0, badge_w, 34), AlignFlag::center);
+        Rect(0, 0, badge_w, 28), AlignFlag::center);
     demo->font(Font(26, Font::Weight::normal));   // Figma 13.92pt Medium * SCALE
     demo->color(Palette::ColorId::label_text, cyan_50);
     frame->add(demo);
 
     auto mode = make_shared<Label>("MODE",
-        Rect(0, 32, badge_w, 34), AlignFlag::center);
+        Rect(0, 28, badge_w, 28), AlignFlag::center);
     mode->font(Font(26, Font::Weight::normal));
     mode->color(Palette::ColorId::label_text, cyan_50);
     frame->add(mode);
@@ -490,9 +492,9 @@ DemoModeBadge create_demo_mode_badge(int x, int y, function<void()> on_leave,
     // Exit button - the real Figma "bt leave" PNG (84:565), the same asset the
     // Demo Info screen and the treatment Card badge use. The PNG already
     // carries the white box, cyan border and cyan leave glyph.
-    const int btn_w = 78, btn_h = 34;
+    const int btn_w = 77, btn_h = 31;
     const int btn_x = (badge_w - btn_w) / 2;
-    auto leave_btn = make_shared<Frame>(Rect(btn_x, 72, btn_w, btn_h));
+    auto leave_btn = make_shared<Frame>(Rect(btn_x, 61, btn_w, btn_h));
     leave_btn->fill_flags({});               // transparent - PNG carries box + border
     try {
         const std::string path = "assets/figma/images/demo-info-btn-exit.png";

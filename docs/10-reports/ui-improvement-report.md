@@ -118,7 +118,7 @@ Redesigned to the Figma "Back to Home" completed screen: a blue check beside "Tr
 
 ### Patient Info - Gender, Demo Mode (`PATIENT_INFO` demo - node `2009:1262`)
 
-Swapped the demo badge's hand-drawn solid-cyan exit arrow for the real Figma "bt leave" PNG (white box, cyan border) and set "DEMO MODE" to the cyan 50%-opacity two-line label.
+Added soft drop shadows to the gender cards and the Back/Skip/Continue buttons, swapped the drawn button glyphs for the exact Figma icons on the 217->255 gradient disc, and tightened the DEMO MODE text and button spacing to the Figma layout.
 
 ![PATIENT_GENDER_DEMO](patient-info-gender-demo-figma-match/comparison.png)
 
