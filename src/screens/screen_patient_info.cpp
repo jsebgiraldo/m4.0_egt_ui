@@ -397,8 +397,10 @@ static shared_ptr<Frame> make_patient_step(
         }
     } else {
         for (int i = 0; i <= step; i++) {
+            // y=75 (was 70): drops the label ~5px so its gap to the green bar
+            // matches Figma (text vertical centre ~y90, node 2009:1303 y=38).
             auto tab = make_shared<Label>(tab_names[i],
-                Rect(tab_x[i], 70, tab_w[i], 30),
+                Rect(tab_x[i], 75, tab_w[i], 30),
                 AlignFlag::center_vertical | AlignFlag::left);
             tab->font(Font(18, (i == step) ? Font::Weight::bold : Font::Weight::normal));
             tab->color(Palette::ColorId::label_text, dt::kTextPrimary);
@@ -489,11 +491,12 @@ static shared_ptr<Widget> create_gender_step(
                 on_back, on_show_screen, on_leave_demo));
     };
 
-    // Figma Group 254/255: 92.84x73 -> 172x135 (was 176x150, a touch too tall/wide).
-    const int card_w = 172, card_h = 135, gap = 30;
-    const int start_x = (800 - 2 * card_w - gap) / 2;
-    const int card_y = 182;
-    const int icon_sz = 66, icon_y = 14;
+    // Figma Group 254/255: 92.84x73 -> 172x134 (SCALE_X=1.852, SCALE_Y=1.836).
+    // The cards sit ~8px right of screen centre in Figma, so place absolutely.
+    const int card_w = 172, card_h = 134, gap = 36;
+    const int start_x = 218;             // Male x=118*1.852; Female lands at 426
+    const int card_y = 189;              // y=103*1.836
+    const int icon_sz = 46, icon_y = 26; // Group 252 24.63*1.852, y=14*1.836
 
     auto build_card = [&](bool female_card) {
         const bool selected = has_gender && (female_card == is_female);
@@ -553,9 +556,9 @@ static shared_ptr<Widget> create_gender_step(
 
     // Bottom buttons: Back @(42,400) Skip @(292,400) Continue @(541,400).
     // Each gets a soft drop shadow behind it (Figma Group 7 boxShadow).
-    const Rect back_r(42, 387, 156, 61);
-    const Rect skip_r(292, 387, 156, 61);
-    const Rect cont_r(541, 387, 217, 61);
+    const Rect back_r(26, 397, 156, 61);   // Figma x=14*1.852, y=216*1.836
+    const Rect skip_r(293, 397, 156, 61);  // x=158*1.852
+    const Rect cont_r(556, 397, 217, 61);  // x=300*1.852
 
     container->add(make_shared<SoftShadow>(back_r, dt::RADIUS_XS));
     auto btn_back = make_icon_outlined_btn(
@@ -749,10 +752,14 @@ static shared_ptr<Widget> create_age_step(
     years_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(years_lbl);
 
-    // Bottom buttons
+    // Bottom buttons (same Figma layout/shadows as the Gender step).
+    const Rect back_r(26, 397, 156, 61);
+    const Rect skip_r(293, 397, 156, 61);
+    const Rect cont_r(556, 397, 217, 61);
+
+    container->add(make_shared<SoftShadow>(back_r, dt::RADIUS_XS));
     auto btn_back = make_icon_outlined_btn(
-        "arrow-back-pi", kArrowBackSvg, "  Back",
-        Rect(42, 387, 156, 61),
+        "arrow-back-pi", kArrowBackSvg, "  Back", back_r,
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_gender_step(demo_mode, info, on_complete,
@@ -760,9 +767,9 @@ static shared_ptr<Widget> create_age_step(
         });
     container->add(btn_back);
 
+    container->add(make_shared<SoftShadow>(skip_r, dt::RADIUS_XS));
     auto btn_skip = make_icon_outlined_btn(
-        "skip-next-pi", kSkipNextSvg, "  Skip",
-        Rect(292, 387, 156, 61),
+        "skip-next-pi", kSkipNextSvg, "  Skip", skip_r,
         [=]() {
             info->age = 0;  // skip => no value collected
             if (on_show_screen)
@@ -771,9 +778,9 @@ static shared_ptr<Widget> create_age_step(
         });
     container->add(btn_skip);
 
+    container->add(make_shared<SoftShadow>(cont_r, dt::RADIUS_XS));
     auto btn_continue = make_icon_filled_btn(
-        "arrow-fwd-pi", kArrowFwdSvg, "  Continue",
-        Rect(541, 387, 217, 61),
+        "arrow-fwd-pi", kArrowFwdSvg, "  Continue", cont_r,
         [=]() {
             info->age = ranges[*live].low;  // commit the visible selection
             if (on_show_screen)
@@ -818,8 +825,8 @@ static shared_ptr<Widget> create_zip_step(
             display_str += "_";
     }
     auto zip_display = make_shared<Label>(display_str,
-        Rect(0, 125, 800, 40), AlignFlag::center);
-    zip_display->font(Font(28, Font::Weight::bold));
+        Rect(0, 125, 800, 46), AlignFlag::center);
+    zip_display->font(Font(33, Font::Weight::bold));   // Figma 18pt * 1.852
     zip_display->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(zip_display);
 
@@ -851,6 +858,10 @@ static shared_ptr<Widget> create_zip_step(
                 });
             key->font(Font(24, Font::Weight::bold));
             key->border_radius(dt::RADIUS_SM);
+            // Pin to a square (Figma keys are 40x40 -> 74x74); the digit text
+            // would otherwise auto-grow the button taller than wide.
+            key->min_size_hint(Size(key_sz, key_sz));
+            key->resize(Size(key_sz, key_sz));
             container->add(key);
         } else {
             auto key = create_gradient_key(to_string(digit),
@@ -863,26 +874,40 @@ static shared_ptr<Widget> create_zip_step(
                                 on_back, on_show_screen, on_leave_demo));
                     }
                 });
+            key->min_size_hint(Size(key_sz, key_sz));
+            key->resize(Size(key_sz, key_sz));
             container->add(key);
         }
     }
 
-    // Bottom buttons (Figma Group 233 ZIP step — no Back, blue Continue):
-    // Reset @(42,380) text-only, Skip @(292,380) icon, Continue @(541,380) blue
-    auto btn_reset = ui::create_outlined_button("Reset",
-        Rect(42, 387, 156, 61),
+    // Bottom buttons (same Figma layout/shadows as the Gender step):
+    // Reset @x=26 text-only, Skip @x=293 icon, Continue @x=556 blue, y=397.
+    const Rect back_r(26, 397, 156, 61);
+    const Rect skip_r(293, 397, 156, 61);
+    const Rect cont_r(556, 397, 217, 61);
+
+    container->add(make_shared<SoftShadow>(back_r, dt::RADIUS_XS));
+    auto btn_reset = ui::create_outlined_button("Reset", back_r,
         [=]() {
             info->zip_code.clear();
             if (on_show_screen)
                 on_show_screen(create_zip_step(demo_mode, info, on_complete,
                     on_back, on_show_screen, on_leave_demo));
         });
-    btn_reset->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    btn_reset->font(Font(22, Font::Weight::bold));
+    // Match the Skip/Continue shape: 1px border, RADIUS_XS, off-white bg
+    // (create_outlined_button defaults to a thicker 2px border + RADIUS_MD).
+    btn_reset->border(1);
+    btn_reset->border_radius(dt::RADIUS_XS);
+    btn_reset->color(Palette::ColorId::button_bg, Color(0xFA, 0xFA, 0xFA));
+    // Pin to the rect so it doesn't grow taller than Skip/Continue (61).
+    btn_reset->min_size_hint(Size(back_r.width(), back_r.height()));
+    btn_reset->resize(Size(back_r.width(), back_r.height()));
     container->add(btn_reset);
 
+    container->add(make_shared<SoftShadow>(skip_r, dt::RADIUS_XS));
     auto btn_skip = make_icon_outlined_btn(
-        "skip-next-pi", kSkipNextSvg, "  Skip",
-        Rect(292, 387, 156, 61),
+        "skip-next-pi", kSkipNextSvg, "  Skip", skip_r,
         [=]() {
             info->zip_code.clear();  // skip => no value collected
             if (on_show_screen)
@@ -897,9 +922,9 @@ static shared_ptr<Widget> create_zip_step(
     container->add(btn_skip);
 
     // Continue gated on the ZIP field being non-empty (task 5).
+    container->add(make_shared<SoftShadow>(cont_r, dt::RADIUS_XS));
     auto btn_continue = make_continue_btn(
-        !info->zip_code.empty(), demo_mode,
-        Rect(541, 387, 217, 61),
+        !info->zip_code.empty(), demo_mode, cont_r,
         [=]() {
             if (on_show_screen)
                 on_show_screen(create_summary_step(demo_mode, info, on_complete,
@@ -939,14 +964,15 @@ static shared_ptr<Widget> create_summary_step(
         {"ZIP Code:", info->zip_code.empty() ? "-" : info->zip_code,  288},
     };
 
-    // label (regular) + value (bold), Font 14pt * SCALE, centred as a pair
-    // under the dividers (dividers span x=166..633, centre ~400).
-    const int lbl_x = 210, lbl_w = 180;
-    const int val_x = lbl_x + lbl_w + 16, val_w = 200;
+    // Figma 2009:968: a single LEFT-aligned block — labels all start at the
+    // same x (263) and values tab-align at the same x (417). (Not colon-
+    // aligned/right-aligned labels.) Font 14pt * SCALE.
+    const int lbl_x = 263, lbl_w = 170;
+    const int val_x = 417, val_w = 200;
     for (auto& r : rows) {
         auto lbl = make_shared<Label>(r.label,
             Rect(lbl_x, r.y, lbl_w, 44),
-            AlignFlag::center_vertical | AlignFlag::right);
+            AlignFlag::center_vertical | AlignFlag::left);
         lbl->font(Font(26, Font::Weight::normal));
         lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
         container->add(lbl);
@@ -969,22 +995,29 @@ static shared_ptr<Widget> create_summary_step(
     }
 
     // Back + GO sit together in the centre-bottom (Figma: Back x=233, GO
-    // x=424, both 156x61).
+    // x=424, both 156x61, y=213*1.836=391). Same soft shadow as the other steps.
+    const Rect back_r(233, 391, 156, 61);
+    const Rect go_r(424, 391, 156, 61);
+
+    container->add(make_shared<SoftShadow>(back_r, dt::RADIUS_XS));
     auto btn_back = make_icon_outlined_btn(
-        "arrow-back-sum", kArrowBackSvg, "  Back",
-        Rect(233, 394, 156, 61),
+        "arrow-back-sum", kArrowBackSvg, "  Back", back_r,
         [=]() { if (on_back_to_zip) on_back_to_zip(); });
     container->add(btn_back);
 
     // GO button — flow accent (green in real flow, blue in demo)
     const Color go_accent = flow_accent(demo_mode);
-    auto btn_go = make_shared<Button>("GO", Rect(424, 394, 156, 61));
+    container->add(make_shared<SoftShadow>(go_r, dt::RADIUS_XS));
+    auto btn_go = make_shared<Button>("GO", go_r);
     btn_go->color(Palette::ColorId::button_bg, go_accent);
     btn_go->color(Palette::ColorId::button_text, dt::kWhite);
     btn_go->color(Palette::ColorId::border, go_accent);
     btn_go->border(0);
     btn_go->border_radius(dt::RADIUS_XS);
     btn_go->font(Font(dt::FONT_BUTTON + 4, Font::Weight::bold));
+    // Pin to the rect so the "GO" text doesn't auto-grow the button to 78 tall.
+    btn_go->min_size_hint(Size(go_r.width(), go_r.height()));
+    btn_go->resize(Size(go_r.width(), go_r.height()));
     btn_go->on_click([=](Event&) {
         if (on_complete) on_complete(*info);
     });
