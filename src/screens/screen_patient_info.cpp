@@ -647,6 +647,23 @@ static shared_ptr<Widget> create_age_step(
     picker_box->add(make_shared<WheelBackdrop>(
         Rect((box_w - bd_w) / 2, 0, bd_w, box_h)));
 
+    // Roller ruler ticks (Figma "rull" 2009:1210): a short gray dash on the
+    // left of each row so the wheel reads as a physical roller/dial. These are
+    // fixed (they don't scroll with the values).
+    {
+        const int slots_top0 = chevron_h + padding;
+        const int dash_x = 52, dash_w = 10, dash_h = 2;
+        for (int k = 0; k < n_slots; k++) {
+            const int cy = slots_top0 + k * slot_h + slot_h / 2;
+            auto dash = make_shared<Frame>(
+                Rect(dash_x, cy - dash_h / 2, dash_w, dash_h));
+            dash->fill_flags({Theme::FillFlag::blend});
+            dash->color(Palette::ColorId::bg, palette::kGray500);
+            dash->border(0);
+            picker_box->add(dash);
+        }
+    }
+
     auto up_arrow = make_shared<Label>("\u25B2",
         Rect(0, 4, box_w, chevron_h), AlignFlag::center);
     up_arrow->font(Font(14));
@@ -748,7 +765,7 @@ static shared_ptr<Widget> create_age_step(
     auto years_lbl = make_shared<Label>("Years Old",
         Rect(box_x + box_w + 5, box_y + box_h / 2 - 16, 120, 32),
         AlignFlag::left | AlignFlag::center_vertical);
-    years_lbl->font(Font(18, Font::Weight::bold));
+    years_lbl->font(Font(22, Font::Weight::bold));
     years_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(years_lbl);
 
