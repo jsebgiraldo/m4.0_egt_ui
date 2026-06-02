@@ -120,17 +120,13 @@ public:
         const egt::Color off(dt::kGreen.red(), dt::kGreen.green(),
                              dt::kGreen.blue(), 0);
         using SA = egt::Pattern::StepArray;
-        // Four edge gradients (corners overlap -> a touch brighter, like a halo)
+        // Top and bottom edges only (Figma 67:578: the green reflects the
+        // lamp glow from above/below, not the left/right sides).
         p.draw(egt::Pattern(SA{{0.f, on}, {1.f, off}},
                egt::Point(x, y), egt::Point(x, y + d)), egt::RectF(x, y, w, d));
         p.draw(egt::Pattern(SA{{0.f, off}, {1.f, on}},
                egt::Point(x, y + h - d), egt::Point(x, y + h)),
                egt::RectF(x, y + h - d, w, d));
-        p.draw(egt::Pattern(SA{{0.f, on}, {1.f, off}},
-               egt::Point(x, y), egt::Point(x + d, y)), egt::RectF(x, y, d, h));
-        p.draw(egt::Pattern(SA{{0.f, off}, {1.f, on}},
-               egt::Point(x + w - d, y), egt::Point(x + w, y)),
-               egt::RectF(x + w - d, y, d, h));
     }
 private:
     float m_intensity = 1.0f;
@@ -1365,9 +1361,12 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
         // gradient-fill text, so use the gradient midpoint as a solid blue.
         const Color complete_blue(48, 129, 196);
 
-        // Centred check + title row (Figma Group 211 @ y=106 -> 196).
+        // Centred check + title row (Figma Group 211 @ y=106 -> 196). Measure
+        // the title's true width so the [check + gap + title] block centres on
+        // it — a fixed title box narrower than the text left the row off-centre.
         const int row_y = 196;
-        const int chk = 65, gap = 16, title_w = 360;
+        const int chk = 65, gap = 16;
+        const int title_w = 398;   // measured width of "Treatment Completed" @37pt bold
         const int group_w = chk + gap + title_w;
         const int group_x = (dt::SCREEN_W - group_w) / 2;
 
@@ -1394,7 +1393,7 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
 
         auto title_lbl = make_shared<Label>("Treatment Completed",
             Rect(group_x + chk + gap, row_y - 6, title_w, chk),
-            AlignFlag::center_vertical | AlignFlag::left);
+            AlignFlag::center);
         title_lbl->font(Font(37, Font::Weight::bold));
         title_lbl->color(Palette::ColorId::label_text, complete_blue);
         container->add(title_lbl);
