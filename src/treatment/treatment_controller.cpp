@@ -1299,7 +1299,9 @@ static void show_end_confirmation(shared_ptr<TreatmentState> state)
 // the left, two-line "Back to / Home" text. Centred at the standard button row.
 static shared_ptr<Frame> make_back_home_button(function<void()> on_click)
 {
-    const int home_w = 250, home_h = BTN_H;
+    // Figma "bt new home": 124x54 -> 230x100. House icon 25x19 -> ~47 wide,
+    // "Back to" font 11 -> 20, "Home" font 18 -> 33 (two sizes, not one).
+    const int home_w = 230, home_h = BTN_H;
     const int home_x = (dt::SCREEN_W - home_w) / 2;
     auto btn_home = make_shared<Frame>(Rect(home_x, BTN_Y, home_w, home_h));
     btn_home->fill_flags({Theme::FillFlag::blend});
@@ -1308,25 +1310,28 @@ static shared_ptr<Frame> make_back_home_button(function<void()> on_click)
     btn_home->border(0);
     btn_home->border_radius(dt::RADIUS_MD);
 
-    const int icon_sz2 = 40, txt_w = 120, ico_gap = 12;
-    const int group_w = icon_sz2 + ico_gap + txt_w;
-    const int group_x = (home_w - group_w) / 2;
-
+    const int icon_sz2 = 50;          // was 40 - matches the bigger Figma house
     auto home_icon = load_home_icon(icon_sz2);
     if (!home_icon.empty()) {
         auto hi = make_shared<ImageLabel>(home_icon);
         hi->fill_flags({});
         hi->color(Palette::ColorId::bg, dt::kAccentCyan);
         hi->image_align(AlignFlag::center);
-        hi->move(Point(group_x, (home_h - icon_sz2) / 2));
+        hi->move(Point(33, (home_h - icon_sz2) / 2));
         hi->resize(Size(icon_sz2, icon_sz2));
         btn_home->add(hi);
     }
 
-    auto home_lbl = make_shared<Label>("Back to\nHome",
-        Rect(group_x + icon_sz2 + ico_gap, 0, txt_w, home_h),
-        AlignFlag::center);
-    home_lbl->font(Font(dt::FONT_BUTTON, Font::Weight::bold));
+    const int txt_x = 100, txt_w = 120;
+    auto back_lbl = make_shared<Label>("Back to",
+        Rect(txt_x, 18, txt_w, 34), AlignFlag::left | AlignFlag::center_vertical);
+    back_lbl->font(Font(20, Font::Weight::bold));
+    back_lbl->color(Palette::ColorId::label_text, dt::kWhite);
+    btn_home->add(back_lbl);
+
+    auto home_lbl = make_shared<Label>("Home",
+        Rect(txt_x, 48, txt_w, 40), AlignFlag::left | AlignFlag::center_vertical);
+    home_lbl->font(Font(33, Font::Weight::bold));
     home_lbl->color(Palette::ColorId::label_text, dt::kWhite);
     btn_home->add(home_lbl);
 
@@ -1357,15 +1362,26 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
         const int group_w = chk + gap + title_w;
         const int group_x = (dt::SCREEN_W - group_w) / 2;
 
-        auto circle = make_shared<Frame>(Rect(group_x, row_y, chk, chk));
-        circle->fill_flags({Theme::FillFlag::blend});
-        circle->color(Palette::ColorId::bg, dt::kBgWhite);
-        circle->color(Palette::ColorId::border, complete_blue);
-        circle->border(4);
-        circle->border_radius(chk / 2);
-        container->add(circle);
-        circle->add(make_shared<ResultGlyph>(
-            Rect(0, 0, chk, chk), /*check=*/true, complete_blue));
+        // Blue check (Figma Group 175, 35x35 -> 65x65). Downloaded PNG, not drawn.
+        auto chk_wrap = make_shared<Frame>(Rect(group_x, row_y, chk, chk));
+        chk_wrap->fill_flags({});
+        try {
+            const std::string path = "assets/figma/images/treatment-check-blue.png";
+            auto probe = Image(("file:" + path).c_str());
+            const float hs = static_cast<float>(chk) / probe.width();
+            const float vs = static_cast<float>(chk) / probe.height();
+            auto lbl = make_shared<ImageLabel>(
+                Image(("file:" + path).c_str(), hs, vs));
+            lbl->autoresize(false);
+            lbl->border(0); lbl->padding(0); lbl->margin(0);
+            lbl->fill_flags({});
+            lbl->image_align(AlignFlag::center);
+            lbl->box(Rect(0, 0, chk, chk));
+            chk_wrap->add(lbl);
+        } catch (const std::exception& e) {
+            printf("[TREATMENT] check icon missing: %s\n", e.what()); fflush(stdout);
+        }
+        container->add(chk_wrap);
 
         auto title_lbl = make_shared<Label>("Treatment Completed",
             Rect(group_x + chk + gap, row_y - 6, title_w, chk),
