@@ -571,22 +571,25 @@ public:
     void draw(Painter& painter, const Rect&) override {
         auto b = content_area();
         const string num = to_string(m_value);
-        const Font num_font(120, Font::Weight::normal);   // Figma: thin/regular
-        const Font pct_font(56, Font::Weight::normal);
-        const int gap = 8;
+        const Font num_font(118, Font::Weight::normal);   // Figma 64pt * SCALE
+        const Font pct_font(30, Font::Weight::bold);       // Figma 16pt * SCALE
+        const int gap = 6;
 
         painter.set(num_font);
         const auto ns = painter.text_size(num);
         painter.set(pct_font);
         const auto ps = painter.text_size("%");
 
-        // Centre the NUMBER on the widget; the % floats off to its right as
-        // a unit suffix (doesn't shift the number). This keeps the digits
-        // aligned with the centred "Ready for Treatment" text below — the
-        // value dominates, the unit hangs off (Apple-Watch convention).
+        // Centre the NUMBER on the widget; the small % is a unit suffix that
+        // hangs off the lower-right, bottom-aligned with the number (Figma
+        // 37:1634 — % baseline sits at the digits' baseline).
         const float num_x = b.x() + (b.width() - ns.width()) / 2.0f;
         const float num_top = b.y() + (b.height() - ns.height()) / 2.0f;
-        const float pct_top = num_top + ns.height() - ps.height();
+        // Align the % visible BOTTOM with the digits' baseline. The number's
+        // em-box extends ~20% below the visible digits (descender space), so
+        // scale by 0.78 instead of aligning the em-box bottoms (which drops
+        // the % below the digits).
+        const float pct_top = num_top + 0.65f * (ns.height() - ps.height());
 
         painter.set(num_font);
         painter.set(m_color);
@@ -610,41 +613,47 @@ static void show_warming(shared_ptr<TreatmentState> state)
 {
     // Warming-screen-local layout (independent from other treatment screens)
     // Number font 120px → rendered height ~145px
-    const int W_NUM_Y      = 132;  // top of big number area (below full-size logo)
-    const int W_NUM_H      = 145;  // height of number rect (120px font)
+    // Figma 37:1626 (Spinner frame @114,20). Dual ratio: x*1.852, y*1.836.
+    // Content is centred on the spinner: cx = (114+107)*1.852 = 409.
+    const int W_CX         = 409;  // content centre x (not screen-centre 400)
+    const int W_BOX_W      = 2 * std::min(W_CX, dt::SCREEN_W - W_CX);  // centred box
+    const int W_BOX_X      = W_CX - W_BOX_W / 2;
+    const int W_NUM_Y      = 122;  // number top ~ y=70*1.836=128 (centred in box)
+    const int W_NUM_H      = 145;  // height of number rect (118px font)
     const int W_PCT_H      = 80;   // height of % rect
     const int W_PCT_Y      = W_NUM_Y + W_NUM_H - W_PCT_H;  // bottom-aligned with number
-    const int W_STATUS1_Y  = 266;  // "Warming up" (tucked under the number)
-    const int W_STATUS2_Y  = 294;  // "for Treatment"
-    const int W_BAR_Y      = 352;  // progress bar y (Figma: mid-lower, not the edge)
+    const int W_STATUS1_Y  = 252;  // "Warming up"     (Figma y=136*1.836=250)
+    const int W_STATUS2_Y  = 290;  // "for Treatment"  (~38px line spacing for 30px font)
+    const int W_BAR_Y      = 349;  // progress bar     (Figma y=190*1.836=349)
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
     // ── Large "NN%" display (Painter-measured, % tucked to the number) ────
     (void)W_PCT_H; (void)W_PCT_Y;
     auto pct_display = make_shared<PercentDisplay>(
-        Rect(0, W_NUM_Y, dt::SCREEN_W, W_NUM_H), 0, dt::kTextPrimary);
+        Rect(W_BOX_X, W_NUM_Y, W_BOX_W, W_NUM_H), 0, dt::kTextPrimary);
     container->add(pct_display);
 
-    // ── Two-line status text ──────────────────────────────────────────────
+    // ── Two-line status text (Figma 16pt -> 30, centred on the content) ────
     auto status1 = make_shared<Label>("Warming up",
-        Rect(0, W_STATUS1_Y, dt::SCREEN_W, 28));
-    status1->font(Font(20, Font::Weight::normal));
+        Rect(W_BOX_X, W_STATUS1_Y, W_BOX_W, 36));
+    status1->font(Font(30, Font::Weight::normal));
     status1->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status1);
 
     auto status2 = make_shared<Label>("for Treatment",
-        Rect(0, W_STATUS2_Y, dt::SCREEN_W, 28));
-    status2->font(Font(20, Font::Weight::normal));
+        Rect(W_BOX_X, W_STATUS2_Y, W_BOX_W, 36));
+    status2->font(Font(30, Font::Weight::normal));
     status2->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status2);
 
-    // ── Linear progress bar (Figma: thin, near-full-width, bottom edge) ────
-    const int bar_w = 782;
+    // ── Linear progress bar (Figma 66:494: 405x5 -> 750x8, thin, near-full
+    // width with a thin gray outline) ─────────────────────────────────────
+    const int bar_w = 750;
     auto progress_bar = ui::create_linear_progress_bar(
         (dt::SCREEN_W - bar_w) / 2,
         W_BAR_Y,
-        bar_w, 6);
+        bar_w, 8);
     container->add(progress_bar);
 
     state->callbacks.on_show_screen(container);
@@ -652,8 +661,8 @@ static void show_warming(shared_ptr<TreatmentState> state)
     // Hold mode: freeze at a representative mid-warming value and skip the
     // animation timer so the screen holds for a screenshot.
     if (state->freeze) {
-        pct_display->set_value(45);
-        ui::update_linear_progress(progress_bar, 45.0f);
+        pct_display->set_value(70);
+        ui::update_linear_progress(progress_bar, 70.0f);
         return;
     }
 
@@ -1179,10 +1188,10 @@ static void show_treatment_paused(shared_ptr<TreatmentState> state)
     time_display->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(time_display);
 
-    // "Treatment Paused" text below (Figma: y=130)
+    // "Treatment Paused" text below (Figma 67:777: y=130, 16pt -> 30)
     auto status = make_shared<Label>("Treatment Paused",
-        Rect(0, STATUS_Y, dt::SCREEN_W, 25));
-    status->font(dt::fontBody());
+        Rect(0, STATUS_Y - 6, dt::SCREEN_W, 38));
+    status->font(Font(30, Font::Weight::normal));
     status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status);
 

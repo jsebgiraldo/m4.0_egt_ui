@@ -296,12 +296,13 @@ void update_segmented_progress_fraction(shared_ptr<Frame> bar, float fraction)
 // ── Linear Progress Bar ────────────────────────────────────────────────────
 shared_ptr<Frame> create_linear_progress_bar(int x, int y, int width, int height)
 {
-    // Track (gray background)
+    // Track (Figma: white fill with a thin gray outline, not a solid gray bar)
     auto track = make_shared<Frame>(Rect(x, y, width, height));
     track->fill_flags({Theme::FillFlag::blend});
-    track->color(Palette::ColorId::bg, dt::kGrayLight);
+    track->color(Palette::ColorId::bg, dt::kWhite);
+    track->color(Palette::ColorId::border, Color(0xD9, 0xD9, 0xD9));   // #D9D9D9
+    track->border(1);
     track->border_radius(height / 2);
-    track->border(0);
 
     // Fill (green foreground)
     auto fill = make_shared<Frame>(Rect(0, 0, 0, height));
