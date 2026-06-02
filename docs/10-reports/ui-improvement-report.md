@@ -84,14 +84,6 @@ Swapped the hand-drawn Wi-Fi and Ethernet glyphs for the Figma PNG exports and b
 
 ---
 
-### Patient Info (`PATIENT_INFO` - node `168:808` (Gender step))
-
-Added the profile icon next to the "Please Enter Client Information" title and swapped the gender cards' SVG glyphs for the Figma PNG exports.
-
-![PATIENT_INFO](patient-info-figma-match/comparison.png)
-
----
-
 ### First Wi-Fi Setup / Wi-Fi Settings (`WIFI_SETTINGS` - node `151:886`)
 
 Rebuilt to F1:1 with Figma: rounded card with the 244→255 keyboard-gray gradient, left-aligned "Choose a Network..." header, real Figma PNG icons on each row, and matched 72×72 gear and Wi-Fi-off pill buttons at the bottom.
