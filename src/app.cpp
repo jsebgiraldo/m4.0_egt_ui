@@ -271,7 +271,8 @@ void run_app(int argc, char** argv)
 
     // ── Boot: start with WiFi Init (or a specific screen for diagnostics) ─
     // EGT_START_SCREEN={settings|home|wifi-settings|login|wifi-unavailable|demo-info|password
-    //                   |treatment|treatment-demo}
+    //                   |treatment|treatment-demo|error-temp|error-filter
+    //                   |warning-temp|warning-airflow|fault-critical}
     // lets the simulator skip the normal boot flow when iterating on a single
     // screen. For treatment, pair with EGT_MOCK_TREATMENT=<screen> to hold on
     // a specific sub-screen (warming|ready|position|reposition|active|nearly|
@@ -310,6 +311,46 @@ void run_app(int argc, char** argv)
     else if (start && std::string(start) == "patient-info-demo")  show_patient_info(true);
     else if (start && std::string(start) == "treatment")          launch_treatment(false);
     else if (start && std::string(start) == "treatment-demo")     launch_treatment(true);
+    else if (start && std::string(start) == "error-temp") {
+        screens.show(create_error_screen(
+            "assets/figma/icons/error-icon-temp.svg",
+            "Operating Conditions out of range",
+            "Only operating the device above the\nrecommended temperature.",
+            {{"Pause", "", [&]() { show_home(); }},
+             {"Resume", "", [&]() { show_home(); }},
+             {"End", "", [&]() { show_home(); }}}));
+    }
+    else if (start && std::string(start) == "error-filter") {
+        screens.show(create_error_screen(
+            "assets/figma/icons/error-icon-filter.svg",
+            "Change the air filter",
+            "Air filter replacement recommended - 1000\nhours of use reached.",
+            {{"Pause", "", [&]() { show_home(); }},
+             {"Begin", "Treatment", [&]() { show_home(); }},
+             {"End", "", [&]() { show_home(); }}}));
+    }
+    else if (start && std::string(start) == "warning-temp") {
+        screens.show(create_error_screen(
+            "assets/figma/icons/warning-icon-temp.svg",
+            "Temperature out of range",
+            "Prevent further use of the machine to avoid\nineffective treatments.",
+            {}, egt::Color(0xFF, 0x9E, 0x1B)));
+    }
+    else if (start && std::string(start) == "warning-airflow") {
+        screens.show(create_error_screen(
+            "assets/figma/icons/warning-icon-airflow.svg",
+            "Airflow obstruction detected",
+            "Please change the air filter before further use.",
+            {}, egt::Color(0xFF, 0x9E, 0x1B)));
+    }
+    else if (start && std::string(start) == "fault-critical") {
+        screens.show(create_error_screen(
+            "assets/figma/icons/critical-icon-alert.svg",
+            "Operating temperature out of safe range",
+            "Device has been shut down to prevent hazard.\n"
+            "Contact support before restarting.\nError Code: E010",
+            {}, egt::Color(0xE6, 0x3C, 0x16)));
+    }
     else                                                         show_wifi_init();
 
     win.show();
