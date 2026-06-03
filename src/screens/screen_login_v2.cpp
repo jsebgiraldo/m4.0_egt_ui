@@ -288,6 +288,32 @@ shared_ptr<Widget> create_login_screen_v2(
         }
     });
 
+    // The slider sits ON TOP of the slot frames (added after picker_box) so
+    // its pointer_drag handler can run — but Slider also consumes
+    // pointer_click without firing value_changed, which is why tapping a
+    // technician name didn't do anything. Restore tap-to-select by handling
+    // pointer_click on the slider itself: compute which slot the user tapped
+    // and run the same logic as the (now-unreachable) slot click handlers.
+    picker_slider->on_event([=](Event& e) {
+        if (e.id() != EventId::pointer_click) return;
+        // Slider's box top in display coords is (box_y + slots_top). Subtract
+        // to get y inside the slider, then divide by slot_h for the row index.
+        const int local_y =
+            static_cast<int>(e.pointer().point.y()) - (box_y + slots_top);
+        const int k = local_y / slot_h;
+        if (k < 0 || k >= n_slots) return;
+        const int n   = static_cast<int>(technicians.size());
+        const int idx = *sel + (k - center_idx);
+        if (idx < 0 || idx >= n) return;
+        if (k == center_idx) {
+            if (*open_password) (*open_password)(idx);
+        } else {
+            *sel = idx;
+            picker_slider->value(idx);   // keep slider in sync with new centre
+            redraw(idx);
+        }
+    });
+
     // ── Password flow ────────────────────────────────────────────────────
     // Re-creates the login screen on Back / wrong password so the user
     // returns to the same wheel (state isn't preserved across re-creation
