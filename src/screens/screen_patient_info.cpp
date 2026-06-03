@@ -49,25 +49,33 @@ public:
     void draw(Painter& painter, const Rect&) override {
         const auto b = content_area();
         const int x = b.x(), y = b.y(), w = b.width(), h = b.height();
+        const Rect rr(x, y, w, h);
         // Rectangle 74: light-gray fade - opaque at top/bottom, clear middle.
-        painter.draw(Pattern(Pattern::StepArray{
+        // libegt 1.10 has no Painter::draw(Pattern, RectF); use the
+        // set(pattern) → draw(path) → fill() idiom that works on both 1.10
+        // (target) and 1.12 (host simulator).
+        Pattern grad_gray(Pattern::StepArray{
             {0.00f, Color(217, 217, 217, 210)},
             {0.33f, Color(217, 217, 217, 0)},
             {0.58f, Color(217, 217, 217, 0)},
             {1.00f, Color(217, 217, 217, 210)}},
-            Point(x, y), Point(x, y + h)),
-            RectF(x, y, w, h));
+            Point(x, y), Point(x, y + h));
+        painter.set(grad_gray);
+        painter.draw(rr);
+        painter.fill();
         // Rectangle 73: subtle cylinder shading over the top/bottom edges.
         // Figma uses 0.9 alpha here, but stacked over the light-gray layer
         // above that reads near-black on our display; a low alpha matches the
         // soft gray the Figma frame actually renders.
-        painter.draw(Pattern(Pattern::StepArray{
+        Pattern grad_shade(Pattern::StepArray{
             {0.00f, Color(100, 101, 105, 40)},
             {0.38f, Color(255, 255, 255, 20)},
             {0.55f, Color(255, 255, 255, 20)},
             {1.00f, Color(100, 101, 105, 40)}},
-            Point(x, y), Point(x, y + h)),
-            RectF(x, y, w, h));
+            Point(x, y), Point(x, y + h));
+        painter.set(grad_shade);
+        painter.draw(rr);
+        painter.fill();
     }
 };
 

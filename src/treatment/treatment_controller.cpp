@@ -83,12 +83,19 @@ public:
                              dt::kGreen.blue(), 0);
         using SA = egt::Pattern::StepArray;
         // Top and bottom edges only (Figma 67:578: the green reflects the
-        // lamp glow from above/below, not the left/right sides).
-        p.draw(egt::Pattern(SA{{0.f, on}, {1.f, off}},
-               egt::Point(x, y), egt::Point(x, y + d)), egt::RectF(x, y, w, d));
-        p.draw(egt::Pattern(SA{{0.f, off}, {1.f, on}},
-               egt::Point(x, y + h - d), egt::Point(x, y + h)),
-               egt::RectF(x, y + h - d, w, d));
+        // lamp glow from above/below, not the left/right sides). libegt 1.10
+        // has no Painter::draw(Pattern, RectF); use the set→draw→fill idiom
+        // that works on both 1.10 (target) and 1.12 (host simulator).
+        egt::Pattern top_grad(SA{{0.f, on}, {1.f, off}},
+                              egt::Point(x, y), egt::Point(x, y + d));
+        p.set(top_grad);
+        p.draw(egt::Rect(x, y, w, d));
+        p.fill();
+        egt::Pattern bot_grad(SA{{0.f, off}, {1.f, on}},
+                              egt::Point(x, y + h - d), egt::Point(x, y + h));
+        p.set(bot_grad);
+        p.draw(egt::Rect(x, y + h - d, w, d));
+        p.fill();
     }
 private:
     float m_intensity = 1.0f;
