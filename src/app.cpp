@@ -14,6 +14,7 @@
 #include "screens/screen_wifi_connecting.h"
 #include "screens/screen_wifi_unavailable.h"
 #include "screens/screen_wifi_not_found.h"
+#include "screens/screen_wifi_override_intro.h"
 #include "screens/screen_home.h"
 #include "screens/screen_login_v2.h"
 #include "screens/screen_patient_info.h"
@@ -280,15 +281,33 @@ void run_app(int argc, char** argv)
     // same factory; the only difference is whether the popup is open on
     // first render.
     std::function<void(std::function<void()>, bool)> show_wifi_unavail;
+
+    // Intermediate "Enter Override password" intro card (Figma 134:1421). Sits
+    // between WiFi Unavailable's Continue and the actual password keypad so
+    // the user explicitly opts in before typing.
+    std::function<void(std::function<void()>)> show_wifi_override_intro;
+
     show_wifi_unavail = [&](std::function<void()> on_exit, bool show_popup) {
         screens.show(create_wifi_unavailable_screen(
-            [&, on_exit]() { show_override_prompt(on_exit); },              // Continue -> override password
+            [&, on_exit]() { show_wifi_override_intro(on_exit); },          // Continue -> Override Intro
             [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },          // Back -> WiFi list
             [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },          // Retry WiFi -> rescan
             [&, on_exit]() { show_settings([&, on_exit]() {                 // Setting -> Settings (Back returns here, no popup)
                 show_wifi_unavail(on_exit, false);
             }); },
             show_popup
+        ));
+    };
+
+    show_wifi_override_intro = [&](std::function<void()> on_exit) {
+        printf("[NAV] -> WIFI_OVERRIDE_INTRO\n"); fflush(stdout);
+        screens.show(create_wifi_override_intro_screen(
+            [&, on_exit]() { show_override_prompt(on_exit); },              // Enter Override -> password keypad
+            [&, on_exit]() { show_wifi_unavail(on_exit, false); },          // Back -> WiFi Unavailable
+            [&, on_exit]() { show_wifi_setup(nullptr, on_exit); },          // Retry WiFi -> rescan
+            [&, on_exit]() { show_settings([&, on_exit]() {                 // Setting -> Settings (Back returns to intro)
+                show_wifi_override_intro(on_exit);
+            }); }
         ));
     };
 
@@ -322,6 +341,7 @@ void run_app(int argc, char** argv)
     // wifi-unavailable now takes on_exit (subtree was rethreaded so Back
     // never skips Login). Diagnostic launches just send it to Home.
     else if (start && std::string(start) == "wifi-unavailable")  show_wifi_unavailable([&]() { show_home(); });
+    else if (start && std::string(start) == "wifi-override-intro") show_wifi_override_intro([&]() { show_home(); });
     else if (start && std::string(start) == "wifi-not-found") {
         screens.show(create_wifi_not_found_screen(
             [&]() { show_wifi_unavailable([&]() { show_home(); }); },
