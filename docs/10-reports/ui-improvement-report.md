@@ -156,6 +156,14 @@ Removed the cumulative-time header (Figma has none here), made the countdown thi
 
 ---
 
+### Treatment - Re-position, start of next cycle (`TREATMENT` demo - node `67:733`)
+
+Added the cumulative-time header and made End the cyan call-to-action (Pause stays white), so the start-of-next-cycle re-position prompt matches the Figma layout.
+
+![TREATMENT_REPOSITION](treatment-reposition-figma-match/comparison.png)
+
+---
+
 ### Treatment - Paused (`TREATMENT` demo - node `67:773`)
 
 Made the paused timer thin and gave the tip its two cyan lines flanked by cyan chevrons, matching the Figma copy.
@@ -177,6 +185,62 @@ Made the countdown thin and enlarged the status text, and added a green gradient
 The moment the countdown reaches 0: the same breathing-green-glow screen as nearly-finished, now with a big "0", a full green progress bar and a green check. Per the `67:728` note, it breathes and holds ~3 seconds to signal completion, then auto-advances to the Completed (Back to Home) screen.
 
 ![TREATMENT_ZERO](treatment-zero-figma-match/comparison.png)
+
+---
+
+### Treatment - End Confirmation (`TREATMENT` demo - node `81:389`)
+
+Reworked the confirm dialog to the Figma card: white panel with a faint rounded border (was a solid gray block) and the "End Treatment" title in cool blue.
+
+![TREATMENT_END_CONFIRM](treatment-end-confirm-figma-match/comparison.png)
+
+---
+
+### Treatment - Ended (`TREATMENT` demo - node `81:406`)
+
+Rebuilt the ended screen to match the Figma "Treatment Ended" layout (blue check beside the title, like the completed screen) and, per the client note, it now returns to Home on its own after 20 seconds.
+
+![TREATMENT_ENDED](treatment-ended-figma-match/comparison.png)
+
+---
+
+### Error - Operating Conditions out of range (`node 143:870`)
+
+Built the treatment error modal to the Figma card: blue rounded-top header with a white heat icon and title, gray message, and Pause / Resume / End buttons.
+
+![ERROR_TEMP_RANGE](error-temp-range-figma-match/comparison.png)
+
+---
+
+### Error - Change the air filter (`node 143:871`)
+
+Same error-modal card with the alert icon and "Change the air filter" copy, and a two-line "Begin Treatment" middle button per the Figma.
+
+![ERROR_AIR_FILTER](error-air-filter-figma-match/comparison.png)
+
+---
+
+### Warning - Temperature out of range (`node 143:873`)
+
+Same modal card with an orange header (warning, not error), the temperature icon, and no buttons - the device is blocked until the condition clears.
+
+![WARNING_TEMP_RANGE](warning-temp-range-figma-match/comparison.png)
+
+---
+
+### Warning - Airflow obstruction detected (`node 143:874`)
+
+Orange warning card with the airflow icon and "Please change the air filter before further use.", also button-less.
+
+![WARNING_AIRFLOW](warning-airflow-figma-match/comparison.png)
+
+---
+
+### Critical Fault - Operating temperature out of safe range (`node 143:876`)
+
+Same modal card with a red header for a critical fault, the alert icon, and a three-line message including the error code - no buttons, the device has shut down.
+
+![CRITICAL_FAULT](critical-fault-figma-match/comparison.png)
 
 ---
 
