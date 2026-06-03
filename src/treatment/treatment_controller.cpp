@@ -56,44 +56,6 @@ static Image load_chevron(bool left, int size)
     } catch (...) { return {}; }
 }
 
-// Result glyph for the completed/ended screen: a checkmark (success) or an
-// X (ended early), drawn with the Painter so it renders on the target —
-// the ✓/✕ unicode glyphs came up blank in the device font.
-class ResultGlyph : public egt::Widget {
-public:
-    ResultGlyph(const egt::Rect& rect, bool check, const egt::Color& col)
-        : egt::Widget(rect), m_check(check), m_col(col) {
-        fill_flags({egt::Theme::FillFlag::blend});
-        border(0);
-    }
-    void draw(egt::Painter& p, const egt::Rect&) override {
-        auto b = content_area();
-        const float sz = static_cast<float>(std::min(b.width(), b.height()));
-        const float cx = b.x() + b.width()  / 2.0f;
-        const float cy = b.y() + b.height() / 2.0f;
-        p.set(m_col);
-        p.line_width(std::max(4.0f, sz * 0.10f));
-        if (m_check) {
-            // Checkmark: short down-stroke then long up-stroke.
-            p.draw(egt::Line(egt::PointF(cx - sz * 0.26f, cy + sz * 0.02f),
-                             egt::PointF(cx - sz * 0.06f, cy + sz * 0.22f)));
-            p.stroke();
-            p.draw(egt::Line(egt::PointF(cx - sz * 0.06f, cy + sz * 0.22f),
-                             egt::PointF(cx + sz * 0.28f, cy - sz * 0.22f)));
-            p.stroke();
-        } else {
-            const float r = sz * 0.24f;
-            p.draw(egt::Line(egt::PointF(cx - r, cy - r), egt::PointF(cx + r, cy + r)));
-            p.stroke();
-            p.draw(egt::Line(egt::PointF(cx + r, cy - r), egt::PointF(cx - r, cy + r)));
-            p.stroke();
-        }
-    }
-private:
-    bool m_check;
-    egt::Color m_col;
-};
-
 // Green edge glow for the nearly-finished screen (Figma 67:578/67:723). Like
 // the age-wheel backdrop but applied to the whole screen: a green gradient
 // fades inward from all four edges to transparent in the centre, drawn BEHIND
@@ -518,6 +480,7 @@ void start_treatment_flow(
         else if (s == "ready")       show_ready(state);
         else if (s == "position")    show_position_tip(state);
         else if (s == "reposition") { state->cycles_completed = 2; state->current_cycle = 2;
+                                       state->cumulative_seconds = 30;  // Figma 67:733 header 00:30
                                        show_position_tip(state); }
         else if (s == "active")      show_treatment_active(state);
         else if (s == "nearly")    { state->config.process_limit_seconds = 30;  // Figma header 00:25
@@ -532,7 +495,7 @@ void start_treatment_flow(
                                       state->cumulative_seconds = 30;            // == limit -> full green bar
                                       state->cycles_completed = state->total_cycles();
                                       show_treatment_completed(state, false); }
-        else if (s == "ended")     { state->cumulative_seconds = 600;
+        else if (s == "ended")     { state->cumulative_seconds = 30;  // Figma 81:406 header 00:30
                                       show_treatment_completed(state, true); }
         else                         show_warming(state);
         return;
@@ -753,10 +716,12 @@ static void show_ready(shared_ptr<TreatmentState> state)
 // cycles — keep it visible so the running total stays anchored.
 static void show_position_tip(shared_ptr<TreatmentState> state)
 {
-    // Figma 100:772 has no cumulative-time header on the position screen.
-    auto [container, _cum_lbl2] = make_treatment_container(state, false);
-
     bool is_reposition = state->cycles_completed > 0;
+
+    // Figma 100:772 (initial position) has no cumulative-time header; the
+    // start-of-next-cycle reposition screen (Figma 67:733) DOES show it.
+    auto [container, _cum_lbl2] = make_treatment_container(state, is_reposition);
+
     string title = is_reposition
         ? "Reposition the Applicator Tip"
         : "Position the Applicator Tip";
@@ -767,8 +732,10 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
                (s % 60 < 10 ? "0" : "") + to_string(s % 60);
     };
 
-    // Large countdown display (Figma: thin/regular, 64pt * SCALE).
-    auto countdown_val = make_shared<int>(state->config.position_tip_seconds);
+    // Large countdown display (Figma: thin/regular, 64pt * SCALE). The frozen
+    // reposition capture matches Figma 67:733, which shows 0:00.
+    auto countdown_val = make_shared<int>(
+        (state->freeze && is_reposition) ? 0 : state->config.position_tip_seconds);
     auto countdown_label = make_shared<Label>(
         fmt_mss(*countdown_val),
         Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
@@ -778,7 +745,7 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
 
     // Status text below countdown, two lines (Figma 100:772: 16pt * SCALE,
     // gray, "Position the" / "Applicator Tip").
-    const string line1 = is_reposition ? "Reposition the" : "Position the";
+    const string line1 = is_reposition ? "Re-position the" : "Position the";
     auto status1 = make_shared<Label>(line1,
         Rect(0, STATUS_Y, dt::SCREEN_W, 32));
     status1->font(Font(28, Font::Weight::normal));
@@ -801,9 +768,11 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
         });
     container->add(btn_pause);
 
+    // Figma 67:733: on the reposition screen End is the cyan-filled call to
+    // action, Pause stays white. The initial position screen keeps both white.
     auto btn_end = make_action_button("End", "Treatment",
         Rect(BTN_RIGHT_X, BTN_Y, BTN_W, BTN_H),
-        BTN_OUTLINED,
+        is_reposition ? BTN_CYAN_FILLED : BTN_OUTLINED,
         [=]() {
             if (state->active_timer) state->active_timer->cancel();
             show_end_confirmation(state);
@@ -1249,30 +1218,36 @@ static void show_end_confirmation(shared_ptr<TreatmentState> state)
 {
     auto [container, _cum_lbl4] = make_treatment_container(state, false);
 
-    // Card frame (Figma: Rectangle 38 at y=53, 232×116 → scaled ~430×215)
-    const int card_w = 440;
-    const int card_h = 220;
+    // Card frame (Figma 81:389 Rectangle 38 @ x=94,y=53, 232x116 -> device
+    // ~430x213). White fill with a faint light-gray rounded border (the Figma
+    // 217->255 gradient stroke; EGT can't gradient a border so a solid
+    // #D9D9D9 1px approximates it).
+    const int card_w = 430;
+    const int card_h = 213;
     const int card_x = (dt::SCREEN_W - card_w) / 2;
-    const int card_y = CONTENT_Y - 15;
+    const int card_y = 97;
     auto card = make_shared<Frame>(Rect(card_x, card_y, card_w, card_h));
     card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, dt::kGrayBg);
-    card->border_radius(dt::RADIUS_LG);
-    card->border(0);
+    card->color(Palette::ColorId::bg, dt::kWhite);
+    card->color(Palette::ColorId::border, Color(0xD9, 0xD9, 0xD9));
+    card->border(1);
+    card->border_radius(30);   // Figma 16px * SCALE
     container->add(card);
 
-    // "End Treatment" title (Figma: y=80, 16px bold)
+    // "End Treatment" title (Figma 81:397: 16pt bold, cool-blue gradient ->
+    // solid blue midpoint), centred near the top of the card.
+    const Color title_blue(48, 129, 196);
     auto title = make_shared<Label>("End Treatment",
-        Rect(20, 15, card_w - 40, 30));
-    title->font(dt::fontTitle());
-    title->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        Rect(0, 44, card_w, 38), AlignFlag::center);
+    title->font(Font(30, Font::Weight::bold));
+    title->color(Palette::ColorId::label_text, title_blue);
     card->add(title);
 
-    // Question text (Figma: y=106)
+    // Question text (Figma 81:393: 16pt gray, two centred lines).
     auto question = make_shared<Label>(
         "Are you sure you want to\nend treatment?",
-        Rect(20, 55, card_w - 40, 60));
-    question->font(dt::fontBody());
+        Rect(0, 92, card_w, 80), AlignFlag::center);
+    question->font(Font(30, Font::Weight::normal));
     question->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(question);
 
@@ -1308,7 +1283,26 @@ static shared_ptr<Frame> make_back_home_button(function<void()> on_click)
     // "Back to" font 11 -> 20, "Home" font 18 -> 33 (two sizes, not one).
     const int home_w = 230, home_h = BTN_H;
     const int home_x = (dt::SCREEN_W - home_w) / 2;
-    auto btn_home = make_shared<Frame>(Rect(home_x, BTN_Y, home_w, home_h));
+
+    // Wrapper so the soft drop shadow has room to render outside the card
+    // (Figma "bt new home" effect 0 2 2 rgba(0,0,0,0.2)). Same treatment as
+    // the Pause/End buttons (make_action_button) so all treatment buttons sit
+    // on a consistent shadow.
+    constexpr int PAD = 10;
+    auto wrap = make_shared<Frame>(
+        Rect(home_x - PAD, BTN_Y - PAD, home_w + 2 * PAD, home_h + 2 * PAD));
+    wrap->fill_flags({});
+    for (int i = 2; i >= 0; --i) {
+        auto sh = make_shared<Frame>(
+            Rect(PAD - i, PAD + 2 + i, home_w + 2 * i, home_h + 2 * i));
+        sh->fill_flags({Theme::FillFlag::blend});
+        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 26));
+        sh->border_radius(dt::RADIUS_MD + i);
+        sh->border(0);
+        wrap->add(sh);
+    }
+
+    auto btn_home = make_shared<Frame>(Rect(PAD, PAD, home_w, home_h));
     btn_home->fill_flags({Theme::FillFlag::blend});
     btn_home->color(Palette::ColorId::bg, dt::kAccentCyan);
     btn_home->color(Palette::ColorId::border, dt::kAccentCyan);
@@ -1343,122 +1337,88 @@ static shared_ptr<Frame> make_back_home_button(function<void()> on_click)
     btn_home->on_event([on_click](Event& e) {
         if (e.id() == EventId::pointer_click) on_click();
     }, {EventId::pointer_click});
-    return btn_home;
+    wrap->add(btn_home);
+    return wrap;
 }
 
 // ── TREATMENT COMPLETED / ENDED SCREEN ─────────────────────────────────────
-// Completed (Figma 174 / 75:320): cumulative header, centred blue check +
-// "Treatment Completed", cyan "Back to Home". Ended early keeps the orange-X
-// hero-icon variant.
+// Both screens share one layout (Figma 75:320 "Treatment Completed" and
+// 81:406 "Treatment Ended"): cumulative header, a centred [blue check + title]
+// row, and a cyan "Back to Home" button. They differ only in the title text
+// and behaviour — the ended screen auto-returns to Home after a short delay
+// (client note 70:886: return home after a pre-set 15-30 s), while the
+// completed screen waits for the technician to tap.
 static void show_treatment_completed(shared_ptr<TreatmentState> state, bool early)
 {
-    if (!early) {
-        // Figma 75:320 (Group 174): cumulative header, a centred [blue check +
-        // "Treatment Completed"] row, and a cyan "Back to Home" button.
-        auto [container, _cdone] = make_treatment_container(state, true);
+    auto [container, _cdone] = make_treatment_container(state, true);
 
-        // Figma "cool blue" text/ring is a cyan->blue gradient; EGT can't
-        // gradient-fill text, so use the gradient midpoint as a solid blue.
-        const Color complete_blue(48, 129, 196);
+    // Figma "cool blue" text/ring is a cyan->blue gradient; EGT can't
+    // gradient-fill text, so use the gradient midpoint as a solid blue.
+    const Color complete_blue(48, 129, 196);
 
-        // Centred check + title row (Figma Group 211 @ y=106 -> 196). Measure
-        // the title's true width so the [check + gap + title] block centres on
-        // it — a fixed title box narrower than the text left the row off-centre.
-        const int row_y = 196;
-        const int chk = 65, gap = 16;
-        const int title_w = 398;   // measured width of "Treatment Completed" @37pt bold
-        const int group_w = chk + gap + title_w;
-        const int group_x = (dt::SCREEN_W - group_w) / 2;
+    const string title = early ? "Treatment Ended" : "Treatment Completed";
+    // Measured rendered width of each title @37pt bold, so the [check + gap +
+    // title] block centres on the real text (a fixed box left it off-centre).
+    const int title_w = early ? 320 : 398;
 
-        // Blue check (Figma Group 175, 35x35 -> 65x65). Downloaded PNG, not drawn.
-        auto chk_wrap = make_shared<Frame>(Rect(group_x, row_y, chk, chk));
-        chk_wrap->fill_flags({});
-        try {
-            const std::string path = "assets/figma/images/treatment-check-blue.png";
-            auto probe = Image(("file:" + path).c_str());
-            const float hs = static_cast<float>(chk) / probe.width();
-            const float vs = static_cast<float>(chk) / probe.height();
-            auto lbl = make_shared<ImageLabel>(
-                Image(("file:" + path).c_str(), hs, vs));
-            lbl->autoresize(false);
-            lbl->border(0); lbl->padding(0); lbl->margin(0);
-            lbl->fill_flags({});
-            lbl->image_align(AlignFlag::center);
-            lbl->box(Rect(0, 0, chk, chk));
-            chk_wrap->add(lbl);
-        } catch (const std::exception& e) {
-            printf("[TREATMENT] check icon missing: %s\n", e.what()); fflush(stdout);
-        }
-        container->add(chk_wrap);
+    // Centred check + title row (Figma Group 211 @ y=106 -> 196).
+    const int row_y = 196;
+    const int chk = 65, gap = 16;
+    const int group_w = chk + gap + title_w;
+    const int group_x = (dt::SCREEN_W - group_w) / 2;
 
-        auto title_lbl = make_shared<Label>("Treatment Completed",
-            Rect(group_x + chk + gap, row_y - 6, title_w, chk),
-            AlignFlag::center);
-        title_lbl->font(Font(37, Font::Weight::bold));
-        title_lbl->color(Palette::ColorId::label_text, complete_blue);
-        container->add(title_lbl);
-
-        container->add(make_back_home_button([=]() {
-            if (state->active_timer) state->active_timer->cancel();
-            if (state->callbacks.on_treatment_completed)
-                state->callbacks.on_treatment_completed();
-        }));
-
-        state->callbacks.on_show_screen(container);
-        return;
+    // Blue check (Figma Group 175, 35x35 -> 65x65). Downloaded PNG, not drawn.
+    auto chk_wrap = make_shared<Frame>(Rect(group_x, row_y, chk, chk));
+    chk_wrap->fill_flags({});
+    try {
+        const std::string path = "assets/figma/images/treatment-check-blue.png";
+        auto probe = Image(("file:" + path).c_str());
+        const float hs = static_cast<float>(chk) / probe.width();
+        const float vs = static_cast<float>(chk) / probe.height();
+        auto lbl = make_shared<ImageLabel>(
+            Image(("file:" + path).c_str(), hs, vs));
+        lbl->autoresize(false);
+        lbl->border(0); lbl->padding(0); lbl->margin(0);
+        lbl->fill_flags({});
+        lbl->image_align(AlignFlag::center);
+        lbl->box(Rect(0, 0, chk, chk));
+        chk_wrap->add(lbl);
+    } catch (const std::exception& e) {
+        printf("[TREATMENT] check icon missing: %s\n", e.what()); fflush(stdout);
     }
+    container->add(chk_wrap);
 
-    string title = early ? "Treatment Ended" : "Treatment Completed";
-    auto [container, _cum_lbl5] = make_treatment_container(state, true);
-
-    // Hero icon: a big ring with ✓ (completed, green) or ✕ (ended early,
-    // orange). This replaces the old layout where a redundant "0"/"✕"
-    // number sat up top AND a separate checkmark circle collided with the
-    // Back-to-Home button (ToDo master task 7). Now it's a single centred
-    // focal icon with nothing overlapping below it.
-    const Color ring_color = early ? dt::kOrange : dt::kGreen;
-    const int icon_sz = 120;
-    const int icon_x  = (dt::SCREEN_W - icon_sz) / 2;
-    const int icon_y  = 120;
-
-    auto circle = make_shared<Frame>(Rect(icon_x, icon_y, icon_sz, icon_sz));
-    circle->fill_flags({Theme::FillFlag::blend});
-    circle->color(Palette::ColorId::bg, dt::kBgWhite);
-    circle->color(Palette::ColorId::border, ring_color);
-    circle->border(6);
-    circle->border_radius(icon_sz / 2);
-    container->add(circle);
-
-    circle->add(make_shared<ResultGlyph>(
-        Rect(0, 0, icon_sz, icon_sz), /*check=*/!early, ring_color));
-
-    // Title text below the hero icon
     auto title_lbl = make_shared<Label>(title,
-        Rect(0, icon_y + icon_sz + 18, dt::SCREEN_W, 32));
-    title_lbl->font(Font(dt::FONT_TITLE, Font::Weight::bold));
-    title_lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
+        Rect(group_x + chk + gap, row_y - 6, title_w, chk),
+        AlignFlag::center);
+    title_lbl->font(Font(37, Font::Weight::bold));
+    title_lbl->color(Palette::ColorId::label_text, complete_blue);
     container->add(title_lbl);
 
-    // Segmented dots (all filled) only on the completed (not ended) screen.
-    // Placed lower than the in-treatment DOTS_Y so they sit a comfortable
-    // distance below the "Treatment Completed" title (no banner here to
-    // crowd them).
-    if (!early)
-        add_segmented_progress(container, state, /*y=*/330);
-
-    // Back to Home button at bottom
-    auto go_home = [=]() {
+    container->add(make_back_home_button([=]() {
         if (state->active_timer) state->active_timer->cancel();
-        if (early && state->callbacks.on_treatment_ended_early)
-            state->callbacks.on_treatment_ended_early();
-        else if (!early && state->callbacks.on_treatment_completed)
-            state->callbacks.on_treatment_completed();
-    };
-
-    container->add(make_back_home_button(go_home));
+        if (early) { if (state->callbacks.on_treatment_ended_early)
+                         state->callbacks.on_treatment_ended_early(); }
+        else       { if (state->callbacks.on_treatment_completed)
+                         state->callbacks.on_treatment_completed(); }
+    }));
 
     state->callbacks.on_show_screen(container);
 
-    // No auto-return: the technician must tap "Back to Home" to leave, so
-    // the completed/ended summary stays on screen until acknowledged.
+    // Ended screen auto-returns to Home after AUTO_RETURN_SECONDS (client note
+    // 70:886). on_treatment_ended_early is already guarded by wrap_exit, so a
+    // tap before the timer fires (or vice-versa) only triggers the exit once.
+    if (early && !state->freeze) {
+        constexpr int AUTO_RETURN_SECONDS = 20;   // within the client's 15-30 s
+        auto timer = make_shared<PeriodicTimer>(
+            chrono::seconds(AUTO_RETURN_SECONDS));
+        state->active_timer = timer;
+        timer->on_timeout([=]() {
+            timer->cancel();
+            printf("[TREATMENT] ended screen auto-return to home\n"); fflush(stdout);
+            if (state->callbacks.on_treatment_ended_early)
+                state->callbacks.on_treatment_ended_early();
+        });
+        timer->start();
+    }
 }
