@@ -84,19 +84,163 @@ Swapped the hand-drawn Wi-Fi and Ethernet glyphs for the Figma PNG exports and b
 
 ---
 
-### Patient Info (`PATIENT_INFO` - node `168:808` (Gender step))
-
-Added the profile icon next to the "Please Enter Client Information" title and swapped the gender cards' SVG glyphs for the Figma PNG exports.
-
-![PATIENT_INFO](patient-info-figma-match/comparison.png)
-
----
-
 ### First Wi-Fi Setup / Wi-Fi Settings (`WIFI_SETTINGS` - node `151:886`)
 
 Rebuilt to F1:1 with Figma: rounded card with the 244→255 keyboard-gray gradient, left-aligned "Choose a Network..." header, real Figma PNG icons on each row, and matched 72×72 gear and Wi-Fi-off pill buttons at the bottom.
 
 ![WIFI_SETTINGS](first-wifi-setup-figma-match/comparison.png)
+
+---
+
+### Treatment - Active (`TREATMENT_ACTIVE` - node `66:524`)
+
+Matched the Figma design: the End button is now a white card like Pause instead of a green block, with the countdown, cumulative timer, and buttons resized to the Figma layout.
+
+![TREATMENT_ACTIVE](treatment-active-figma-match/comparison.png)
+
+---
+
+### Treatment - Completed (`TREATMENT_COMPLETED` - node `75:320`)
+
+Redesigned to the Figma "Back to Home" completed screen: a blue check beside "Treatment Completed", the cumulative-time header, and a cyan Back to Home button - replacing the earlier minimal big-"0" layout, which left no way off the screen.
+
+![TREATMENT_COMPLETED](treatment-completed-redesign-figma-match/comparison.png)
+
+---
+
+### Patient Info - Gender, Demo Mode (`PATIENT_INFO` demo - node `2009:1262`)
+
+Added soft drop shadows to the gender cards and the Back/Skip/Continue buttons, swapped the drawn button glyphs for the exact Figma icons on the 217->255 gradient disc, and tightened the DEMO MODE text and button spacing to the Figma layout.
+
+![PATIENT_GENDER_DEMO](patient-info-gender-demo-figma-match/comparison.png)
+
+---
+
+### Patient Info - Age, Demo Mode (`PATIENT_INFO` demo - node `2009:1173`)
+
+Added the soft gray cylinder gradient behind the age wheel and the "Years Old" caption to the right of it, both missing before.
+
+![PATIENT_AGE_DEMO](patient-info-age-demo-figma-match/comparison.png)
+
+---
+
+### Patient Info - ZIP Code, Demo Mode (`PATIENT_INFO` demo - node `2009:1060`)
+
+Gave the inactive keypad keys the soft gray gradient fill (no border) instead of white-with-border, and switched the Continue/Back glyphs to the Figma chevrons across all patient steps.
+
+![PATIENT_ZIP_DEMO](patient-info-zip-demo-figma-match/comparison.png)
+
+---
+
+### Patient Info - Summary, Demo Mode (`PATIENT_INFO` demo - node `2009:962`)
+
+Reworked the review step to the Figma layout: the three steps now show as outlined pill tabs with a full-width green bar, the summary is borderless (two divider lines instead of a card), and Back + GO sit together centre-bottom.
+
+![PATIENT_SUMMARY_DEMO](patient-info-summary-demo-figma-match/comparison.png)
+
+---
+
+### Treatment - Warming up (`TREATMENT` demo - node `37:1626`)
+
+Made the big percentage thin (was bold), tucked the "Warming up for Treatment" label under it, and replaced the thick rounded bar with the thin near-full-width Figma bar.
+
+![TREATMENT_WARMING](treatment-warming-figma-match/comparison.png)
+
+---
+
+### Treatment - Position Tip (`TREATMENT` demo - node `100:772`)
+
+Removed the cumulative-time header (Figma has none here), made the countdown thin and single-minute "M:SS", and enlarged the gray two-line "Position the Applicator Tip" label.
+
+![TREATMENT_POSITION](treatment-position-figma-match/comparison.png)
+
+---
+
+### Treatment - Re-position, start of next cycle (`TREATMENT` demo - node `67:733`)
+
+Added the cumulative-time header and made End the cyan call-to-action (Pause stays white), so the start-of-next-cycle re-position prompt matches the Figma layout.
+
+![TREATMENT_REPOSITION](treatment-reposition-figma-match/comparison.png)
+
+---
+
+### Treatment - Paused (`TREATMENT` demo - node `67:773`)
+
+Made the paused timer thin and gave the tip its two cyan lines flanked by cyan chevrons, matching the Figma copy.
+
+![TREATMENT_PAUSED](treatment-paused-figma-match/comparison.png)
+
+---
+
+### Treatment - Nearly Finished (`TREATMENT` demo - node `67:578`)
+
+Made the countdown thin and enlarged the status text, and added a green gradient glow that fades inward from all four edges (like the age-wheel backdrop, full-screen) and **breathes** smoothly in and out, matching the Figma note that the green reflects a flashing-light effect (node `67:723`). The held screenshot shows the glow at mid brightness.
+
+![TREATMENT_NEARLY](treatment-nearly-figma-match/comparison.png)
+
+---
+
+### Treatment - Countdown Zero (`TREATMENT` demo - node `67:628`)
+
+The moment the countdown reaches 0: the same breathing-green-glow screen as nearly-finished, now with a big "0", a full green progress bar and a green check. Per the `67:728` note, it breathes and holds ~3 seconds to signal completion, then auto-advances to the Completed (Back to Home) screen.
+
+![TREATMENT_ZERO](treatment-zero-figma-match/comparison.png)
+
+---
+
+### Treatment - End Confirmation (`TREATMENT` demo - node `81:389`)
+
+Reworked the confirm dialog to the Figma card: white panel with a faint rounded border (was a solid gray block) and the "End Treatment" title in cool blue.
+
+![TREATMENT_END_CONFIRM](treatment-end-confirm-figma-match/comparison.png)
+
+---
+
+### Treatment - Ended (`TREATMENT` demo - node `81:406`)
+
+Rebuilt the ended screen to match the Figma "Treatment Ended" layout (blue check beside the title, like the completed screen) and, per the client note, it now returns to Home on its own after 20 seconds.
+
+![TREATMENT_ENDED](treatment-ended-figma-match/comparison.png)
+
+---
+
+### Error - Operating Conditions out of range (`node 143:870`)
+
+Built the treatment error modal to the Figma card: blue rounded-top header with a white heat icon and title, gray message, and Pause / Resume / End buttons.
+
+![ERROR_TEMP_RANGE](error-temp-range-figma-match/comparison.png)
+
+---
+
+### Error - Change the air filter (`node 143:871`)
+
+Same error-modal card with the alert icon and "Change the air filter" copy, and a two-line "Begin Treatment" middle button per the Figma.
+
+![ERROR_AIR_FILTER](error-air-filter-figma-match/comparison.png)
+
+---
+
+### Warning - Temperature out of range (`node 143:873`)
+
+Same modal card with an orange header (warning, not error), the temperature icon, and no buttons - the device is blocked until the condition clears.
+
+![WARNING_TEMP_RANGE](warning-temp-range-figma-match/comparison.png)
+
+---
+
+### Warning - Airflow obstruction detected (`node 143:874`)
+
+Orange warning card with the airflow icon and "Please change the air filter before further use.", also button-less.
+
+![WARNING_AIRFLOW](warning-airflow-figma-match/comparison.png)
+
+---
+
+### Critical Fault - Operating temperature out of safe range (`node 143:876`)
+
+Same modal card with a red header for a critical fault, the alert icon, and a three-line message including the error code - no buttons, the device has shut down.
+
+![CRITICAL_FAULT](critical-fault-figma-match/comparison.png)
 
 ---
 

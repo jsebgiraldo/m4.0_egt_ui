@@ -90,6 +90,13 @@ EGT_MOCK_WIFI auto-advances unless we pin it. Available modes today:
 | `connected` | Forces `WIFI_CONNECTED` success card, holds. |
 | `init` | Pins `WIFI_INIT` spinner, holds. Added in commit `c544a93`. |
 
+The treatment flow has its own hold mode (it auto-advances on countdowns):
+`EGT_START_SCREEN=treatment-demo EGT_MOCK_TREATMENT=<screen>` boots straight onto one
+treatment screen with its timer frozen. Screens: `warming | ready | position |
+reposition | active | nearly | paused | end-confirm | completed | ended`. Use
+`treatment-demo` so the DEMO MODE badge shows (the Figma treatment frames are the demo
+variant). See `../08-references/figma-to-egt-lessons.md` -> "Treatment flow screens".
+
 When you need a screenshot of a screen that does not have a hold mode, add one. Pattern: in the screen factory, detect the env var and skip the timer that drives navigation. The spinner / animations should keep running so the screenshot looks live.
 
 ### 3. Capture `before.png`
@@ -193,9 +200,59 @@ Implementation detail (tokens, font sizes, node forensics, follow-ups, debugging
 
 When in doubt, write the sentence, then read the existing short entries (WIFI_INIT, DEMO_INFO) and match their length and tone.
 
+### 9.5 Target-vs-After audit (do not skip)
+
+A loose glance at the 3-up will pass screens that have real misses. Before deciding a
+screen is done, run a structured audit that uses the Figma spec as ground truth, not
+just the eye. Three parts:
+
+1. **Spec checklist (objective).** From the `get_figma_data` JSON, write a short table:
+   one row per element with its scaled box (Figma px x 1.852), font family + size +
+   weight, colour, corner radius, and `effects` (shadow). Tick each row against the code
+   AND the AFTER image. This is what catches measurable misses - a label at 10pt->18 that
+   you set to 15, a `boxShadow 0 2 2 rgba(0,0,0,0.2)` you never rendered, a square that
+   you drew as a circle.
+
+2. **Full-resolution 2-up.** The report `comparison.png` is shrunk to 500x300, which hides
+   small differences. For the audit, put TARGET and AFTER side by side at full size:
+
+   ```bash
+   convert figma-target.png -resize 800x480! -bordercolor "#bbb" -border 2x0 /tmp/t.png
+   convert after.png        -resize 800x480! -bordercolor "#bbb" -border 2x0 /tmp/a.png
+   convert /tmp/t.png /tmp/a.png +append /tmp/audit.png
+   ```
+
+   Forcing both to `800x480!` normalises the aspect-ratio gap (Figma canvas is 1.652,
+   the panel is 1.667). **Because of that ~1% gap, do not chase a few px of vertical
+   drift** - it is the ratio, not a real error. Judge shapes, sizes, colours, fills.
+
+   **Watch for outer glow / drop-shadow overflow.** If the Figma frame has an outer
+   effect (e.g. the Completed screen's green `boxShadow 0 4 19`), the rendered PNG
+   includes the blur as a margin around the card, so the PNG is bigger than `frame_w x
+   frame_h x scale` (e.g. 1410x899 instead of 1296x783). If you compare that raw render
+   at `800x480!`, every element looks too small and a reviewer will wrongly call the
+   screen "over-scaled". Crop the render to the card first:
+   `convert figma-target.png -gravity center -crop <fw*scale>x<fh*scale>+0-<offset> +repage card.png`
+   then compare `card.png`. Use the cropped card for the report `comparison.png` too, so
+   it is a fair like-for-like.
+
+3. **Independent reviewer.** Hand the two images to a fresh sub-agent (the `Explore` or
+   `general-purpose` agent) with one job: "list every visible difference, be picky,
+   severity MAJOR/MINOR/IGNORE, and treat ~1% vertical drift as IGNORE." A second pair of
+   eyes that has not anchored on your own work catches what you read past. Fix the MAJORs,
+   re-capture, and re-audit until it returns nothing material.
+
+**Icons are always downloaded, never drawn.** If the audit shows an icon (arrow,
+chevron, gear, exit), it must be a Figma PNG loaded via `ImageLabel` - check `assets/figma/images/`
+for an existing export first (e.g. the exit/`bt leave` button is `demo-info-btn-exit.png`),
+otherwise pull it with `download_figma_images`. A `Painter`-drawn glyph is a defect even
+if it looks close. See `../08-references/figma-to-egt-lessons.md` section 2.
+
 ### 10. Decide
 
-Are key elements within `+- 4 px` of Figma and using tokens (no raw hex)? If yes, commit. If no, return to step 5 - usually only one or two values need another nudge.
+Are key elements within `+- 4 px` of Figma and using tokens (no raw hex), and did the
+step 9.5 audit return no MAJOR items? If yes, commit. If no, return to step 5 - usually
+only one or two values need another nudge.
 
 ### 11. Iterate at least three cycles before committing
 
