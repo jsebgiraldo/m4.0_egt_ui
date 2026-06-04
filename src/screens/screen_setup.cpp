@@ -43,29 +43,24 @@ shared_ptr<Widget> create_setup_screen(function<void()> on_settings)
         (dt::SCREEN_W - logo_w) / 2, 110, logo_w, logo_h);
     container->add(logo);
 
-    // ── "Settings" affordance (bottom-left): gray circle + gear + label ────
+    // ── "Settings" affordance (bottom-left): gear PNG + label ──────────────
+    // Plain ImageLabel + Label + transparent hit-zone. Avoid SvgImage and
+    // border_radius — both have heap-corruption regressions on libegt 1.10
+    // (the target's version) and were the root of the SETUP free() crash.
     const int circle_d = 46;
     const int circle_x = 27;
     const int circle_y = dt::SCREEN_H - 66;   // canonical bottom-left position
-    auto circle = make_shared<Frame>(Rect(circle_x, circle_y, circle_d, circle_d));
-    circle->fill_flags({Theme::FillFlag::blend});
-    circle->color(Palette::ColorId::bg, palette::kGray200);
-    circle->border(0);
-    circle->border_radius(circle_d / 2);
-    container->add(circle);
 
-    auto gear = load_gear(26);
-    if (!gear.empty()) {
-        const int isz = 26;
-        auto gl = make_shared<ImageLabel>(gear);
+    try {
+        auto img = Image(("file:" + ui::asset_path("wifi-settings-gear")).c_str());
+        auto gl = make_shared<ImageLabel>(img);
+        gl->autoresize(false);
+        gl->border(0); gl->padding(0); gl->margin(0);
         gl->fill_flags({});
-        gl->color(Palette::ColorId::bg, palette::kGray200);
         gl->image_align(AlignFlag::center);
-        gl->move(Point(circle_x + (circle_d - isz) / 2,
-                       circle_y + (circle_d - isz) / 2));
-        gl->resize(Size(isz, isz));
+        gl->box(Rect(circle_x, circle_y, circle_d, circle_d));
         container->add(gl);
-    }
+    } catch (...) { /* skip icon on error — never crash boot */ }
 
     auto label = make_shared<Label>("Settings",
         Rect(circle_x + circle_d + 12, circle_y, 160, circle_d),
@@ -74,7 +69,7 @@ shared_ptr<Widget> create_setup_screen(function<void()> on_settings)
     label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(label);
 
-    // Tapping anywhere on the circle/label hit-zone opens Settings.
+    // Tapping anywhere on the icon/label hit-zone opens Settings.
     auto hit = make_shared<Frame>(
         Rect(circle_x, circle_y, circle_d + 12 + 160, circle_d));
     hit->fill_flags({});
