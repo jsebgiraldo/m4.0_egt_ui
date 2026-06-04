@@ -143,11 +143,16 @@ static const char* kRefreshSvg = R"svg(
 </svg>)svg";
 
 static Image load_svg_icon(const char* name, const char* svg, int size) {
+    // libegt 1.10 (target) heap-corruption fix: keep the SvgImage alive in
+    // a static cache so the returned sliced-Image's backing buffer stays
+    // valid (see screen_patient_info.cpp load_svg_icon).
+    static std::vector<std::shared_ptr<SvgImage>> s_cache;
     try {
         string path = string("/tmp/egt-icon-nf-") + name + ".svg";
         ofstream f(path); f << svg; f.close();
-        SvgImage img("file:" + path, SizeF(size, size));
-        return static_cast<Image>(img);
+        auto img = std::make_shared<SvgImage>("file:" + path, SizeF(size, size));
+        s_cache.push_back(img);
+        return static_cast<Image>(*img);
     } catch (...) { return {}; }
 }
 

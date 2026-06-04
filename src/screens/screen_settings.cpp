@@ -335,11 +335,17 @@ static const char* kPersonSvg = R"svg(
 </svg>)svg";
 
 static Image load_person(int size) {
+    // libegt 1.10 (target) heap-corruption fix: keep the SvgImage alive in
+    // a static cache so the returned sliced-Image's backing buffer stays
+    // valid (see screen_patient_info.cpp load_svg_icon for the full
+    // explanation).
+    static std::vector<std::shared_ptr<SvgImage>> s_cache;
     try {
         const string path = "/tmp/egt-icon-settings-person.svg";
         ofstream f(path); f << kPersonSvg; f.close();
-        SvgImage svg("file:" + path, SizeF(size, size));
-        return static_cast<Image>(svg);
+        auto svg = std::make_shared<SvgImage>("file:" + path, SizeF(size, size));
+        s_cache.push_back(svg);
+        return static_cast<Image>(*svg);
     } catch (...) { return {}; }
 }
 

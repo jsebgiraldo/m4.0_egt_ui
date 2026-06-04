@@ -20,9 +20,13 @@ constexpr int HEADER_H = 174; // 95 * 1.836
 
 Image load_svg_icon(const string& path, int size)
 {
+    // libegt 1.10 (target) heap-corruption fix: keep SvgImage alive in a
+    // static cache (see screen_patient_info.cpp load_svg_icon).
+    static std::vector<std::shared_ptr<SvgImage>> s_cache;
     try {
-        SvgImage svg(("file:" + path).c_str(), SizeF(size, size));
-        return static_cast<Image>(svg);
+        auto svg = std::make_shared<SvgImage>(("file:" + path).c_str(), SizeF(size, size));
+        s_cache.push_back(svg);
+        return static_cast<Image>(*svg);
     } catch (...) { return {}; }
 }
 

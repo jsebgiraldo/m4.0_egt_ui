@@ -21,10 +21,19 @@ static string write_svg_tmp(const char* name, const char* svg_data)
 
 static Image load_svg_icon(const char* name, const char* svg_data, int size)
 {
+    // libegt 1.10 (target) heap-corruption: the rasterized buffer behind a
+    // SvgImage is freed when the SvgImage local goes out of scope, so the
+    // sliced-to-Image return value holds a dangling pointer and crashes on
+    // the next allocation. Workaround: keep every SvgImage alive in a
+    // static cache for the lifetime of the process so the returned Image's
+    // backing buffer remains valid. Memory cost is bounded by the small
+    // number of distinct icons (≈10 across the app).
+    static std::vector<std::shared_ptr<SvgImage>> s_cache;
     try {
         auto path = write_svg_tmp(name, svg_data);
-        SvgImage svg("file:" + path, SizeF(size, size));
-        return static_cast<Image>(svg);
+        auto svg = std::make_shared<SvgImage>("file:" + path, SizeF(size, size));
+        s_cache.push_back(svg);
+        return static_cast<Image>(*svg);
     } catch (...) {
         return {};
     }
@@ -365,18 +374,9 @@ static shared_ptr<Frame> make_patient_step(
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
 
-    // Small profile icon to the right of the title (Figma node 115:961,
-    // 15x15 figma px at frame-local (323, 14) -> device (598, 26, 28x28).
-    try {
-        auto img = Image("file:assets/figma/images/patient-title-profile.png");
-        auto profile = make_shared<ImageLabel>(img);
-        profile->autoresize(false);
-        profile->border(0); profile->padding(0); profile->margin(0);
-        profile->fill_flags({});
-        profile->image_align(AlignFlag::center);
-        profile->box(Rect(598, 26, 28, 28));
-        container->add(profile);
-    } catch (...) { /* fall back to no icon */ }
+    // (Technician profile icon removed per requirement update — was a 28×28
+    // ImageLabel at (598, 26). Re-introduced accidentally by the Bayron merge;
+    // dropping it again here.)
 
     // Tab labels (progressively shown: step 0 → Gender only, step 1 → +Age, step 2 → +ZIP)
     const char* tab_names[] = {"Gender", "Age", "ZIP Code"};
@@ -530,10 +530,10 @@ static shared_ptr<Widget> create_gender_step(
         // Icon from Figma PNG (Group 252 / Group 253). The custom SVG
         // silhouettes did not match the design - swapped for the actual
         // figma exports so the Male / Female glyphs read identically to
-        // the figma render.
-        const std::string icon_path = female_card
-            ? "assets/figma/images/patient-female-icon.png"
-            : "assets/figma/images/patient-male-icon.png";
+        // the figma render. Use ui::asset_path() so the bytes resolve from
+        // the embedded assets table on target (no external file deps).
+        const std::string icon_path = ui::asset_path(
+            female_card ? "patient-female-icon" : "patient-male-icon");
         try {
             auto img = Image(("file:" + icon_path).c_str());
             auto icon = make_shared<ImageLabel>(img);
