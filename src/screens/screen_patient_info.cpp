@@ -142,13 +142,17 @@ static const char* kArrowFwdSvg = R"svg(
   </g>
 </svg>)svg";
 
-// Disc + refresh/reset — Reset glyph (Material Symbols refresh)
-static const char* kRefreshSvg = R"svg(
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <circle cx="12" cy="12" r="12" fill="#E8E8E8"/>
-  <g transform="translate(3,3) scale(0.75)">
-    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="#646469"/>
-  </g>
+// Reset glyph (Figma "Reset bt" 2024:1186, node 2024:1180) — gradient disc
+// (217 -> 255, same as Back/Skip) + the two-arrow refresh path, downloaded
+// from Figma so it matches the design 1:1. Used on the production ZIP step.
+static const char* kResetSvg = R"svg(
+<svg width="25" height="25" viewBox="0 0 25 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs><linearGradient id="d" x1="12.4402" y1="0" x2="12.4402" y2="25" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#D9D9D9"/><stop offset="1" stop-color="white"/>
+  </linearGradient></defs>
+  <ellipse cx="12.4402" cy="12.5" rx="12.4402" ry="12.5" fill="url(#d)"/>
+  <path d="M8.08081 8.7313C8.56715 2.11717 18.7804 4.18409 16.6783 12.9128M12.5873 10.6237L16.6783 12.9128L21.2121 10.047" stroke="#646569" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17.1717 17.0943C16.648 23.7085 5.64908 21.6416 7.91283 12.9128M12.3186 15.202L7.91283 12.9128L3.0303 15.7786" stroke="#646569" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>)svg";
 
 // ── Soft drop shadow ────────────────────────────────────────────────────────
@@ -897,44 +901,76 @@ static shared_ptr<Widget> create_zip_step(
         }
     }
 
-    // Bottom buttons (same Figma layout/shadows as the Gender step):
-    // Reset @x=26 text-only, Skip @x=293 icon, Continue @x=556 blue, y=397.
-    const Rect back_r(26, 397, 156, 61);
-    const Rect skip_r(293, 397, 156, 61);
-    const Rect cont_r(556, 397, 217, 61);
+    // Bottom buttons. Demo (Figma 2009:1060) has 3 — Reset / Skip / Continue,
+    // no Back, and a text-only Reset. Production (Figma 142:856) adds a Back
+    // button at the left, re-spaces the row to 4, and its Reset carries the
+    // refresh icon. Same screen, branch the row on demo_mode.
+    auto rebuild_zip = [=]() {
+        if (on_show_screen)
+            on_show_screen(create_zip_step(demo_mode, info, on_complete,
+                on_back, on_show_screen, on_leave_demo));
+    };
+    auto go_summary = [=]() {
+        if (on_show_screen)
+            on_show_screen(create_summary_step(demo_mode, info, on_complete,
+                [=]() {
+                    if (on_show_screen)
+                        on_show_screen(create_zip_step(demo_mode, info, on_complete,
+                            on_back, on_show_screen, on_leave_demo));
+                },
+                on_show_screen, on_leave_demo));
+    };
 
-    container->add(make_shared<SoftShadow>(back_r, dt::RADIUS_XS));
-    auto btn_reset = ui::create_outlined_button("Reset", back_r,
-        [=]() {
-            info->zip_code.clear();
-            if (on_show_screen)
-                on_show_screen(create_zip_step(demo_mode, info, on_complete,
-                    on_back, on_show_screen, on_leave_demo));
-        });
-    btn_reset->font(Font(22, Font::Weight::bold));
-    // Match the Skip/Continue shape: 1px border, RADIUS_XS, off-white bg
-    // (create_outlined_button defaults to a thicker 2px border + RADIUS_MD).
-    btn_reset->border(1);
-    btn_reset->border_radius(dt::RADIUS_XS);
-    btn_reset->color(Palette::ColorId::button_bg, Color(0xFA, 0xFA, 0xFA));
-    // Pin to the rect so it doesn't grow taller than Skip/Continue (61).
-    btn_reset->min_size_hint(Size(back_r.width(), back_r.height()));
-    btn_reset->resize(Size(back_r.width(), back_r.height()));
-    container->add(btn_reset);
+    Rect reset_r, skip_r, cont_r;
+    if (demo_mode) {
+        // 3-button row: Reset @x=26, Skip @x=293, Continue @x=556, y=397.
+        reset_r = Rect(26, 397, 156, 61);
+        skip_r  = Rect(293, 397, 156, 61);
+        cont_r  = Rect(556, 397, 217, 61);
+    } else {
+        // 4-button row (production). Figma (142:856) crams Reset and Skip
+        // together (gaps 24 / 8 / 23 px), so anchor Back (x20) and the green
+        // Continue (x559) at their Figma spots and redistribute Reset/Skip for
+        // equal ~18px gaps across the row.
+        const Rect back_r(20, 397, 156, 61);
+        reset_r = Rect(194, 397, 172, 61);
+        skip_r  = Rect(384, 397, 156, 61);
+        cont_r  = Rect(559, 395, 217, 61);
+        container->add(make_shared<SoftShadow>(back_r, dt::RADIUS_XS));
+        auto btn_back = make_icon_outlined_btn(
+            "arrow-back-pi", kArrowBackSvg, "  Back", back_r, on_back);
+        container->add(btn_back);
+    }
+
+    // Reset — clear the ZIP and rebuild the step. Production carries the
+    // refresh icon (Figma "Reset bt" 2024:1186); demo is text-only (2009:1086).
+    container->add(make_shared<SoftShadow>(reset_r, dt::RADIUS_XS));
+    if (demo_mode) {
+        auto btn_reset = ui::create_outlined_button("Reset", reset_r,
+            [=]() { info->zip_code.clear(); rebuild_zip(); });
+        btn_reset->font(Font(22, Font::Weight::bold));
+        // Match the Skip/Continue shape: 1px border, RADIUS_XS, off-white bg
+        // (create_outlined_button defaults to a thicker 2px border + RADIUS_MD).
+        btn_reset->border(1);
+        btn_reset->border_radius(dt::RADIUS_XS);
+        btn_reset->color(Palette::ColorId::button_bg, Color(0xFA, 0xFA, 0xFA));
+        // Pin to the rect so it doesn't grow taller than Skip/Continue (61).
+        btn_reset->min_size_hint(Size(reset_r.width(), reset_r.height()));
+        btn_reset->resize(Size(reset_r.width(), reset_r.height()));
+        container->add(btn_reset);
+    } else {
+        auto btn_reset = make_icon_outlined_btn(
+            "zip-reset-pi", kResetSvg, "  Reset", reset_r,
+            [=]() { info->zip_code.clear(); rebuild_zip(); });
+        container->add(btn_reset);
+    }
 
     container->add(make_shared<SoftShadow>(skip_r, dt::RADIUS_XS));
     auto btn_skip = make_icon_outlined_btn(
         "skip-next-pi", kSkipNextSvg, "  Skip", skip_r,
         [=]() {
             info->zip_code.clear();  // skip => no value collected
-            if (on_show_screen)
-                on_show_screen(create_summary_step(demo_mode, info, on_complete,
-                    [=]() {
-                        if (on_show_screen)
-                            on_show_screen(create_zip_step(demo_mode, info, on_complete,
-                                on_back, on_show_screen, on_leave_demo));
-                    },
-                    on_show_screen, on_leave_demo));
+            go_summary();
         });
     container->add(btn_skip);
 
@@ -942,16 +978,7 @@ static shared_ptr<Widget> create_zip_step(
     container->add(make_shared<SoftShadow>(cont_r, dt::RADIUS_XS));
     auto btn_continue = make_continue_btn(
         !info->zip_code.empty(), demo_mode, cont_r,
-        [=]() {
-            if (on_show_screen)
-                on_show_screen(create_summary_step(demo_mode, info, on_complete,
-                    [=]() {
-                        if (on_show_screen)
-                            on_show_screen(create_zip_step(demo_mode, info, on_complete,
-                                on_back, on_show_screen, on_leave_demo));
-                    },
-                    on_show_screen, on_leave_demo));
-        });
+        [=]() { go_summary(); });
     container->add(btn_continue);
 
     return container;
