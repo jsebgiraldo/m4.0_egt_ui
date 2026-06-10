@@ -91,7 +91,13 @@ public:
                egt::RectF(x, y + h - d, w, d));
     }
 private:
-    float m_intensity = 1.0f;
+    // Start at the breathing animation's floor (matches phase 0 of the cosine
+    // in start_green_breathing), NOT full bright. make_treatment_container
+    // builds the glow and on_show_screen paints it one frame BEFORE the
+    // breathing timer's first tick (+50 ms) runs, so a 1.0 default showed a
+    // full-bright green flash on entry that then snapped down to ~0.12. Being
+    // born at the floor makes the entry seamless; the breath pulses up from here.
+    float m_intensity = 0.12f;
 };
 
 // ── Shared state across treatment screens ───────────────────────────────────
