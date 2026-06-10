@@ -265,3 +265,19 @@ To be filled in as iterations complete.
 - Three states per screen: BEFORE (previous device rendering), TARGET (Figma reference), AFTER (corrected rendering).
 - All comparisons are captured from the host simulator at 800x480 - pixel-equivalent to the live panel.
 - For animated screens (spinners, transitions), only the static AFTER frame is shown.
+
+## Demo mode vs real mode
+
+Every patient and treatment screen runs in two modes from one code path. Real mode drops the DEMO MODE badge and turns the demo's cyan accent green; a few steps also change the button row (the ZIP step adds a Back button). It stays one shared screen branched on a flag, so no separate screens are needed.
+
+**Gender step**
+
+![DEMO_VS_REAL_GENDER](demo-vs-real-mode/demo-vs-real-gender.png)
+
+**Age step**
+
+![DEMO_VS_REAL_AGE](demo-vs-real-mode/demo-vs-real-age.png)
+
+**ZIP Code step** - real mode adds the Back button (four-button row) and gives Reset its refresh icon.
+
+![DEMO_VS_REAL_ZIP](demo-vs-real-mode/demo-vs-real-zip.png)
