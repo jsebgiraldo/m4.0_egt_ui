@@ -667,50 +667,89 @@ static void show_warming(shared_ptr<TreatmentState> state)
 // User must press Begin to proceed — no auto-advance.
 static void show_ready(shared_ptr<TreatmentState> state)
 {
-    const int W_NUM_Y      = 116;
+    // Figma 168:812: 100% in GRAY (like the warming %), "Ready for / Treatment"
+    // tucked under the number, full green bar, and a green-gradient Begin
+    // button (NOT a flat fill). Dual ratio: x*1.852, y*1.836.
+    const int W_NUM_Y      = 92;    // number top ~ Figma y60
     const int W_NUM_H      = 150;
-    const int W_STATUS1_Y  = 276;
-    const int W_STATUS2_Y  = 304;
-    const int W_BAR_Y      = 336;   // raised so it clears the Begin button
+    const int W_STATUS1_Y  = 226;   // "Ready for"  (Figma y126 -> 231)
+    const int W_STATUS2_Y  = 260;   // "Treatment"
+    const int W_BAR_Y      = 330;   // Figma y180 * 1.836
 
     auto [container, _cum_lbl] = make_treatment_container(state, false);
 
-    // ── Large "100%" display (Painter-measured, % tucked to the number) ────
+    // ── Large "100%" — gray, matching the warming % (Figma 154:929 #646569) ─
     auto pct_display = make_shared<PercentDisplay>(
-        Rect(0, W_NUM_Y, dt::SCREEN_W, W_NUM_H), 100, dt::kGreen);
+        Rect(0, W_NUM_Y, dt::SCREEN_W, W_NUM_H), 100, dt::kTextPrimary);
     container->add(pct_display);
 
-    // ── "Ready" / "for Treatment" ──────────────────────────────────────────
-    auto status1 = make_shared<Label>("Ready",
-        Rect(0, W_STATUS1_Y, dt::SCREEN_W, 28));
-    status1->font(Font(20, Font::Weight::normal));
+    // ── "Ready for" / "Treatment" (Figma wrap), tucked under the number ────
+    auto status1 = make_shared<Label>("Ready for",
+        Rect(0, W_STATUS1_Y, dt::SCREEN_W, 32));
+    status1->font(Font(28, Font::Weight::normal));
     status1->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status1);
 
-    auto status2 = make_shared<Label>("for Treatment",
-        Rect(0, W_STATUS2_Y, dt::SCREEN_W, 28));
-    status2->font(Font(20, Font::Weight::normal));
+    auto status2 = make_shared<Label>("Treatment",
+        Rect(0, W_STATUS2_Y, dt::SCREEN_W, 32));
+    status2->font(Font(28, Font::Weight::normal));
     status2->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status2);
 
-    // ── Full green progress bar (100%) — carried over from Warming so the
-    //    "ready" state still reads as fully warmed (ToDo master task 8).
-    const int bar_w = 700;
+    // ── Full green progress bar (Figma 154:926: 405x5 -> 750, near-full) ───
+    const int bar_w = 750;
     auto progress_bar = ui::create_linear_progress_bar(
-        (dt::SCREEN_W - bar_w) / 2, W_BAR_Y, bar_w, 10);
+        (dt::SCREEN_W - bar_w) / 2, W_BAR_Y, bar_w, 9);
     container->add(progress_bar);
     ui::update_linear_progress(progress_bar, 100.0f);
 
-    // ── "Begin Treatment" button — flow accent (green real, blue demo) ────
-    const Color accent = state->config.demo_mode ? dt::kAccentCyan : dt::kGreen;
-    auto btn_begin = ui::create_filled_button("Begin\nTreatment",
-        Rect((dt::SCREEN_W - 260) / 2, BTN_Y, 260, BTN_H),
-        [=]() {
-            show_position_tip(state);
-        });
-    btn_begin->color(Palette::ColorId::button_bg, accent);
-    btn_begin->color(Palette::ColorId::border, accent);
-    container->add(btn_begin);
+    // ── "Begin Treatment" button (Figma bt begin 166:1000): green vertical
+    //    gradient #5BC500 -> #408A00, "Begin" large + "Treatment" small, white
+    //    bold. Demo flow keeps a flat cyan fill. device rect (285,354,230,99).
+    const Rect begin_r(285, 354, 230, 99);
+    // Soft shadow (Figma 0 2 2 rgba(0,0,0,0.2)): 3 stacked translucent rects.
+    for (int i = 3; i >= 1; --i) {
+        auto sh = make_shared<Frame>(Rect(begin_r.x() - i, begin_r.y() + 2 + i,
+                                          begin_r.width() + 2 * i,
+                                          begin_r.height() + 2 * i));
+        sh->fill_flags({Theme::FillFlag::blend});
+        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 30));
+        sh->border(0);
+        sh->border_radius(dt::RADIUS_XS + i);
+        container->add(sh);
+    }
+    auto begin_btn = make_shared<Frame>(begin_r);
+    begin_btn->fill_flags({Theme::FillFlag::blend});
+    begin_btn->border(0);
+    begin_btn->border_radius(dt::RADIUS_XS);
+    if (state->config.demo_mode) {
+        begin_btn->color(Palette::ColorId::bg, dt::kAccentCyan);
+    } else {
+        Pattern grad(Pattern::StepArray{{0.0f, Color(91, 197, 0)},
+                                        {1.0f, Color(64, 138, 0)}},
+                     Point(begin_r.x(), begin_r.y()),
+                     Point(begin_r.x(), begin_r.y() + begin_r.height()));
+        begin_btn->color(Palette::ColorId::bg, grad);
+    }
+    begin_btn->on_event([=](Event& e) {
+        if (e.id() == EventId::pointer_click) show_position_tip(state);
+    }, {EventId::pointer_click});
+
+    auto lbl_begin = make_shared<Label>("Begin",
+        Rect(0, 16, begin_r.width(), 44), AlignFlag::center);
+    lbl_begin->fill_flags({});
+    lbl_begin->font(Font(33, Font::Weight::bold));
+    lbl_begin->color(Palette::ColorId::label_text, dt::kWhite);
+    begin_btn->add(lbl_begin);
+
+    auto lbl_treat = make_shared<Label>("Treatment",
+        Rect(0, 58, begin_r.width(), 28), AlignFlag::center);
+    lbl_treat->fill_flags({});
+    lbl_treat->font(Font(20, Font::Weight::bold));
+    lbl_treat->color(Palette::ColorId::label_text, dt::kWhite);
+    begin_btn->add(lbl_treat);
+
+    container->add(begin_btn);
 
     state->callbacks.on_show_screen(container);
 }
