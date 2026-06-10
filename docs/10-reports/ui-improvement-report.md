@@ -281,3 +281,15 @@ Every patient and treatment screen runs in two modes from one code path. Real mo
 **ZIP Code step** - real mode adds the Back button (four-button row) and gives Reset its refresh icon.
 
 ![DEMO_VS_REAL_ZIP](demo-vs-real-mode/demo-vs-real-zip.png)
+
+**Summary step** - badge-only: same layout, the GO button turns green.
+
+![DEMO_VS_REAL_SUMMARY](demo-vs-real-mode/demo-vs-real-summary.png)
+
+**Treatment - Warming up** - badge-only: same layout, the badge is dropped.
+
+![DEMO_VS_REAL_WARMING](demo-vs-real-mode/demo-vs-real-warming.png)
+
+**Treatment - Ready (100%)** - the warming screen at 100% with "Begin Treatment" enabled. Real mode drops the badge and the button is the green gradient (cyan in demo).
+
+![DEMO_VS_REAL_READY](demo-vs-real-mode/demo-vs-real-ready.png)
