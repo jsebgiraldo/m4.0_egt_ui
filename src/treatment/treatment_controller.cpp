@@ -124,6 +124,9 @@ struct TreatmentState {
     int cumulative_seconds = 0;    // total treatment time accumulated
     int current_cycle = 0;         // which cycle we're on (0-based)
     int cycles_completed = 0;      // how many full cycles done
+    int cycle_total_seconds = 0;   // length of the CURRENT cycle's countdown
+                                   // (set when the active screen starts it);
+                                   // drives the per-cycle progress dots
 
     bool is_paused = false;
 
@@ -441,23 +444,31 @@ static shared_ptr<Frame> make_action_button(
     return wrap;
 }
 
-// Overall treatment progress as a 0..1 fraction of the process time limit.
-static float treatment_progress(const shared_ptr<TreatmentState>& state)
+// Per-cycle progress as a 0..1 fraction: how far the CURRENT cycle's
+// countdown has advanced. The dots fill across one cycle and reset when the
+// next cycle starts (per design feedback) — they do NOT track the whole
+// 45-minute session.
+static float cycle_progress(const shared_ptr<TreatmentState>& state,
+                            int remaining)
 {
-    if (state->config.process_limit_seconds <= 0) return 0.0f;
-    return static_cast<float>(state->cumulative_seconds) /
-           static_cast<float>(state->config.process_limit_seconds);
+    const int total = state->cycle_total_seconds > 0
+                          ? state->cycle_total_seconds
+                          : state->config.cycle_seconds;
+    if (total <= 0) return 0.0f;
+    const float f = 1.0f - static_cast<float>(remaining)
+                         / static_cast<float>(total);
+    return std::max(0.0f, std::min(1.0f, f));
 }
 
-// Add the segmented progress dots and return the bar so callers can update
-// it live. The fill tracks cumulative time vs the process limit (not the
-// cycle count) so it advances smoothly throughout the session instead of
-// staying empty for many short cycles.
+// Add the segmented progress dots, pre-filled to `fraction`, and return the
+// bar so callers can update it live each tick.
 static shared_ptr<Frame> add_segmented_progress(
     shared_ptr<Frame> container,
     shared_ptr<TreatmentState> state,
+    float fraction,
     int y = DOTS_Y)
 {
+    (void)state;
     const int seg_bar_w = 373;   // Figma 202px * SCALE (see create_segmented_progress)
     auto seg_bar = ui::create_segmented_progress(
         (dt::SCREEN_W - seg_bar_w) / 2, y, 0);
@@ -466,7 +477,7 @@ static shared_ptr<Frame> add_segmented_progress(
     for (auto& child : seg_bar->children())
         if (auto* sq = dynamic_cast<Frame*>(child.get()))
             sq->border_radius(2);
-    ui::update_segmented_progress_fraction(seg_bar, treatment_progress(state));
+    ui::update_segmented_progress_fraction(seg_bar, fraction);
     container->add(seg_bar);
     return seg_bar;
 }
@@ -814,10 +825,10 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
         ? "Reposition the Applicator Tip"
         : "Position the Applicator Tip";
 
-    // Countdown as M:SS with a single minute digit ("0:05"), Figma style.
+    // Countdown as MM:SS ("00:05") — unified digit format across ALL
+    // treatment screens (normal + demo), per owner decision (doubt D4).
     auto fmt_mss = [](int s) {
-        return to_string(s / 60) + ":" +
-               (s % 60 < 10 ? "0" : "") + to_string(s % 60);
+        return TreatmentState::format_time(s);
     };
 
     // Large countdown display (Figma: thin/regular, 64pt * SCALE). The frozen
@@ -901,10 +912,15 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     int cycle_remaining = state->config.cycle_seconds;
     int remaining_total = state->config.process_limit_seconds - state->cumulative_seconds;
     cycle_remaining = min(cycle_remaining, remaining_total);
+    // This screen starts a (new) cycle countdown — record its length so the
+    // per-cycle progress dots scale correctly here and on the nearly-done
+    // screen that continues the same cycle.
+    state->cycle_total_seconds = cycle_remaining;
 
     auto remaining = make_shared<int>(cycle_remaining);
+    // MM:SS format — unified across all treatment screens (doubt D4).
     auto countdown_label = make_shared<Label>(
-        to_string(*remaining),
+        TreatmentState::format_time(*remaining),
         Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     countdown_label->font(Font(116, Font::Weight::normal));  // Figma 64pt * SCALE, regular
     countdown_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
@@ -917,8 +933,9 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
     status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status);
 
-    // Segmented progress dots (Figma: y=154) — tracks cumulative time
-    auto seg_bar = add_segmented_progress(container, state);
+    // Segmented progress dots (Figma: y=154) — fill across THIS cycle.
+    auto seg_bar = add_segmented_progress(
+        container, state, cycle_progress(state, *remaining));
     if (state->freeze)   // representative fill so the held frame shows progress
         ui::update_segmented_progress_fraction(seg_bar, 0.16f);
 
@@ -998,15 +1015,16 @@ static void show_treatment_active(shared_ptr<TreatmentState> state)
         state->cumulative_seconds++;
 
         if (auto lb = w_countdown.lock())
-            lb->text(to_string(*remaining));
+            lb->text(TreatmentState::format_time(*remaining));
 
         // Update cumulative time dynamically
         if (auto ct = w_cum_time.lock())
             ct->text(TreatmentState::format_time(state->cumulative_seconds));
 
-        // Update overall progress dots (cumulative vs process limit)
+        // Update per-cycle progress dots (fill across this cycle's countdown)
         if (auto sb = w_seg_bar.lock())
-            ui::update_segmented_progress_fraction(sb, treatment_progress(state));
+            ui::update_segmented_progress_fraction(
+                sb, cycle_progress(state, *remaining));
 
         // Process-limit alerts (tone + LED) + banner refresh
         check_and_fire_warnings(state);
@@ -1075,18 +1093,19 @@ static void start_green_breathing(shared_ptr<TreatmentState> state,
 
 // ── TREATMENT NEARLY DONE SCREEN ───────────────────────────────────────────
 // Figma 67:578: the last few seconds of a cycle are signalled as an ALERT - a
-// breathing green glow around the otherwise-normal cycle screen. The overall
-// progress dots keep filling (they are NOT replaced by a draining bar) so the
-// indicator never runs backwards.
+// breathing green glow around the otherwise-normal cycle screen. The
+// per-cycle progress dots keep filling toward full as this cycle's last
+// seconds tick down (and reset when the next cycle starts).
 static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int remaining_seconds)
 {
     auto [container, cum_time_lbl] = make_treatment_container(state, true, true);
 
     auto remaining = make_shared<int>(remaining_seconds);
 
-    // Large countdown — thin/regular, dark (the frame carries the green cue)
+    // Large countdown — thin/regular, dark (the frame carries the green cue).
+    // MM:SS format, unified across all treatment screens (doubt D4).
     auto countdown_label = make_shared<Label>(
-        to_string(*remaining),
+        TreatmentState::format_time(*remaining),
         Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     countdown_label->font(Font(116, Font::Weight::normal));
     countdown_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
@@ -1099,9 +1118,12 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
     status->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(status);
 
-    // Same overall progress dots as the active screen — they keep advancing
-    // with cumulative time so the indicator never reverses during the alert.
-    auto seg_bar = add_segmented_progress(container, state);
+    // Same per-cycle progress dots as the active screen — this alert
+    // continues the SAME cycle, so the fill carries on toward full as the
+    // last seconds tick down (cycle_total_seconds was set by the active
+    // screen that started the cycle).
+    auto seg_bar = add_segmented_progress(
+        container, state, cycle_progress(state, *remaining));
 
     // Buttons — standard outlined (dark text on white bg)
     auto timer_ref = make_shared<shared_ptr<PeriodicTimer>>(nullptr);
@@ -1144,12 +1166,13 @@ static void show_treatment_nearly_done(shared_ptr<TreatmentState> state, int rem
         state->cumulative_seconds++;
 
         if (auto lb = w_countdown.lock())
-            lb->text(to_string(*remaining));
+            lb->text(TreatmentState::format_time(*remaining));
         if (auto ct = w_cum_time.lock())
             ct->text(TreatmentState::format_time(state->cumulative_seconds));
-        // Progress dots keep filling with cumulative time (no reversal)
+        // Per-cycle progress dots — heading to full as the cycle ends
         if (auto sb = w_seg_bar.lock())
-            ui::update_segmented_progress_fraction(sb, treatment_progress(state));
+            ui::update_segmented_progress_fraction(
+                sb, cycle_progress(state, *remaining));
 
         // Process-limit alerts (tone + LED) can still cross here
         check_and_fire_warnings(state);
@@ -1184,15 +1207,16 @@ static void show_treatment_zero(shared_ptr<TreatmentState> state)
 {
     auto [container, _cz] = make_treatment_container(state, true, /*green=*/true);
 
-    // Big "0" — Figma Group 42 (64pt regular, thin).
-    auto zero = make_shared<Label>("0",
+    // Big "00:00" — MM:SS format unified across all treatment screens
+    // (doubt D4; Figma Group 42 showed a bare "0").
+    auto zero = make_shared<Label>("00:00",
         Rect(0, CONTENT_Y, dt::SCREEN_W, CONTENT_H));
     zero->font(Font(116, Font::Weight::normal));
     zero->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(zero);
 
-    // Full green progress bar (treatment_progress == 1.0 at completion).
-    add_segmented_progress(container, state);
+    // Cycle just finished -> per-cycle bar shows FULL green.
+    add_segmented_progress(container, state, 1.0f);
 
     // Green circle check — Figma Group 175 35x35 @(196,176) -> 65x65 @(363,326).
     // Downloaded PNG, never drawn.
