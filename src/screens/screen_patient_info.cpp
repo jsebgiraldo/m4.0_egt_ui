@@ -297,7 +297,8 @@ static shared_ptr<Button> create_gradient_key(
 }
 
 // ── Icon button helpers ───────────────────────────────────────────────────────
-// Outlined button: off-white bg, 1 px gray border for separation from page bg
+// White button (Figma "bt EXIT" 64:372): pure #FFFFFF fill, NO border — the
+// SoftShadow drawn behind it provides the separation from the white page bg.
 static shared_ptr<ImageButton> make_icon_outlined_btn(
     const char* icon_name, const char* icon_svg,
     const string& text, const Rect& rect, function<void()> on_click)
@@ -309,10 +310,9 @@ static shared_ptr<ImageButton> make_icon_outlined_btn(
     // button past the Figma 33px(->61) height.
     btn->min_size_hint(Size(rect.width(), rect.height()));
     btn->font(Font(22, Font::Weight::bold));   // Figma 14pt bold, same as Male/Female labels
-    btn->color(Palette::ColorId::button_bg, Color(0xFA, 0xFA, 0xFA));
+    btn->color(Palette::ColorId::button_bg, dt::kWhite);
     btn->color(Palette::ColorId::button_text, dt::kTextPrimary);
-    btn->color(Palette::ColorId::border, dt::kGrayLight);
-    btn->border(1);
+    btn->border(0);
     btn->border_radius(dt::RADIUS_XS);
     if (on_click) btn->on_click([on_click](Event&) { on_click(); });
     return btn;
@@ -520,14 +520,11 @@ static shared_ptr<Widget> create_gender_step(
 
         auto card = make_shared<Frame>(Rect(x, card_y, card_w, card_h));
         card->fill_flags({Theme::FillFlag::blend});
+        // Figma 2009:1266: unselected card is pure #FFFFFF with NO border —
+        // the SoftShadow alone separates it from the white page background.
         card->color(Palette::ColorId::bg,
-            selected ? dt::kGreen : Color(0xFA, 0xFA, 0xFA));
-        if (selected) {
-            card->border(0);
-        } else {
-            card->color(Palette::ColorId::border, dt::kGrayLight);
-            card->border(1);
-        }
+            selected ? dt::kGreen : dt::kWhite);
+        card->border(0);
         card->border_radius(dt::RADIUS_XS);
         container->add(card);
 
