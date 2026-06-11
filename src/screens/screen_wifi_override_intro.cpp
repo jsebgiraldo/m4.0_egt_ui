@@ -3,6 +3,7 @@
 #include "../ui/design_tokens.h"
 #include "../ui/palette.h"
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -64,9 +65,43 @@ void rounded_path(Painter& p, float x, float y, float w, float h, float r)
     p.draw(Arc(PointF(x + r,     y + r),       r,  PI,     3 * PI / 2));
 }
 
+// ── Soft drop shadow with Gaussian-like falloff ─────────────────────────────
+// Same 8-layer stacked-frame approximation as screen_wifi_not_found.cpp
+// (commit 35ee2e9): alpha decays exponentially from the centre outward.
+// Layers are plain Frames added BEFORE the button so the button (and the
+// bottom row, added later) always paints and hit-tests on top of them.
+static void add_soft_shadow(Frame& parent, const Rect& centre_rect,
+                            int radius, int off_x, int off_y,
+                            int blur_radius, int alpha_peak)
+{
+    constexpr int LAYERS = 8;
+    const int cx = centre_rect.x() + off_x;
+    const int cy = centre_rect.y() + off_y;
+    const int cw = centre_rect.width();
+    const int ch = centre_rect.height();
+    for (int i = 0; i < LAYERS; i++) {
+        // t in [0,1]: 0 at the outermost (faintest) layer, 1 at the centre.
+        const float t = static_cast<float>(LAYERS - 1 - i)
+                      / static_cast<float>(LAYERS - 1);
+        const int grow = static_cast<int>(blur_radius * (1.0f - t));
+        const float env = std::exp(-(1.0f - t) * (1.0f - t) * 3.5f);
+        const int a = std::max(1,
+            static_cast<int>(alpha_peak * env / static_cast<float>(LAYERS)));
+        auto sh = make_shared<Frame>(
+            Rect(cx - grow, cy - grow, cw + 2 * grow, ch + 2 * grow));
+        sh->fill_flags({Theme::FillFlag::blend});
+        sh->color(Palette::ColorId::bg, Color(0, 0, 0, a));
+        sh->border(0);
+        sh->border_radius(radius + grow);
+        parent.add(sh);
+    }
+}
+
 // Cyan→blue gradient button with the "Enter Override password" label baked
 // in. Replicates Figma 10:55 — vertical gradient #30a3c4 → #305fc4, corner
-// radius 4 figma px (≈ 7 device), drop shadow offset(0,4) blur 4 alpha 0.20.
+// radius 4 figma px (≈ 7 device). The drop shadow (offset(0,4) blur 4 alpha
+// 0.20) is NOT painted here: an in-widget shadow gets clipped at the widget
+// box, so it lives in soft-shadow frames added behind this widget instead.
 // The text is painted by this widget so no child ImageLabel can swallow the
 // click (same pattern as HOME's StartButton).
 class OverridePasswordButton : public Widget {
@@ -93,13 +128,10 @@ public:
         const float h = static_cast<float>(b.height());
         const float r = 7.0f;
 
-        // Drop shadow — single flat layer at offset (0, 4), alpha ~0.20.
-        rounded_path(painter, x, y + 4, w, h, r);
-        painter.set(Color(0, 0, 0, 50));
-        painter.fill();
-
-        // Gradient body.
-        Color top = m_pressed ? dt::kStartTopPress : dt::kStartTop;
+        // Gradient body. Figma top stop is #30A3C4 (48,163,196); the shared
+        // dt::kStartTop token is (48,154,196), so use a screen-local stop
+        // here rather than editing the HOME-shared palette token.
+        Color top = m_pressed ? dt::kStartTopPress : Color(48, 163, 196);
         Color bot = m_pressed ? dt::kStartBotPress : dt::kStartBottom;
         Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
                      Point(static_cast<int>(x), static_cast<int>(y)),
@@ -153,7 +185,9 @@ shared_ptr<Widget> create_wifi_override_intro_screen(
     const int banner_h = 122;
     auto banner = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, banner_h));
     banner->fill_flags({Theme::FillFlag::blend});
-    banner->color(Palette::ColorId::bg, dt::kOrange);
+    // Figma Union band samples flat #FF9E1B; dt::kOrange (palette::kWarning,
+    // #FFA500) is shared app-wide, so override locally instead of editing it.
+    banner->color(Palette::ColorId::bg, Color(255, 158, 27));
     banner->border(0);
     container->add(banner);
 
@@ -165,25 +199,37 @@ shared_ptr<Widget> create_wifi_override_intro_screen(
     container->add(banner_icon);
 
     // Banner text — single line, centred vertically inside the banner.
+    // Figma text box: w=336 (622 device), centred at x=437 device.
     auto banner_text = make_shared<Label>(
         "Wi-Fi/Network Connection remains unavailable",
-        Rect(126, 0, dt::SCREEN_W - 252, banner_h), AlignFlag::center);
+        Rect(126, 0, 622, banner_h), AlignFlag::center);
     banner_text->font(Font("Gothic A1", 26, Font::Weight::normal));
     banner_text->color(Palette::ColorId::label_text, dt::kBlack);
     container->add(banner_text);
 
     // ── 2) Body text ───────────────────────────────────────────────────────
+    // Line breaks match the Figma render (3 lines, block at device y≈150-228).
+    // Centring this 3-line block in the same rect lands its top at y≈149.
     auto body = make_shared<Label>(
-        "a connection must be established, or an Override Password\n"
-        "must be entered, in order to operate device.",
+        "a connection must be established, or an Override\n"
+        "Password must be entered,\n"
+        "in order to operate device.",
         Rect(60, 138, dt::SCREEN_W - 120, 100), AlignFlag::center);
     body->font(Font("Gothic A1", 22, Font::Weight::normal));
     body->color(Palette::ColorId::label_text, dt::kBlack);
     container->add(body);
 
     // ── 3) Cyan→blue gradient "Enter Override password" button ─────────────
+    // Figma 10:55: 330x66 at (52,134) → device (96,248,611,122); drop shadow
+    // 0px 4px 4px rgba(0,0,0,0.2) → device offset (0,7), blur 7, peak 51.
+    // Shadow frames sit behind the button (and behind the later-added bottom
+    // row) so nothing clips it and the button hitbox stays exactly Figma-size.
+    const Rect override_btn_rect(96, 248, 611, 122);
+    add_soft_shadow(*container, override_btn_rect,
+                    /*radius=*/7, /*off_x=*/0, /*off_y=*/7,
+                    /*blur=*/7, /*alpha_peak=*/51);
     container->add(make_shared<OverridePasswordButton>(
-        Rect(96, 248, 611, 100), on_enter_override));
+        override_btn_rect, on_enter_override));
 
     // ── 4) Bottom button row (Back / Retry WiFi / Setting) ─────────────────
     // Same PNG assets + positions as screen_wifi_unavailable so the bottom

@@ -41,16 +41,27 @@ public:
         const float w = static_cast<float>(b.width());
         const float h = static_cast<float>(b.height());
 
-        // Colours sampled from the Figma export (node 4008:819):
-        //   edge rgb(212,212,212) -> pure white plateau over the centre
-        //   slot -> back to rgb(212,212,212). The plateau is what makes the
-        //   selected name blend with the gradient instead of fighting it.
-        const egt::Color edge {212, 212, 212};
-        const egt::Color white{255, 255, 255};
+        // Figma composites TWO stacked linear gradients (nodes 4008:838 and
+        // 4008:839): #D9D9D9 (217) at the edges with a darker dip (~208-211)
+        // just inside them, a pure-white plateau over the selected row, and
+        // transition bands ~10-14 levels darker than a plain linear ramp
+        // (sampled: y303~225, y320~218, y337~213). The extra stops below
+        // emulate that composite profile.
+        const egt::Color edge    {217, 217, 217};   // #D9D9D9
+        const egt::Color dip     {208, 208, 208};   // dip just inside edges
+        const egt::Color shoulder{211, 211, 211};
+        const egt::Color trans1  {225, 225, 225};   // 75% transition band
+        const egt::Color trans2  {213, 213, 213};
+        const egt::Color white   {255, 255, 255};
         egt::Pattern grad(egt::Pattern::StepArray{
             {0.0f,            edge},
+            {0.07f,           dip},
+            {0.13f,           shoulder},
             {m_plateau_top,   white},
             {m_plateau_bot,   white},
+            {0.72f,           trans1},
+            {0.83f,           trans2},
+            {0.93f,           dip},
             {1.0f,            edge}
         }, egt::Point(static_cast<int>(x), static_cast<int>(y)),
            egt::Point(static_cast<int>(x), static_cast<int>(y + h)));
@@ -93,8 +104,10 @@ shared_ptr<Widget> create_login_screen_v2(
     auto logo = ui::create_logo(4, 7, dt::LOGO_W, dt::LOGO_H);
     container->add(logo);
 
+    // Figma 4008:835: title centre x = 222.5 figma px -> 412 device px, and
+    // the text band sits at y 38-62 -> rect top 34 centres the 22 pt line.
     auto title = make_shared<Label>("Technician Log-in",
-        Rect(0, 28, dt::SCREEN_W, 30), AlignFlag::center);
+        Rect(24, 34, dt::SCREEN_W - 24, 30), AlignFlag::center);
     title->font(Font(22, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
@@ -112,7 +125,9 @@ shared_ptr<Widget> create_login_screen_v2(
     const int padding    = 5;
     const int box_w      = 329;
     const int box_h      = n_slots * slot_h + 2 * (chevron_h + padding);
-    const int box_x      = (dt::SCREEN_W - box_w) / 2;
+    // box_x from Figma: picker left 138 figma px * 1.852 = 256 device px (the
+    // Figma content column sits ~21 px right of plain screen-centring).
+    const int box_x      = 256;
     // box_y from Figma: picker's absolute device y = 82 (picker top frame-
     // local y=44 -> 82 device); previously was 66 which made the picker sit
     // too high and pushed the Guest button gap wider than the design.
@@ -142,18 +157,19 @@ shared_ptr<Widget> create_login_screen_v2(
 
     // Up / down arrows from Figma (Polygon 9 + Polygon 10 = nodes 4008:840
     // and 4008:841). Wide flat triangles, not the equilateral Unicode glyph.
-    // PNGs are 29x16 (scale=2 of figma 14.5x8), natural device size ~27x15.
+    // PNGs are 29x16; Figma renders them at 26x14 device px, so resize.
     auto load_arrow = [&](const std::string& png_path, int y) {
-        auto wrap = make_shared<Frame>(Rect(0, y, box_w, 16));
+        auto wrap = make_shared<Frame>(Rect(0, y, box_w, 14));
         wrap->fill_flags({});
         try {
             auto img = Image(("file:" + png_path).c_str());
+            img.resize(Size(26, 14));
             auto lbl = make_shared<ImageLabel>(img);
             lbl->autoresize(false);
             lbl->border(0); lbl->padding(0); lbl->margin(0);
             lbl->fill_flags({});
             lbl->image_align(AlignFlag::center);
-            lbl->box(Rect(0, 0, box_w, 16));
+            lbl->box(Rect(0, 0, box_w, 14));
             wrap->add(lbl);
         } catch (const std::exception& e) {
             printf("[LOGIN] arrow %s missing: %s\n", png_path.c_str(), e.what());
@@ -161,9 +177,11 @@ shared_ptr<Widget> create_login_screen_v2(
         }
         return wrap;
     };
-    picker_box->add(load_arrow(ui::asset_path("wheel-arrow-up"), 4));
+    // Figma: up arrow band y 89-102 (picker-local 7); down arrow y 364-377
+    // (picker-local 282 = box_h - 14 - 10).
+    picker_box->add(load_arrow(ui::asset_path("wheel-arrow-up"), 7));
     picker_box->add(load_arrow(ui::asset_path("wheel-arrow-down"),
-                               box_h - 16 - 4));
+                               box_h - 14 - 10));
 
     // The selected index is shared between the slider driver, the slot
     // redraw closure, and the slot-click handlers (so a tap can both
@@ -210,8 +228,10 @@ shared_ptr<Widget> create_login_screen_v2(
             }
             const bool is_sel = (k == center_idx);
             s.label->text(technicians[idx].name);
-            s.label->font(Font(
-                is_sel ? 24 : 19,
+            // Figma renders every row at the SAME size (12 figma px); only
+            // the weight differs (4008:837: selected Bold, rest Regular).
+            // 19 pt in the current family reproduces the Figma text width.
+            s.label->font(Font(19,
                 is_sel ? Font::Weight::bold : Font::Weight::normal));
             // Per-slot alpha so the top and bottom items dissolve into the
             // wheel gradient (matches Figma). Alphas chosen by row index, not
@@ -224,14 +244,17 @@ shared_ptr<Widget> create_login_screen_v2(
             //   k=5 (bottom edge): very faint
             int alpha;
             switch (k) {
-                case 0:  alpha =  60; break;
-                case 1:  alpha = 180; break;
+                case 0:  alpha = 100; break;
+                case 1:  alpha = 185; break;
                 case 2:  alpha = 255; break;
-                case 3:  alpha = 200; break;
-                case 4:  alpha = 130; break;
-                default: alpha =  60; break;   // k == 5
+                case 3:  alpha = 185; break;
+                case 4:  alpha = 140; break;
+                default: alpha =  85; break;   // k == 5
             }
-            const auto base = dt::kTextPrimary;
+            // Figma node 4008:837 paints the names BLACK; the washed-out
+            // look comes from the gradient overlays, which the per-row
+            // alpha fade emulates here.
+            const auto base = dt::kBlack;
             const Color c(base.red(), base.green(), base.blue(),
                           static_cast<uint8_t>(alpha));
             s.label->color(Palette::ColorId::label_text, c);
@@ -365,16 +388,14 @@ shared_ptr<Widget> create_login_screen_v2(
 
     // ── Guest button ─────────────────────────────────────────────────────
     // Same width and x-position as the picker box. With box_y = 82 the
-    // picker bottom lands at 388, and Figma places Guest at device y = 398
-    // - a 10 px gap below the picker (not 26; that was the artefact of
-    // the old box_y = 66).
-    const int guest_y = box_y + box_h + 10;
+    // picker bottom lands at 388; Figma places Guest 8 px below the picker.
+    const int guest_y = box_y + box_h + 8;
     auto guest = make_shared<Frame>(Rect(box_x, guest_y, box_w, 44));
     guest->fill_flags({Theme::FillFlag::blend});
     guest->color(Palette::ColorId::bg, dt::kGrayBg);
-    guest->border(1);
-    guest->color(Palette::ColorId::border, dt::kGrayLight);
-    guest->border_radius(6);
+    // Figma 4008:832: flat #f4f4f4, NO border, radius 4 figma px ~ 7 device.
+    guest->border(0);
+    guest->border_radius(7);
     container->add(guest);
 
     auto guest_lbl = make_shared<Label>("Guest",

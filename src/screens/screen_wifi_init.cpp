@@ -35,25 +35,34 @@ public:
         auto center = b.center();
         constexpr float twopi = 2.0f * static_cast<float>(M_PI);
 
-        // Faint full-circle track
+        // Track: opaque near-white sampled from the Figma gradient tail
+        // (250,252,247) so the track all but disappears against the white
+        // background and the gradient tail blends into it seamlessly.
+        // (Was translucent kGrayLight@80, which showed as a gray track.)
+        constexpr uint8_t tr = 250, tg = 252, tb = 247;
         painter.line_width(linew);
-        painter.set(Color(dt::kGrayLight, 80));
+        painter.set(Color(tr, tg, tb, 255));
         painter.draw(Arc(center, radius, 0.0f, twopi));
         painter.stroke();
 
-        // Gradient arc: ~300° total, drawn as many small segments
-        constexpr int segments = 120;
-        constexpr float arc_span = 5.2f; // ~300° in radians
+        // Gradient arc: stroke each segment with an OPAQUE color lerped
+        // from the track near-white to full green. Translucent segments
+        // double-composited at the `+ 0.02f` overlaps and produced visible
+        // barber-pole banding; opaque strokes make the overlaps invisible.
+        // Span ~350° per the Figma asset (tail fades to white at the head).
+        constexpr int segments = 90;
+        constexpr float arc_span = 6.1f; // ~350° in radians
         constexpr float seg_angle = arc_span / segments;
         constexpr uint8_t gr = 91, gg = 197, gb = 0;
-
+        auto lerp = [](uint8_t a, uint8_t b, float t) {
+            return static_cast<uint8_t>(static_cast<float>(a) +
+                (static_cast<float>(b) - static_cast<float>(a)) * t + 0.5f);
+        };
         painter.line_width(linew);
         for (int i = 0; i < segments; i++) {
             float t = static_cast<float>(i) / (segments - 1);
-            auto alpha = static_cast<uint8_t>(t * 255.0f);
             float seg_start = m_angle - arc_span + i * seg_angle;
-
-            painter.set(Color(gr, gg, gb, alpha));
+            painter.set(Color(lerp(tr, gr, t), lerp(tg, gg, t), lerp(tb, gb, t), 255));
             painter.draw(Arc(center, radius, seg_start, seg_start + seg_angle + 0.02f));
             painter.stroke();
         }
