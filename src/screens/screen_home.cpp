@@ -63,13 +63,21 @@ namespace {
 
 // ── Start button: rounded rectangle with diagonal cyan→blue gradient ──────
 // Matches Figma node 140:852 - the gradient runs top-left (light cyan) to
-// bottom-right (deeper blue), with a soft drop shadow approximated by a
-// slightly larger shadow Frame drawn behind. White bold "Start" label sits
-// dead-centre. Pressed state darkens both gradient stops.
+// bottom-right (deeper blue), with a soft drop shadow painted inside this
+// widget. The widget box is grown by SHADOW_PAD on every side so the shadow
+// has room to render; the old exact-size box clipped the offset shadow to a
+// gray triangle peeking past the body's rounded bottom-right corner. White
+// bold "Start" label sits dead-centre. Pressed darkens both gradient stops.
 class StartButton : public Widget {
 public:
+    // Room around the visible button for the soft shadow to fade out.
+    static constexpr int SHADOW_PAD = 14;
+
     StartButton(const Rect& rect, const string& label, function<void()> on_click)
-        : Widget(rect), m_label(label), m_on_click(std::move(on_click))
+        : Widget(Rect(rect.x() - SHADOW_PAD, rect.y() - SHADOW_PAD,
+                      rect.width() + 2 * SHADOW_PAD,
+                      rect.height() + 2 * SHADOW_PAD)),
+          m_label(label), m_on_click(std::move(on_click))
     {
         fill_flags({Theme::FillFlag::blend});
         border(0);
@@ -92,17 +100,33 @@ public:
     void draw(Painter& painter, const Rect&) override
     {
         auto b = content_area();
-        const float x = static_cast<float>(b.x());
-        const float y = static_cast<float>(b.y());
-        const float w = static_cast<float>(b.width());
-        const float h = static_cast<float>(b.height());
+        // Visible button rect = content area inset by the shadow padding.
+        const float x = static_cast<float>(b.x() + SHADOW_PAD);
+        const float y = static_cast<float>(b.y() + SHADOW_PAD);
+        const float w = static_cast<float>(b.width()  - 2 * SHADOW_PAD);
+        const float h = static_cast<float>(b.height() - 2 * SHADOW_PAD);
         const float r = 14.0f;  // corner radius
 
-        // Drop shadow - a faint dark rectangle offset 4 px down/right
-        const float shadow_off = 4.0f;
-        draw_rounded_path(painter, x + shadow_off, y + shadow_off, w, h, r);
-        painter.set(Color(0, 0, 0, 40));
-        painter.fill();
+        // Soft drop shadow: stacked rounded rects with exponential alpha
+        // falloff (same approximation as the wifi screens), offset (2,4).
+        // Painted fully inside the padded box, so no hard clipped edges.
+        constexpr int   kLayers = 6;
+        constexpr float kBlur   = 10.0f;
+        constexpr float kPeak   = 70.0f;
+        for (int i = 0; i < kLayers; i++) {
+            const float t    = static_cast<float>(kLayers - 1 - i)
+                             / static_cast<float>(kLayers - 1);
+            const float grow = kBlur * (1.0f - t);
+            const float env  = std::exp(-(1.0f - t) * (1.0f - t) * 3.5f);
+            const int   a    = std::max(1, static_cast<int>(
+                                   kPeak * env / static_cast<float>(kLayers)));
+            draw_rounded_path(painter,
+                              x + 2.0f - grow, y + 4.0f - grow,
+                              w + 2.0f * grow, h + 2.0f * grow,
+                              r + grow * 0.5f);
+            painter.set(Color(0, 0, 0, a));
+            painter.fill();
+        }
 
         // Gradient body - sampled from Figma node 81:1507 (864x523 export):
         // top edge rgb(48,154,196) -> bottom edge rgb(48,98,196). The R and B
