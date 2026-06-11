@@ -8,6 +8,7 @@
 #include <cmath>
 #include <fstream>
 #include <memory>
+#include <vector>
 #include <string>
 
 using namespace egt;
@@ -43,10 +44,16 @@ static const char* kGearSvg = R"svg(
 
 static Image load_svg_icon(const char* name, const char* svg_data, int size)
 {
+    // Keep every SvgImage alive in a static cache: on libegt 1.10 (target)
+    // the rasterized buffer is freed when a SvgImage local goes out of
+    // scope, leaving the sliced Image dangling (heap corruption on next
+    // alloc). Bounded by the small set of distinct icons.
+    static std::vector<std::shared_ptr<SvgImage>> s_cache;
     try {
         auto path = write_svg_tmp(name, svg_data);
-        SvgImage svg("file:" + path, SizeF(size, size));
-        return static_cast<Image>(svg);
+        auto svg = std::make_shared<SvgImage>("file:" + path, SizeF(size, size));
+        s_cache.push_back(svg);
+        return static_cast<Image>(*svg);
     } catch (...) {
         return {};
     }

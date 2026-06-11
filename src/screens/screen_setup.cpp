@@ -6,6 +6,7 @@
 #include <egt/svgimage.h>
 #include <fstream>
 #include <memory>
+#include <vector>
 #include <string>
 
 using namespace egt;
@@ -20,12 +21,17 @@ static const char* kGearSvg = R"svg(
   <path d="M19.44 12.99c.04-.33.07-.66.07-1s-.03-.67-.07-1l2.44-1.92-2.32-4-2.82 1.17c-.5-.37-1.04-.69-1.63-.94l-.37-3h-4.64l-.38 3c-.59.25-1.12.57-1.62.94l-2.82-1.17-2.32 4 2.44 1.92c-.04.33-.07.66-.07 1s.03.67.07 1l-2.44 1.92 2.32 4 2.82-1.17c.5.37 1.04.69 1.63.94l.38 3h4.64l.38-3c.59-.25 1.12-.57 1.62-.94l2.82 1.17 2.32-4-2.44-1.92zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" fill="#646469"/>
 </svg>)svg";
 
-static Image load_gear(int size) {
+// NOTE: the Settings affordance now uses the embedded gear PNG (see below),
+// not this SVG loader — kept only as a fallback. SvgImage is cached so the
+// sliced Image never dangles on libegt 1.10 (target).
+[[maybe_unused]] static Image load_gear(int size) {
+    static std::vector<std::shared_ptr<SvgImage>> s_cache;
     try {
         const string path = "/tmp/egt-icon-setup-gear.svg";
         ofstream f(path); f << kGearSvg; f.close();
-        SvgImage svg("file:" + path, SizeF(size, size));
-        return static_cast<Image>(svg);
+        auto svg = std::make_shared<SvgImage>("file:" + path, SizeF(size, size));
+        s_cache.push_back(svg);
+        return static_cast<Image>(*svg);
     } catch (...) { return {}; }
 }
 
