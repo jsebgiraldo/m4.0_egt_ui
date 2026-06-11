@@ -74,6 +74,12 @@ screenshot_egt.png
 # But: Figma-exported icons under assets/figma/images/ ARE tracked.
 !assets/figma/images/*.png
 
+# And: the report images shown in docs/10-reports/ui-improvement-report.md ARE
+# tracked (the composed per-screen comparison.png and the demo-vs-real side-by-sides).
+# The before/target/after working captures stay ignored.
+!docs/10-reports/**/comparison.png
+!docs/10-reports/demo-vs-real-mode/*.png
+
 # Figma parsing scripts (local dev tools, reference local paths)
 dump_demo.py
 dump_flow.py
