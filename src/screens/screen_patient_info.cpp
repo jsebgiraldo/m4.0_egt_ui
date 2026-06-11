@@ -979,10 +979,11 @@ static shared_ptr<Widget> create_zip_step(
         });
     container->add(btn_skip);
 
-    // Continue gated on the ZIP field being non-empty (task 5).
+    // Continue gated on a COMPLETE 5-digit ZIP (partial codes stay blocked;
+    // Skip remains the explicit opt-out that clears the field).
     container->add(make_shared<SoftShadow>(cont_r, dt::RADIUS_XS));
     auto btn_continue = make_continue_btn(
-        !info->zip_code.empty(), demo_mode, cont_r,
+        info->zip_code.length() == 5, demo_mode, cont_r,
         [=]() { go_summary(); });
     container->add(btn_continue);
 
