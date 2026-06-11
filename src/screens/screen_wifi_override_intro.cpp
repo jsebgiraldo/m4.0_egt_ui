@@ -232,14 +232,15 @@ shared_ptr<Widget> create_wifi_override_intro_screen(
         override_btn_rect, on_enter_override));
 
     // ── 4) Bottom button row (Back / Retry WiFi / Setting) ─────────────────
-    // Same PNG assets + positions as screen_wifi_unavailable so the bottom
-    // chrome stays consistent across the WiFi failure subtree.
+    // Same PNG assets AND y-position (393) as screen_wifi_unavailable so the
+    // row sits at the identical height across the WiFi failure subtree — no
+    // vertical jump when navigating between the two screens.
     container->add(make_image_button(
-        ui::asset_path("wifi-back-btn"),    Rect(7,   374, 241, 91), on_back));
+        ui::asset_path("wifi-back-btn"),    Rect(7,   393, 241, 91), on_back));
     container->add(make_image_button(
-        ui::asset_path("wifi-retry-btn"),   Rect(293, 374, 241, 91), on_retry_wifi));
+        ui::asset_path("wifi-retry-btn"),   Rect(293, 393, 241, 91), on_retry_wifi));
     container->add(make_image_button(
-        ui::asset_path("wifi-setting-btn"), Rect(579, 374, 210, 91), on_settings));
+        ui::asset_path("wifi-setting-btn"), Rect(579, 393, 210, 91), on_settings));
 
     return container;
 }
