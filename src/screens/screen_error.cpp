@@ -2,6 +2,8 @@
 #include "../ui/components.h"
 #include "../ui/design_tokens.h"
 #include <egt/svgimage.h>
+#include <cmath>
+#include <utility>
 
 using namespace egt;
 using namespace std;
@@ -29,6 +31,100 @@ Image load_svg_icon(const string& path, int size)
         return static_cast<Image>(*svg);
     } catch (...) { return {}; }
 }
+
+// ── Vertical-gradient rounded card ───────────────────────────────────────
+// Figma Rectangle 56: linear gradient #F4F4F4 (top) → #FFFFFF (bottom),
+// radius 16. Plain EGT Frames only fill solid colours, so the card paints
+// itself with the same custom-draw idiom as screen_wifi_not_found.cpp /
+// screen_settings.cpp (rounded-rect path → painter.set(grad) → fill, which
+// compiles on both libegt 1.10 and 1.12).
+class GradientCard : public Widget {
+public:
+    GradientCard(const Rect& r, const Color& top, const Color& bot,
+                 float radius)
+        : Widget(r), m_top(top), m_bot(bot), m_radius(radius) {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& painter, const Rect&) override {
+        auto b = content_area();
+        const float x = b.x(), y = b.y(), w = b.width(), h = b.height();
+        const float r = m_radius;
+        const auto PI = static_cast<float>(M_PI);
+        painter.draw(PointF(x + r, y));
+        painter.line(PointF(x + w - r, y));
+        painter.draw(Arc(PointF(x + w - r, y + r),     r, -PI / 2, 0.0f));
+        painter.line(PointF(x + w, y + h - r));
+        painter.draw(Arc(PointF(x + w - r, y + h - r), r, 0.0f,    PI / 2));
+        painter.line(PointF(x + r, y + h));
+        painter.draw(Arc(PointF(x + r, y + h - r),     r, PI / 2,  PI));
+        painter.line(PointF(x, y + r));
+        painter.draw(Arc(PointF(x + r, y + r),         r, PI,      3 * PI / 2));
+        Pattern grad(Pattern::StepArray{{0.0f, m_top}, {1.0f, m_bot}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
+        painter.set(grad);
+        painter.fill();
+    }
+private:
+    Color m_top, m_bot;
+    float m_radius;
+};
+
+// ── Body paragraph ─────────────────────────────────────────────────────────
+// Left-aligned bold gray lines on a 37 device-px pitch (Figma 20px leading
+// × 1.852). The caller's hard '\n' breaks are kept verbatim; a line that
+// would overflow the widget box (the interim fallback font is wider than
+// Gothic A1, which used to clip lines mid-glyph at the card's right edge)
+// is greedily word-wrapped onto the next line instead. Same draw-time
+// painter.text_size idiom as screen_wifi_unavailable.cpp PopupBody.
+class BodyText : public Widget {
+public:
+    BodyText(const Rect& rect, string text)
+        : Widget(rect), m_text(std::move(text)) {
+        fill_flags({});
+        border(0);
+    }
+    void draw(Painter& painter, const Rect&) override {
+        const auto b = content_area();
+        const float x0 = static_cast<float>(b.x());
+        const float max_w = static_cast<float>(b.width());
+        float y = static_cast<float>(b.y());
+        const float lh = 37.0f;                     // Figma 20px * SCALE
+        painter.set(Font(26, Font::Weight::bold));  // Figma 14pt * SCALE
+        painter.set(dt::kTextPrimary);              // Figma #646569
+
+        size_t start = 0;
+        while (start <= m_text.size()) {
+            const size_t nl = m_text.find('\n', start);
+            string rest = m_text.substr(
+                start, nl == string::npos ? string::npos : nl - start);
+            for (;;) {
+                // Trim words off the end until the segment fits the box.
+                string fit = rest;
+                size_t cut = string::npos;
+                while (!fit.empty() && static_cast<float>(
+                           painter.text_size(fit).width()) > max_w) {
+                    const size_t sp = fit.find_last_of(' ');
+                    if (sp == string::npos || sp == 0) break;
+                    fit.erase(sp);
+                    cut = sp;
+                }
+                const auto ts = painter.text_size(fit);
+                painter.draw(PointF(
+                    x0, y + (lh - static_cast<float>(ts.height())) / 2.0f));
+                painter.draw(fit);
+                y += lh;
+                if (cut == string::npos || cut + 1 >= rest.size()) break;
+                rest = rest.substr(cut + 1);
+            }
+            if (nl == string::npos) break;
+            start = nl + 1;
+        }
+    }
+private:
+    string m_text;
+};
 
 // White action button (Figma "bt Pause/End": white card, gray bold label,
 // soft shadow 0 2 2 rgba(0,0,0,0.2)). `sub` adds a smaller second line.
@@ -111,12 +207,16 @@ shared_ptr<Widget> create_error_screen(
         container->add(sh);
     }
 
-    // ── Card (Figma Rectangle 56: keyboard-gray gradient -> near-white solid) ─
+    // ── Card (Figma Rectangle 56: vertical gradient #F4F4F4 → #FFFFFF, r=16).
+    //    The gradient widget paints the rounded background; a transparent
+    //    Frame stacked on the same rect hosts the children.
+    container->add(make_shared<GradientCard>(
+        Rect(CARD_X, CARD_Y, CARD_W, CARD_H),
+        Color(0xF4, 0xF4, 0xF4), Color(0xFF, 0xFF, 0xFF),
+        static_cast<float>(CARD_R)));
     auto card = make_shared<Frame>(Rect(CARD_X, CARD_Y, CARD_W, CARD_H));
-    card->fill_flags({Theme::FillFlag::blend});
-    card->color(Palette::ColorId::bg, Color(0xF6, 0xF6, 0xF6));
+    card->fill_flags({});
     card->border(0);
-    card->border_radius(CARD_R);
     container->add(card);
 
     // ── Blue header with rounded top, square bottom (Figma "Union") ──────────
@@ -154,28 +254,15 @@ shared_ptr<Widget> create_error_screen(
     lbl_title->color(Palette::ColorId::label_text, dt::kWhite);
     card->add(lbl_title);
 
-    // ── Body message (gray, bold), left-aligned below the header. One label
-    //    per line: a single multi-line Label centres each line in EGT, but the
-    //    Figma copy is left-aligned. Line height 20px * SCALE ≈ 37.
-    {
-        const int line_h = 37;
-        int y = HEADER_H + 30;
-        size_t start = 0;
-        while (start <= message.size()) {
-            const size_t nl = message.find('\n', start);
-            const string line = message.substr(start,
-                nl == string::npos ? string::npos : nl - start);
-            auto lbl = make_shared<Label>(line,
-                Rect(72, y, CARD_W - 110, line_h),
-                AlignFlag::left | AlignFlag::center_vertical);
-            lbl->font(Font(26, Font::Weight::bold));   // Figma 14pt * SCALE
-            lbl->color(Palette::ColorId::label_text, dt::kTextPrimary);
-            card->add(lbl);
-            y += line_h;
-            if (nl == string::npos) break;
-            start = nl + 1;
-        }
-    }
+    // ── Body message (gray, bold), left-aligned below the header.
+    //    Figma text box: x=60(frame)→72 card-px, top=131→204, leading 20→37.
+    //    The box is widened to the card edge minus 18px (Figma's own box is
+    //    602 wide but its text ink never reaches the edge) so the wider
+    //    fallback font wraps as rarely as possible; BodyText word-wraps any
+    //    line that still overflows instead of clipping at the card edge.
+    card->add(make_shared<BodyText>(
+        Rect(72, HEADER_H + 30, CARD_W - 72 - 18, CARD_H - HEADER_H - 30),
+        message));
 
     // ── Action buttons along the bottom of the card ──────────────────────────
     // Figma: Pause @x=64, middle @x=167, End @x=265 (card-relative after the

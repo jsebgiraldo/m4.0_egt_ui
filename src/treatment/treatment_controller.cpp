@@ -307,11 +307,12 @@ static TreatmentScreen make_treatment_container(
     // (it used to hug the very top). Layout is a centred group:
     //   [ right-aligned 2-line label ] gap [ big time value ]
     if (show_cumulative) {
-        const int desc_w = 210, time_w = 120, gap = 14;
-        const int group_w = desc_w + gap + time_w;
-        const int group_x = (dt::SCREEN_W - group_w) / 2;  // centred
-        const int hdr_y   = 28;                             // lower than before
-        const int sep_y   = 86;
+        // Figma header geometry (81:1036 / 154:931): label right edge x=229
+        // -> 424 device, header top y=23 -> 42, divider y=56 -> 103.
+        const int desc_w = 210, time_w = 120, gap = 16;
+        const int group_x = 214;   // 424 - desc_w
+        const int hdr_y   = 42;
+        const int sep_y   = 103;
 
         // Two-line description, right-aligned so it reads tight against the
         // time value.
@@ -334,12 +335,13 @@ static TreatmentScreen make_treatment_container(
             TreatmentState::format_time(state->cumulative_seconds),
             Rect(group_x + desc_w + gap, hdr_y, time_w, 46),
             AlignFlag::left | AlignFlag::center_vertical);
-        cum_time_lbl->font(Font(40, Font::Weight::normal));  // Figma 24pt * SCALE
+        cum_time_lbl->font(Font(44, Font::Weight::normal));  // Figma 24px * 1.852
         cum_time_lbl->color(Palette::ColorId::label_text, text_color);
         container->add(cum_time_lbl);
 
-        // Separator line under the group
-        auto sep = make_shared<Frame>(Rect(CUM_LEFT_X, sep_y, CUM_WIDTH, 1));
+        // Separator line under the group (Figma Line 14: x=113 -> 209,
+        // width 202 -> 374)
+        auto sep = make_shared<Frame>(Rect(209, sep_y, 374, 1));
         sep->fill_flags({Theme::FillFlag::blend});
         sep->color(Palette::ColorId::bg, sep_color);
         sep->border(0);
@@ -363,7 +365,9 @@ struct ActionBtnStyle {
     int   border_width;
 };
 
-static const ActionBtnStyle BTN_OUTLINED        = { dt::kWhite,      dt::kTextPrimary, dt::kGrayLight, 2 };
+// Figma "bt new" (69:885) is a borderless white card — only the drop shadow
+// separates it from the background (no #D9D9D9 outline).
+static const ActionBtnStyle BTN_OUTLINED        = { dt::kWhite,      dt::kTextPrimary, dt::kWhite,     0 };
 static const ActionBtnStyle BTN_GREEN_FILLED    = { dt::kGreen,      dt::kWhite,       dt::kGreen,     0 };
 static const ActionBtnStyle BTN_CYAN_FILLED     = { dt::kAccentCyan, dt::kWhite,       dt::kAccentCyan,0 };
 static const ActionBtnStyle BTN_WHITE_GREEN_FG  = { dt::kWhite,      dt::kGreen,       dt::kWhite,     0 };
@@ -385,11 +389,13 @@ static shared_ptr<Frame> make_action_button(
              rect.width() + 2 * PAD, rect.height() + 2 * PAD));
     wrap->fill_flags({});  // transparent
 
-    for (int i = 2; i >= 0; --i) {
+    // Figma shadow is tight: 0 2px 1px rgba(0,0,0,0.2) -> device ~0 4px 2px.
+    // Two thin light layers instead of the old 3-layer ~10%/layer stack.
+    for (int i = 1; i >= 0; --i) {
         auto sh = make_shared<Frame>(
-            Rect(PAD - i, PAD + 2 + i, rect.width() + 2 * i, rect.height() + 2 * i));
+            Rect(PAD - i, PAD + 3 + i, rect.width() + 2 * i, rect.height() + 2 * i));
         sh->fill_flags({Theme::FillFlag::blend});
-        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 26));  // ~10% black / layer
+        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 18));  // ~7% black / layer
         sh->border_radius(dt::RADIUS_MD + i);
         sh->border(0);
         wrap->add(sh);
@@ -451,6 +457,11 @@ static shared_ptr<Frame> add_segmented_progress(
     const int seg_bar_w = 373;   // Figma 202px * SCALE (see create_segmented_progress)
     auto seg_bar = ui::create_segmented_progress(
         (dt::SCREEN_W - seg_bar_w) / 2, y, 0);
+    // Figma 81:1041..1070: each 5px dot has rounded-[1px] corners -> device ~2.
+    // The shared component draws square dots; round them locally here.
+    for (auto& child : seg_bar->children())
+        if (auto* sq = dynamic_cast<Frame*>(child.get()))
+            sq->border_radius(2);
     ui::update_segmented_progress_fraction(seg_bar, treatment_progress(state));
     container->add(seg_bar);
     return seg_bar;
@@ -694,13 +705,15 @@ static void show_ready(shared_ptr<TreatmentState> state)
     // Figma 168:812: 100% in GRAY (like the warming %), "Ready for / Treatment"
     // tucked under the number, full green bar, and a green-gradient Begin
     // button (NOT a flat fill). Dual ratio: x*1.852, y*1.836.
-    const int W_NUM_Y      = 92;    // number top ~ Figma y60
+    const int W_NUM_Y      = 136;   // number visible top ~130 (Figma y71 ink)
     const int W_NUM_H      = 150;
-    const int W_STATUS1_Y  = 226;   // "Ready for"  (Figma y126 -> 231)
-    const int W_STATUS2_Y  = 260;   // "Treatment"
+    const int W_STATUS1_Y  = 232;   // "Ready for"  (Figma ink y129 -> 237)
+    const int W_STATUS2_Y  = 268;   // "Treatment"  (Figma ink y149 -> 274)
     const int W_BAR_Y      = 330;   // Figma y180 * 1.836
 
-    auto [container, _cum_lbl] = make_treatment_container(state, false);
+    // Figma 168:810 includes the cumulative-time header (00:49) + divider
+    // (nodes 155:974..977), so the ready screen shows it too.
+    auto [container, _cum_lbl] = make_treatment_container(state, true);
 
     // ── Large "100%" — gray, matching the warming % (Figma 154:929 #646569) ─
     auto pct_display = make_shared<PercentDisplay>(
@@ -731,13 +744,14 @@ static void show_ready(shared_ptr<TreatmentState> state)
     //    gradient #5BC500 -> #408A00, "Begin" large + "Treatment" small, white
     //    bold. Demo flow keeps a flat cyan fill. device rect (285,354,230,99).
     const Rect begin_r(285, 354, 230, 99);
-    // Soft shadow (Figma 0 2 2 rgba(0,0,0,0.2)): 3 stacked translucent rects.
-    for (int i = 3; i >= 1; --i) {
-        auto sh = make_shared<Frame>(Rect(begin_r.x() - i, begin_r.y() + 2 + i,
+    // Tight shadow (Figma 0 2px 1px rgba(0,0,0,0.2) -> device ~0 4px 2px):
+    // two thin light layers, matching make_action_button.
+    for (int i = 1; i >= 0; --i) {
+        auto sh = make_shared<Frame>(Rect(begin_r.x() - i, begin_r.y() + 3 + i,
                                           begin_r.width() + 2 * i,
                                           begin_r.height() + 2 * i));
         sh->fill_flags({Theme::FillFlag::blend});
-        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 30));
+        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 18));
         sh->border(0);
         sh->border_radius(dt::RADIUS_XS + i);
         container->add(sh);
@@ -787,9 +801,10 @@ static void show_position_tip(shared_ptr<TreatmentState> state)
 {
     bool is_reposition = state->cycles_completed > 0;
 
-    // Figma 100:772 (initial position) has no cumulative-time header; the
-    // start-of-next-cycle reposition screen (Figma 67:733) DOES show it.
-    auto [container, _cum_lbl2] = make_treatment_container(state, is_reposition);
+    // Figma 143:859 (initial position, fetched 2026-06-10) shows the
+    // cumulative-time header (00:00, node 154:931) just like the reposition
+    // screen (67:733), so the header is always on here.
+    auto [container, _cum_lbl2] = make_treatment_container(state, true);
 
     string title = is_reposition
         ? "Reposition the Applicator Tip"
@@ -1363,11 +1378,13 @@ static shared_ptr<Frame> make_back_home_button(function<void()> on_click)
     auto wrap = make_shared<Frame>(
         Rect(home_x - PAD, BTN_Y - PAD, home_w + 2 * PAD, home_h + 2 * PAD));
     wrap->fill_flags({});
-    for (int i = 2; i >= 0; --i) {
+    // Tight Figma shadow (0 2px 1px rgba(0,0,0,0.2) -> device ~0 4px 2px),
+    // same two-layer treatment as make_action_button.
+    for (int i = 1; i >= 0; --i) {
         auto sh = make_shared<Frame>(
-            Rect(PAD - i, PAD + 2 + i, home_w + 2 * i, home_h + 2 * i));
+            Rect(PAD - i, PAD + 3 + i, home_w + 2 * i, home_h + 2 * i));
         sh->fill_flags({Theme::FillFlag::blend});
-        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 26));
+        sh->color(Palette::ColorId::bg, Color(0, 0, 0, 18));
         sh->border_radius(dt::RADIUS_MD + i);
         sh->border(0);
         wrap->add(sh);
