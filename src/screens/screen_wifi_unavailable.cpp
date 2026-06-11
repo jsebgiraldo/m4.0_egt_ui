@@ -81,6 +81,67 @@ private:
     function<void()> m_on_click;
 };
 
+// Popup body paragraph (Figma 2073:1850) — one LEFT-aligned flowing block
+// with an inline green-bold "N calendar day(s)" span; the parenthetical
+// paragraph continues immediately (mb-0, no blank gap) in the same white.
+// EGT Labels have no rich text, so the block is custom-drawn with spans
+// measured via painter.text_size at draw time (same idiom as
+// screen_wifi_not_found.cpp). Line pitch 37 device px = Figma 20 px leading.
+class PopupBody : public Widget {
+public:
+    PopupBody(const Rect& rect, int days) : Widget(rect), m_days(days) {
+        fill_flags({});
+        border(0);
+    }
+    void draw(Painter& painter, const Rect&) override {
+        const auto b = content_area();
+        const float x0 = static_cast<float>(b.x());
+        float y = static_cast<float>(b.y());
+        const float lh = 37.0f;  // Figma 20 px leading x 1.852
+
+        const Font body_font(22);
+        const Font days_font(22, Font::Weight::bold);
+
+        auto span = [&](const std::string& s, const Font& f, const Color& c,
+                        float x, float yy) -> float {
+            painter.set(f);
+            painter.set(c);
+            const auto ts = painter.text_size(s);
+            painter.draw(PointF(x, yy + (lh - ts.height()) / 2.0f));
+            painter.draw(s);
+            return x + static_cast<float>(ts.width());
+        };
+
+        // Line 1 — white lead-in + inline green-bold day count. Only the
+        // "N calendar day(s)" span is green; "from today," stays white.
+        // text_size uses cairo ink extents (no trailing-space advance), so
+        // the gap between the two spans is measured explicitly.
+        painter.set(body_font);
+        const float space_w = static_cast<float>(
+            painter.text_size("o o").width() - painter.text_size("oo").width());
+        float x = span("Please note that on", body_font, dt::kWhite, x0, y);
+        span(to_string(m_days) + " calendar day(s)", days_font, dt::kGreen,
+             x + space_w, y);
+        y += lh;
+
+        static const char* const kLines[] = {
+            "from today, a Wi-Fi/Network Connection",
+            "must be established, or an Override",
+            "Password must be entered for device to",
+            "continue to operate.",
+            "(An Override Password is provided by",
+            "Larada Sciences, please contact your",
+            "Clinic Success contact for more details).",
+        };
+        for (const char* line : kLines) {
+            span(line, body_font, dt::kWhite, x0, y);
+            y += lh;
+        }
+    }
+private:
+    int m_days;
+};
+
 } // namespace
 
 // ── WIFI_UNAVAILABLE screen (Figma node 2079:2300, "Group 308" - M4-19) ─────
@@ -103,7 +164,8 @@ private:
 //   4. Button icons and text match Figma - all three bottom buttons are
 //      now PNG exports of the Figma button COMPONENTs.
 //   5. Text centring and colour - banner text centred, countdown text in
-//      kGreen, body in kTextPrimary.
+//      kGreen, body black (Figma 2073:1810 is text-black; supersedes the
+//      ticket's original kTextPrimary wording per the parity pass).
 shared_ptr<Widget> create_wifi_unavailable_screen(
     function<void()> on_continue,
     function<void()> on_back,
@@ -122,7 +184,10 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     const int banner_h = 122;
     auto banner = make_shared<Frame>(Rect(0, 0, dt::SCREEN_W, banner_h));
     banner->fill_flags({Theme::FillFlag::blend});
-    banner->color(Palette::ColorId::bg, dt::kOrange);
+    // Figma Union band samples flat #FF9E1B; dt::kOrange (palette::kWarning,
+    // #FFA500) is shared app-wide, so override locally instead of editing it
+    // (same as screen_wifi_override_intro.cpp). Matches the icon PNG art.
+    banner->color(Palette::ColorId::bg, Color(255, 158, 27));
     banner->border(0);
     container->add(banner);
 
@@ -152,7 +217,7 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     //   - "additional calendar day(s)" (2073:1812): fontSize 16 Bold green @
     //     (50,83) -> (93,154), size 205x20 -> 380x37 device.
     //   - underline LINE (2073:1814): 36x0 @ (0,110) -> (0,204), 67 device px
-    //     wide, drawn as a 2 px Frame at y=204 just below the "6".
+    //     wide, drawn as a 4 px Frame at (178,199) just below the "6".
     //
     // Group 3 is itself 255 figma px wide at frame-local x=96 -> device 472.
     // Centring the row horizontally: (800 - 472) / 2 = 164 left margin, so
@@ -160,7 +225,6 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     // centred on the screen rather than left-aligned to the figma anchor.
     const int countdown_x  = 195;
     const int countdown_y  = 142;
-    const int countdown_w  = 415;  // covers "6" + label + ample air
 
     auto count_num = make_shared<Label>(to_string(days),
         Rect(countdown_x, countdown_y, 45, 60), AlignFlag::center);
@@ -168,16 +232,18 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
     count_num->color(Palette::ColorId::label_text, dt::kGreen);
     container->add(count_num);
 
-    // Underline strip just under the "6"
+    // Underline strip just under the "6" — Figma Line 2073:1814: device
+    // x 178..245 (w 67), ~4 px stroke, y 199 (starts ~17 px left of glyph).
     auto count_line = make_shared<Frame>(
-        Rect(countdown_x - 2, countdown_y + 56, 49, 3));
+        Rect(178, 199, 67, 4));
     count_line->fill_flags({Theme::FillFlag::blend});
     count_line->color(Palette::ColorId::bg, dt::kGreen);
     count_line->border(0);
     container->add(count_line);
 
+    // Figma 2073:1812 box: device left edge x=270, w 380 (205x20 figma px).
     auto count_label = make_shared<Label>("additional calendar day(s)",
-        Rect(countdown_x + 50, countdown_y + 6, countdown_w - 50, 44),
+        Rect(270, countdown_y + 6, 380, 44),
         AlignFlag::left | AlignFlag::center_vertical);
     count_label->font(Font("Gothic A1", 30, Font::Weight::bold));
     count_label->color(Palette::ColorId::label_text, dt::kGreen);
@@ -190,7 +256,9 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
         "& transmit once Connection is established.",
         Rect(0, 215, dt::SCREEN_W, 60), AlignFlag::center);
     body->font(Font("Gothic A1", 22, Font::Weight::normal));
-    body->color(Palette::ColorId::label_text, dt::kTextPrimary);
+    // Figma 2073:1810 is text-black (ticket M4-19 said kTextPrimary; the
+    // Figma node wins per the parity pass).
+    body->color(Palette::ColorId::label_text, dt::kBlack);
     container->add(body);
 
     // ── 4) Continue button (Figma 2073:1807 "Group 4") ─────────────────────
@@ -268,42 +336,12 @@ shared_ptr<Widget> create_wifi_unavailable_screen(
         Rect(popup_w - 64, 14, 44, 44), dt::kWhite,
         [popup]() { popup->hide(); }));
 
-    // Body — Figma 2073:1850. Single text block with an inline green span on
-    // "N calendar day(s)"; without rich text we render the green phrase on
-    // its own line. Layout tuned to match the larger popup (740×413).
-    {
-        const int M  = 94;
-        const int tw = popup_w - 2 * M;
-        const int y0 = 70;
-
-        auto l1 = make_shared<Label>("Please note that on",
-            Rect(M, y0, tw, 38), AlignFlag::center);
-        l1->font(Font(22)); l1->color(Palette::ColorId::label_text, dt::kWhite);
-        popup->add(l1);
-
-        auto l2 = make_shared<Label>(
-            to_string(days) + " calendar day(s) from today,",
-            Rect(M, y0 + 44, tw, 38), AlignFlag::center);
-        l2->font(Font(22, Font::Weight::bold));
-        l2->color(Palette::ColorId::label_text, dt::kGreen);
-        popup->add(l2);
-
-        auto l3 = make_shared<Label>(
-            "a Wi-Fi/Network Connection must be established,\n"
-            "or an Override Password must be entered for the\n"
-            "device to continue to operate.",
-            Rect(M, y0 + 90, tw, 110), AlignFlag::center);
-        l3->font(Font(20)); l3->color(Palette::ColorId::label_text, dt::kWhite);
-        popup->add(l3);
-
-        auto l4 = make_shared<Label>(
-            "(An Override Password is provided by Larada Sciences,\n"
-            "please contact your Clinic Success contact for more details).",
-            Rect(M, y0 + 215, tw, 68), AlignFlag::center);
-        l4->font(Font(17));
-        l4->color(Palette::ColorId::label_text, palette::kGray200);
-        popup->add(l4);
-    }
+    // Body — Figma 2073:1850: a single LEFT-aligned flowing block at
+    // popup-rel (51,34) figma -> (94,63) device, 310 figma -> 574 device
+    // wide, 20 px leading -> 37 device line pitch, both paragraphs flowing
+    // continuously. Custom-drawn (PopupBody) so the "N calendar day(s)"
+    // span can be green-bold inline while the rest stays white.
+    popup->add(make_shared<PopupBody>(Rect(94, 63, 574, 300), days));
 
     if (!initially_show_popup) popup->hide();
     container->add(popup);

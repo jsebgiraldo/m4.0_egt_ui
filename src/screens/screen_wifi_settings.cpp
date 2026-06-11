@@ -2,6 +2,7 @@
 #include <egt/widget.h>
 #include <egt/view.h>
 #include <egt/keycode.h>
+#include <egt/svgimage.h>
 
 #include "screen_wifi_settings.h"
 #include "screen_password_prompt.h"
@@ -17,6 +18,11 @@
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <cstdio>
+#include <fstream>
+#include <memory>
+#include <string>
+#include <tuple>
 
 using namespace egt;
 using namespace egt_wifi;
@@ -151,11 +157,88 @@ private:
     float m_angle{0.0f};
 };
 
-// ── Skip WiFi button (now: wifi-offline glyph) ────────────────────────────
-// Visually mirrors the Back button at the bottom-left: same 46-px gray pill
-// circle, glyph drawn with the primary text colour. Glyph = three concentric
-// wifi arcs with a diagonal slash, matching Figma node 151:886's bottom-right
-// "offline / override" affordance.
+// ── Gradient icon disc (#d9d9d9 → #ffffff vertical) ───────────────────────
+// Matches Figma's "Ellipse 4" icon backplates (imgEllipse4 / imgGroup126) —
+// same disc family used on wifi-not-found. Replaces the previous flat
+// kGray200 circles behind the gear and wifi-off bottom buttons.
+class GradientDisc : public Widget {
+public:
+    explicit GradientDisc(const Rect& r) : Widget(r)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+    }
+    void draw(Painter& painter, const Rect&) override
+    {
+        auto b = content_area();
+        const float sz = static_cast<float>(min(b.width(), b.height()));
+        const float cx = b.x() + b.width()  / 2.0f;
+        const float cy = b.y() + b.height() / 2.0f;
+        painter.draw(Arc(PointF(cx, cy), sz * 0.50f - 1.0f,
+                         0.0f, 2.0f * static_cast<float>(M_PI)));
+        Pattern grad(Pattern::StepArray{{0.0f, Color(0xd9, 0xd9, 0xd9)},
+                                        {1.0f, dt::kWhite}},
+                     Point(b.x(), b.y()),
+                     Point(b.x(), b.y() + b.height()));
+        painter.set(grad);
+        painter.fill();
+    }
+};
+
+// Figma wifi-off glyph (node 52:2785 "elements", viewBox 27.6269 × 25.3656).
+// Verbatim path data from Figma's SVG export — 5 asymmetric stroked arcs
+// (fan opens toward the top-right), the small near-pivot ellipse and the
+// "\" diagonal slash. "%C" tokens are stroke-colour placeholders. Same art
+// as screen_wifi_not_found.cpp.
+static const char* kWifiOffGlyphFigmaSvg = R"svg(<svg viewBox="0 0 27.6269 25.3656" xmlns="http://www.w3.org/2000/svg" fill="none">
+<path d="M9.32881 15.6035C10.7657 14.3119 12.4864 13.7191 14.4542 13.8759" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M22.1422 12.0987C20.2296 10.5559 18.0224 9.49848 15.7355 9.17814" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M5.48467 12.0985C6.88517 11.0344 8.40357 10.2445 9.96936 9.76196" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M26.6268 8.59373C21.5934 4.71837 16.0381 3.25341 10.6101 4.19888" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1.00005 8.59387C2.56853 7.38625 4.2034 6.25731 5.48474 5.67317" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<ellipse cx="13.8134" cy="19.6925" rx="1.92201" ry="1.75242" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1.00011 1.00001L26.6269 24.3656" stroke="%C" stroke-width="2" stroke-linecap="round"/>
+</svg>)svg";
+
+// Cache wifi-off SvgImage instances by (RGB, size). Keeps the SvgImage
+// alive in a function-static cache so the sliced Image's rasterized buffer
+// stays valid on EGT 1.10 (same hazard as load_svg_icon elsewhere).
+static Image get_wifi_off_image(const Color& stroke, int size_px)
+{
+    using Key = std::tuple<uint8_t, uint8_t, uint8_t, int>;
+    static std::map<Key, std::shared_ptr<SvgImage>> s_cache;
+    Key k{stroke.red(), stroke.green(), stroke.blue(), size_px};
+    auto it = s_cache.find(k);
+    if (it != s_cache.end()) return static_cast<Image>(*it->second);
+
+    char hex[8];
+    snprintf(hex, sizeof(hex), "#%02x%02x%02x",
+             stroke.red(), stroke.green(), stroke.blue());
+    string svg = kWifiOffGlyphFigmaSvg;
+    string::size_type pos = 0;
+    while ((pos = svg.find("%C", pos)) != string::npos)
+        svg.replace(pos, 2, hex);
+
+    char fname[80];
+    snprintf(fname, sizeof(fname),
+             "/tmp/egt-icon-wifioff-ws-%02x%02x%02x-%d.svg",
+             stroke.red(), stroke.green(), stroke.blue(), size_px);
+    ofstream f(fname); f << svg; f.close();
+    try {
+        auto img = std::make_shared<SvgImage>(string("file:") + fname,
+                                              SizeF(size_px, size_px));
+        s_cache.emplace(k, img);
+        return static_cast<Image>(*img);
+    } catch (...) {
+        return {};
+    }
+}
+
+// ── Skip WiFi button (wifi-offline glyph) ─────────────────────────────────
+// Figma node 151:956 / 154:880: 39×39 gradient disc (#d9d9d9 → #fff, same
+// Ellipse-4 family as the other icon discs) with the asymmetric Figma
+// wifi-off glyph (node 52:2785) — fan opening toward the top-right, dot near
+// the pivot, "\" slash upper-left → lower-right.
 class SkipWiFiButton : public Widget {
 public:
     explicit SkipWiFiButton(const Rect& rect)
@@ -172,33 +255,25 @@ public:
         const float cx  = b.x() + b.width()  / 2.0f;
         const float cy  = b.y() + b.height() / 2.0f;
 
-        // Light gray pill (same colour family as the Back button)
-        painter.set(palette::kGray200);
+        // Gradient disc backplate (#d9d9d9 top → #ffffff bottom).
         painter.draw(Arc(PointF(cx, cy), sz * 0.50f - 1.0f,
                          0.0f, 2.0f * static_cast<float>(M_PI)));
+        Pattern grad(Pattern::StepArray{{0.0f, Color(0xd9, 0xd9, 0xd9)},
+                                        {1.0f, dt::kWhite}},
+                     Point(b.x(), b.y()),
+                     Point(b.x(), b.y() + b.height()));
+        painter.set(grad);
         painter.fill();
 
-        // Wi-Fi arcs (open downward → represent broadcast)
-        constexpr float start = -static_cast<float>(M_PI) * 0.75f;
-        constexpr float end   = -static_cast<float>(M_PI) * 0.25f;
-        const auto pivot = PointF(cx, cy + sz * 0.18f);
-        const float radii[] = {sz * 0.32f, sz * 0.22f, sz * 0.12f};
-
-        painter.set(dt::kTextPrimary);
-        painter.line_width(std::max(2.0f, sz * 0.045f));
-        for (float r : radii) {
-            painter.draw(Arc(pivot, r, start, end));
-            painter.stroke();
+        // Figma wifi-off SVG glyph at ~65% of the disc, centred — same
+        // sizing as screen_wifi_not_found.cpp's make_wifi_off_glyph_frame.
+        // Point-then-image idiom: portable across EGT 1.10 and 1.12.
+        const int gs = static_cast<int>(sz * 0.65f);
+        auto glyph = get_wifi_off_image(dt::kTextPrimary, gs);
+        if (!glyph.empty()) {
+            painter.draw(PointF(cx - gs / 2.0f, cy - gs / 2.0f));
+            painter.draw(glyph);
         }
-        // Tiny base dot under the arcs
-        painter.draw(Arc(pivot, sz * 0.04f, 0.0f, 2.0f * static_cast<float>(M_PI)));
-        painter.fill();
-
-        // Diagonal slash through the glyph — the "offline / no connection" cue
-        painter.line_width(std::max(2.5f, sz * 0.055f));
-        painter.draw(Line(PointF(cx - sz * 0.30f, cy - sz * 0.22f),
-                          PointF(cx + sz * 0.30f, cy + sz * 0.22f)));
-        painter.stroke();
     }
 };
 
@@ -259,8 +334,10 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     container->color(Palette::ColorId::bg, dt::kWhite);
 
     // ── Title - Figma fontSize 14 Bold -> device 26 pt ─────────────────────
+    // Figma y=22 → device text bbox y 44–63: rect top at 37 centres the
+    // 36-px-tall label band on the Figma optical centre (~54).
     auto title = make_shared<Label>("Establish Wi-Fi Connection",
-        Rect(0, 20, dt::SCREEN_W, 36));
+        Rect(0, 37, dt::SCREEN_W, 36));
     title->font(Font("Gothic A1", 26, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     title->text_align(AlignFlag::center);
@@ -292,8 +369,9 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
     // "Choose a Network..." header - Figma fontSize 12 Regular -> 22 pt,
     // left-aligned as in the Figma TARGET.
+    // Figma x=58 → device x≈107; card_x=91 → card-relative 16.
     auto choose_label = make_shared<Label>("Choose a Network...",
-        Rect(30, 15, 300, 28));
+        Rect(16, 15, 300, 28));
     choose_label->font(Font("Gothic A1", 22, Font::Weight::normal));
     choose_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     choose_label->text_align(AlignFlag::left | AlignFlag::center_vertical);
@@ -334,7 +412,9 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     const int row_h = 56;
     const int row_gap = 0;
     const int row_pitch = row_h + row_gap;     // 56 = figma 30 * SCALE
-    const int text_pad = 20;
+    // SSID left edge: figma x=68 → device x≈126; card_x=91 → card-relative
+    // 35. Rows are indented 10 figma px PAST the "Choose a Network..." header.
+    const int text_pad = 35;
 
     // Total rows: networks + "Other..." entry
     const int total_rows = total + 1;
@@ -632,6 +712,20 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             }
         });
 
+        // "Other..." wifi signal icon — Figma node 151:930 puts the gray
+        // signal-arc glyph on this row too, same box as the network rows.
+        try {
+            auto sig_img = Image(
+                ("file:" + ui::asset_path("wifi-row-signal")).c_str());
+            auto sig_lbl = make_shared<ImageLabel>(sig_img);
+            sig_lbl->autoresize(false);
+            sig_lbl->border(0); sig_lbl->padding(0); sig_lbl->margin(0);
+            sig_lbl->fill_flags({});
+            sig_lbl->image_align(AlignFlag::center);
+            sig_lbl->box(Rect(card_w - 130, (row_h - 33) / 2, 50, 33));
+            other_frame->add(sig_lbl);
+        } catch (...) { /* fall back: no icon */ }
+
         // "Other..." chevron - same PNG as the network rows for consistency.
         try {
             auto img = Image(("file:" + ui::asset_path("wifi-row-chevron")).c_str());
@@ -643,6 +737,15 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             chev_lbl->box(Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
             other_frame->add(chev_lbl);
         } catch (...) { /* fall back: no chevron */ }
+
+        // Separator line under "Other..." — Figma line 151:903 (figma y=200
+        // → device y≈367-370), same style as the network-row dividers.
+        auto other_sep = make_shared<Frame>(
+            Rect(15, row_h - 1, card_w - 30, 1));
+        other_sep->fill_flags({Theme::FillFlag::blend});
+        other_sep->color(Palette::ColorId::bg, Color(220, 220, 220));
+        other_sep->border(0);
+        other_frame->add(other_sep);
 
         list_content->damage();
 
@@ -707,22 +810,16 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         gear_wrap->fill_flags({});
         container->add(gear_wrap);
 
-        // Crisp solid-gray circle background. We used to render
-        // home-gear-icon.png which has a SOFT GRADIENT circle baked in; at
-        // 72×72 the gradient edges faded out so the background didn't read
-        // as a clean sphere. Draw a filled Frame with border_radius=d/2 and
-        // overlay the bare gear glyph on top instead.
-        auto circle_bg = make_shared<Frame>(Rect(0, 0, icon_sz, icon_sz));
-        circle_bg->fill_flags({Theme::FillFlag::blend});
-        circle_bg->color(Palette::ColorId::bg, palette::kGray200);
-        circle_bg->border(0);
-        circle_bg->border_radius(icon_sz / 2);
-        gear_wrap->add(circle_bg);
+        // Gradient disc backplate (#d9d9d9 → #fff vertical) — Figma
+        // Ellipse 4 (imgEllipse4), same disc family as the other icon
+        // circles. Crisp circle edge, gradient fill, glyph overlaid on top.
+        gear_wrap->add(make_shared<GradientDisc>(Rect(0, 0, icon_sz, icon_sz)));
 
         try {
             // wifi-settings-gear.png is the bare gear glyph (no background),
-            // sized 57×57 source → render at ~40 device px centred.
-            const int glyph_sz = 40;
+            // sized 57×57 source. Figma gear bbox ≈ 51×51 device on the
+            // 72-px disc (glyph/disc ≈ 0.70) → render at 52 device px.
+            const int glyph_sz = 52;
             auto img = Image(("file:" + ui::asset_path("wifi-settings-gear")).c_str(),
                              static_cast<float>(glyph_sz) / 57.0f,
                              static_cast<float>(glyph_sz) / 57.0f);

@@ -256,8 +256,8 @@ public:
 };
 
 // ── Card helper — gray rounded background, ~Figma "Rectangle 68/96/97" ─────
-// Section card with a subtle vertical gradient (Figma uses rgb(246,246,246)
-// at the top fading to rgb(254,254,254) at the bottom).
+// Section card with a subtle vertical gradient (Figma uses #F4F4F4 =
+// rgb(244,244,244) at the top fading to #FFFFFF = rgb(255,255,255)).
 class SectionGradient : public Widget {
 public:
     SectionGradient(const Rect& r, float radius) : Widget(r), m_radius(radius)
@@ -273,8 +273,8 @@ public:
         const float w = static_cast<float>(b.width());
         const float h = static_cast<float>(b.height());
         const float r = m_radius;
-        const Color top{246, 246, 246};
-        const Color bot{254, 254, 254};
+        const Color top{244, 244, 244};   // Figma #F4F4F4 (screen-local)
+        const Color bot{255, 255, 255};   // Figma #FFFFFF
         Pattern grad(Pattern::StepArray{{0.0f, top}, {1.0f, bot}},
                      Point(static_cast<int>(x), static_cast<int>(y)),
                      Point(static_cast<int>(x), static_cast<int>(y + h)));
@@ -302,8 +302,11 @@ shared_ptr<Frame> make_section_card(int x, int y, int w, int h)
     auto card = make_shared<Frame>(Rect(x, y, w, h));
     card->fill_flags({});  // transparent - the gradient does the painting
     card->border(0);
-    card->add(make_shared<SectionGradient>(Rect(0, 0, w, h),
-                                           static_cast<float>(dt::RADIUS_LG)));
+    // Figma corner radius is 8 figma px (brightness) / 7.6 (Wi-Fi, Ethernet)
+    // -> ~14.8 / 14.1 device px. dt::RADIUS_LG (16) is 1-2 px rounder, so use
+    // a screen-local 15 here instead of editing the shared token.
+    constexpr float kCardRadius = 15.0f;
+    card->add(make_shared<SectionGradient>(Rect(0, 0, w, h), kCardRadius));
     return card;
 }
 
@@ -607,7 +610,7 @@ shared_ptr<Widget> create_settings_screen(
         const int acc_title_y = 335;
         auto acc_title = make_shared<Label>("Account",
             Rect(section_x, acc_title_y, 320, 33));
-        acc_title->font(Font(15, Font::Weight::bold));
+        acc_title->font(Font("Gothic A1", 26, Font::Weight::bold));
         acc_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
         acc_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
         content->add(acc_title);
@@ -658,7 +661,7 @@ shared_ptr<Widget> create_settings_screen(
         const int about_title_y = (on_login ? 478 : 335);
         auto about_title = make_shared<Label>("About this device",
             Rect(section_x, about_title_y, 320, 33));
-        about_title->font(Font(15, Font::Weight::bold));
+        about_title->font(Font("Gothic A1", 26, Font::Weight::bold));
         about_title->color(Palette::ColorId::label_text, dt::kTextPrimary);
         about_title->text_align(AlignFlag::left | AlignFlag::center_vertical);
         content->add(about_title);
