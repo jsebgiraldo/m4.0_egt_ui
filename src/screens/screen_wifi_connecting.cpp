@@ -33,21 +33,32 @@ public:
         auto center = b.center();
         constexpr float twopi = 2.0f * static_cast<float>(M_PI);
 
+        // Track: opaque near-white sampled from the Figma gradient tail
+        // (250,252,247) so the track all but disappears against the white
+        // background and the gradient tail blends into it seamlessly.
+        constexpr uint8_t tr = 250, tg = 252, tb = 247;
         painter.line_width(linew);
-        painter.set(Color(dt::kGrayLight, 80));
+        painter.set(Color(tr, tg, tb, 255));
         painter.draw(Arc(center, radius, 0.0f, twopi));
         painter.stroke();
 
+        // Gradient arc: stroke each segment with an OPAQUE color lerped
+        // from the track near-white to full green. Translucent segments
+        // double-composited at the `+ 0.02f` overlaps and produced visible
+        // barber-pole banding; opaque strokes make the overlaps invisible.
         constexpr int segments = 90;
         constexpr float arc_span = 5.2f;
         constexpr float seg_angle = arc_span / segments;
         constexpr uint8_t gr = 91, gg = 197, gb = 0;
+        auto lerp = [](uint8_t a, uint8_t b, float t) {
+            return static_cast<uint8_t>(static_cast<float>(a) +
+                (static_cast<float>(b) - static_cast<float>(a)) * t + 0.5f);
+        };
         painter.line_width(linew);
         for (int i = 0; i < segments; i++) {
             float t = static_cast<float>(i) / (segments - 1);
-            auto alpha = static_cast<uint8_t>(t * 255.0f);
             float seg_start = m_angle - arc_span + i * seg_angle;
-            painter.set(Color(gr, gg, gb, alpha));
+            painter.set(Color(lerp(tr, gr, t), lerp(tg, gg, t), lerp(tb, gb, t), 255));
             painter.draw(Arc(center, radius, seg_start, seg_start + seg_angle + 0.02f));
             painter.stroke();
         }
@@ -88,8 +99,10 @@ shared_ptr<Widget> create_wifi_connecting_screen(
     // The SSID is intentionally not shown - Figma uses generic "Connecting to
     // Wifi" copy here.
     (void)ssid;  // referenced by the worker thread below but not by the UI
+    // Rect starts at y=288 (not logo bottom 284 + 12 = 296): EGT centres the
+    // glyphs in the 32px-high rect, and the Figma glyph band centre is ~304.
     auto status_label = make_shared<Label>("Connecting to Wifi",
-        Rect(spin_x, 128 + 156 + 12, spin_sz, 32));
+        Rect(spin_x, 288, spin_sz, 32));
     status_label->font(Font(22, Font::Weight::normal));
     status_label->color(Palette::ColorId::label_text, dt::kTextPrimary);
     status_label->text_align(AlignFlag::center);

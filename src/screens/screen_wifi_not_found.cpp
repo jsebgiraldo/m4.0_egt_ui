@@ -444,9 +444,11 @@ shared_ptr<Widget> create_wifi_not_found_screen(
     // does the Gaussian-falloff approximation with 8 stacked layers.
     const int card_x = 39, card_y = 37;
     const int card_w = 722, card_h = 406;
+    // Figma 52:2775 box-shadow is rgba(0,0,0,0.30) → peak 76/255. The old
+    // 180 read ~3x too dark with visible banding below/right of the card.
     add_soft_shadow(*container, Rect(card_x, card_y, card_w, card_h),
                     15, /*off_x=*/7, /*off_y=*/7,
-                    /*blur=*/15, /*alpha_peak=*/180);
+                    /*blur=*/15, /*alpha_peak=*/76);
 
     // ── White card (Rectangle 72: gradient #f4f3f3 → #ffffff, r=15) ────────
     auto card = make_shared<GradientCard>(

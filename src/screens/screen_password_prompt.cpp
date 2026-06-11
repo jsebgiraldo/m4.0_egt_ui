@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <cctype>
+#include <cmath>
 
 #include "../ui/design_tokens.h"
 #include "../ui/components.h"
@@ -16,7 +17,10 @@ using namespace std;
 static constexpr int SCREEN_W       = 800;
 static constexpr int SCREEN_H       = 480;
 static constexpr int CARD_W         = 780;
-static constexpr int CARD_H         = 460;
+// 468 (not 460) so keyboard row 4 — figma rows land at y≈417..474 global —
+// fits inside the card without clipping (figma's white panel actually runs
+// past the 480 px screen edge).
+static constexpr int CARD_H         = 468;
 static constexpr int PAD            = 15;
 
 // Figma-matched colors
@@ -27,6 +31,157 @@ static const Color INPUT_BG      = Color(217, 217, 217, 128);// Figma: gray at 5
 static const Color JOIN_BG       = dt::kAccentCyan;           // rgb(48,163,196) Figma gradient top
 static const Color CANCEL_BG     = dt::kWhite;               // Figma: white fill
 static const Color CANCEL_FG     = dt::kTextPrimary;         // rgb(100,101,105)
+
+// Rounded-rect path via the portable draw(PointF)/line/Arc idiom — EGT 1.10
+// (target) has no Painter::move_to/line_to.
+static void rounded_rect_path(Painter& painter, float x, float y,
+                              float w, float h, float r)
+{
+    const auto PI = static_cast<float>(M_PI);
+    painter.draw(PointF(x + r, y));
+    painter.line(PointF(x + w - r, y));
+    painter.draw(Arc(PointF(x + w - r, y + r), r, -PI / 2, 0.0f));
+    painter.line(PointF(x + w, y + h - r));
+    painter.draw(Arc(PointF(x + w - r, y + h - r), r, 0.0f, PI / 2));
+    painter.line(PointF(x + r, y + h));
+    painter.draw(Arc(PointF(x + r, y + h - r), r, PI / 2, PI));
+    painter.line(PointF(x, y + r));
+    painter.draw(Arc(PointF(x + r, y + r), r, PI, 3 * PI / 2));
+}
+
+// ── KeyButton — custom-drawn keyboard key ─────────────────────────────────
+// Figma 39:2026: no stroke, radius 2 figma (≈4 dev) and a drop shadow of
+// 1px 1px 2px rgba(0,0,0,0.2). Letter keys + spacebar fill with a vertical
+// #f4f4f4 → #ffffff gradient; special keys (Return, .?123, shift, ⌫, blank)
+// are flat #e4e5e8. EGT's themed Button can't do gradient fills or
+// borderless drop shadows, so everything is painted in draw() — same
+// approach as PressableOperateCard in screen_wifi_not_found.cpp, which also
+// keeps press feedback + on-click on the widget itself (no overlay children
+// to steal taps on EGT 1.10). The widget box is padded by kShadowPad so the
+// shadow isn't clipped at the box edge.
+class KeyButton : public Widget {
+public:
+    static constexpr int kShadowPad = 3;
+
+    KeyButton(const string& label, const Rect& key, bool special,
+              const Font& font, function<void()> action)
+        : Widget(Rect(key.x() - kShadowPad, key.y() - kShadowPad,
+                      key.width() + 2 * kShadowPad,
+                      key.height() + 2 * kShadowPad)),
+          m_label(label), m_special(special), m_font(font),
+          m_action(std::move(action))
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        on_event([this](Event& e) {
+            switch (e.id()) {
+            case EventId::raw_pointer_down:
+                if (m_action && !m_pressed) { m_pressed = true;  damage(); }
+                break;
+            case EventId::raw_pointer_up:
+                if (m_pressed)              { m_pressed = false; damage(); }
+                break;
+            case EventId::pointer_click:
+                if (m_action) m_action();
+                break;
+            default: break;
+            }
+        });
+    }
+
+    void draw(Painter& painter, const Rect&) override
+    {
+        const auto b = content_area();
+        const float x = b.x() + kShadowPad, y = b.y() + kShadowPad;
+        const float w = b.width()  - 2.0f * kShadowPad;
+        const float h = b.height() - 2.0f * kShadowPad;
+        const float r = 4.0f;  // 2 figma px ≈ 3.7 dev
+
+        // Drop shadow 1px 1px 2px rgba(0,0,0,0.2): faint blur halo + tighter
+        // core, both offset (1,1). No stroke (figma keys have no border).
+        rounded_rect_path(painter, x - 1.0f, y - 1.0f,
+                          w + 4.0f, h + 4.0f, r + 2.0f);
+        painter.set(Color(0, 0, 0, 13));
+        painter.fill();
+        rounded_rect_path(painter, x + 1.0f, y + 1.0f, w + 1.0f, h + 1.0f, r);
+        painter.set(Color(0, 0, 0, 34));
+        painter.fill();
+
+        // Key body.
+        rounded_rect_path(painter, x, y, w, h, r);
+        if (m_pressed) {
+            painter.set(dt::kGreenLight);
+        } else if (m_special) {
+            painter.set(KEY_SPECIAL);
+        } else {
+            // Figma 39:2026 — vertical gradient #f4f4f4 → #ffffff.
+            Pattern grad(Pattern::StepArray{{0.0f, KEY_BG}, {1.0f, dt::kWhite}},
+                         Point(static_cast<int>(x), static_cast<int>(y)),
+                         Point(static_cast<int>(x), static_cast<int>(y + h)));
+            painter.set(grad);
+        }
+        painter.fill();
+
+        // Glyph centred on the key.
+        if (!m_label.empty()) {
+            painter.set(KEY_TEXT);
+            painter.set(m_font);
+            const auto ts = painter.text_size(m_label);
+            painter.draw(PointF(x + (w - ts.width()) / 2.0f,
+                                y + (h - ts.height()) / 2.0f));
+            painter.draw(m_label);
+        }
+    }
+
+private:
+    string m_label;
+    bool m_special{false};
+    Font m_font;
+    function<void()> m_action;
+    bool m_pressed{false};
+};
+
+// ── InputInnerShadow — top inner-shadow band for the password field ───────
+// Figma 72:1594: inset 0 2px 4px rgba(0,0,0,0.2). EGT has no inner shadows,
+// so paint a short band that fades from rgba(0,0,0,~50) to transparent over
+// ~11 device px (2px offset + 4px blur figma ≈ 11 dev). readonly => taps
+// fall through to the TextBox underneath (same trick as SoftShadow in
+// screen_patient_info.cpp — EGT skips readonly widgets in input dispatch).
+class InputInnerShadow : public Widget {
+public:
+    InputInnerShadow(const Rect& band, float radius)
+        : Widget(band), m_radius(radius)
+    {
+        fill_flags({Theme::FillFlag::blend});
+        border(0);
+        readonly(true);
+    }
+
+    void draw(Painter& painter, const Rect&) override
+    {
+        const auto b = content_area();
+        const float x = b.x(), y = b.y(), w = b.width(), h = b.height();
+        const float r = m_radius;
+        const auto PI = static_cast<float>(M_PI);
+        // Band path: top corners rounded (match the field), square bottom.
+        painter.draw(PointF(x + r, y));
+        painter.line(PointF(x + w - r, y));
+        painter.draw(Arc(PointF(x + w - r, y + r), r, -PI / 2, 0.0f));
+        painter.line(PointF(x + w, y + h));
+        painter.line(PointF(x, y + h));
+        painter.line(PointF(x, y + r));
+        painter.draw(Arc(PointF(x + r, y + r), r, PI, 3 * PI / 2));
+        Pattern grad(Pattern::StepArray{{0.0f, Color(0, 0, 0, 50)},
+                                        {1.0f, Color(0, 0, 0, 0)}},
+                     Point(static_cast<int>(x), static_cast<int>(y)),
+                     Point(static_cast<int>(x), static_cast<int>(y + h)));
+        painter.set(grad);
+        painter.fill();
+    }
+
+private:
+    float m_radius;
+};
 
 shared_ptr<Widget> create_password_prompt_screen(
     const string& title_text,
@@ -40,9 +195,11 @@ shared_ptr<Widget> create_password_prompt_screen(
     auto main_frame = make_shared<Frame>(Rect(0, 0, SCREEN_W, SCREEN_H));
     main_frame->color(Palette::ColorId::bg, dt::kGrayBg);
 
-    // Card — minimal styling matching Figma Rectangle 9
+    // Card — minimal styling matching Figma Rectangle 9. y is pinned at 10
+    // (not re-centred) so the title/input/button positions that already
+    // match figma stay put while the extra height extends downward only.
     auto card = make_shared<Frame>(
-        Rect((SCREEN_W - CARD_W) / 2, (SCREEN_H - CARD_H) / 2, CARD_W, CARD_H));
+        Rect((SCREEN_W - CARD_W) / 2, 10, CARD_W, CARD_H));
     card->color(Palette::ColorId::bg, dt::kWhite);
     card->border(0);
     card->border_radius(8);
@@ -72,24 +229,28 @@ shared_ptr<Widget> create_password_prompt_screen(
     // Layout horizontal: campo de contraseña + botones de acción. Input row
     // spans the full card width so the Cancel + Join PNGs (148x70 / 172x70)
     // fit at their figma-derived global positions without clipping.
-    auto input_row = make_shared<Frame>(Rect(0, y_cursor, CARD_W, 70));
+    // 80 px tall (not 70) so the 59 px field at y=14 isn't clipped; the
+    // Cancel/Join PNG wraps keep their matched y=0 positions.
+    auto input_row = make_shared<Frame>(Rect(0, y_cursor, CARD_W, 80));
     input_row->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
     card->add(input_row);
 
-    // Password field - Figma: gray fill, r=2, inner shadow.
-    // Dimensions sampled from the Figma render at scale=2: the rectangle is
-    // 227 figma px wide x 30.5 figma px tall -> 420 x 56 device px. Centred
-    // vertically in the 70 px input_row (y = (70-56)/2 = 7).
+    // Password field - Figma 72:1594: gray fill rgba(217,217,217,.5), r=2,
+    // NO border, inner shadow inset 0 2px 4px rgba(0,0,0,0.2). Device rect
+    // (28,80) 420x59 (figma (15,353) 227x32 ×1.852) -> input_row-local
+    // (18,14) since input_row sits at global (10, 66).
     auto pwd = make_shared<TextBox>("Password..");
-    pwd->resize(Size(420, 56));
-    pwd->move(Point(10, 7));
+    pwd->resize(Size(420, 59));
+    pwd->move(Point(18, 14));
     pwd->font(Font("Gothic A1", 22, Font::Weight::normal));
     pwd->color(Palette::ColorId::text, Color(150, 150, 150));
     pwd->color(Palette::ColorId::bg, INPUT_BG);
-    pwd->color(Palette::ColorId::border, Color(200, 200, 200));
-    pwd->border(1);
+    pwd->border(0);
     pwd->border_radius(4);
     input_row->add(pwd);
+
+    // Figma inner shadow (top band) — readonly so taps reach the TextBox.
+    input_row->add(make_shared<InputInnerShadow>(Rect(18, 14, 420, 12), 4.0f));
 
     // Estado para limpiar el placeholder solo la primera vez
     auto first_edit = make_shared<bool>(true);
@@ -188,48 +349,51 @@ shared_ptr<Widget> create_password_prompt_screen(
 
     // ── Forgot Password link (Figma 154:919) ───────────────────────────────
     // Centered below the input row. fontSize 12 Bold -> device 22 Bold.
+    // figma top 397 -> device text top ≈161, centre ≈172: label top =
+    // 172 - 15 (half label) - 10 (card y) = 147 = y_cursor + 91.
     auto forgot = make_shared<Label>("Forgot Password",
-        Rect(0, y_cursor + 75, CARD_W, 30), AlignFlag::center);
+        Rect(0, y_cursor + 91, CARD_W, 30), AlignFlag::center);
     forgot->font(Font("Gothic A1", 22, Font::Weight::bold));
     forgot->color(Palette::ColorId::label_text, dt::kTextPrimary);
     card->add(forgot);
 
-    // Recalcular y base del teclado: input row (70) + Forgot Password (30) + gap
-    int keyboard_top = y_cursor + 70 + 30 + 10;
+    // Keyboard frame — figma row 1 sits at global y=213 (figma 425):
+    // card y 10 + keyboard_top 195 + sy 8 = 213. The frame runs to the card
+    // bottom so row 4 (ends global y≈474) isn't clipped.
+    int keyboard_top = 195;
 
-    auto keyboard_frame = make_shared<Frame>(Rect(4, keyboard_top, CARD_W - 8, CARD_H - keyboard_top - 10));
+    auto keyboard_frame = make_shared<Frame>(Rect(4, keyboard_top, CARD_W - 8, CARD_H - keyboard_top));
     keyboard_frame->color(Palette::ColorId::bg, dt::kWhite);
     card->add(keyboard_frame);
 
     auto shift_on = make_shared<bool>(false);
-    int tw = CARD_W - 8;  // total keyboard width (near-edge so 64 px keys fit)
+    int tw = CARD_W - 8;  // total keyboard width
 
-    // iOS-style key geometry — stretch keys (Return, shift, ?123, space) are
-    // visibly wider than letters. Row 1 is the alignment reference for rows
-    // 2 and 4; row 3 ends up a touch wider than row 1 because its 11 slots
-    // include 2 stretched shifts (same asymmetry iOS has). sy is computed so
-    // the 4-row block sits vertically centred — no dead space at the bottom.
-    // Key dimensions sampled from the Figma render: each key is roughly
-    // 35 figma px square -> 64 device px. The keyboard frame uses CARD_W-8
-    // so row 1 (11*64 + 60 = 764) fits inside tw = 772 with 4 px of slack
-    // on each side.
-    const int kw = 64, kh = 64, gx = 6, gy = 9;
-    const int rw       = 11 * kw + 10 * gx;       // row 1 outer extent
-    const int sx1      = (tw - rw) / 2;           // row 1 left margin
-    const int return_w = kw + 50;                 // row 2 wide key (fits "Return" at 26 pt)
-    const int shift_w  = kw + 18;                 // row 3 wide keys
-    const int nkw      = kw + 22;                 // ?123 / ABC wide keys (row 4)
-    const int space_w  = rw - 2 * nkw - 2 * gx;   // space fills row 4 to row 1 edges
+    // Figma key metrics (figma px × 1.852): keys 31 figma tall ≈ 57 dev,
+    // ~30-32 figma wide ≈ 58 dev, gaps 6 figma ≈ 11 dev, row pitch 68
+    // (figma 68.5). Row 1 spans global x=28..776 and rows sit at global
+    // y=213/281/349/417 (figma 213/281/350/419).
+    const int kw = 58, kh = 57, gx = 11, gy = 11;
+    const int rw       = 11 * kw + 10 * gx;       // row 1 outer extent (748)
+    const int sx1      = (tw - rw) / 2 + 2;       // row 1 starts at global x=28
+    const int return_w = kw + 48;                 // Return: 57 figma ≈ 106 dev
+    const int shift_w  = kw;                      // figma shifts are letter-sized
+    // Row 4 (figma 72:1578/1584/1581/1586): .?123 w126 / space w394 /
+    // .?123 w100 / blank key w94 device px.
+    const int nkw_l    = 126;
+    const int nkw_r    = 100;
+    const int blank_w  = 94;
+    const int space_w  = rw - nkw_l - nkw_r - blank_w - 3 * gx; // 395
     const int content_h = 4 * kh + 3 * gy;
-    const int sy = std::max(8, (CARD_H - keyboard_top - 10 - content_h) / 2);
+    const int sy = std::max(8, (CARD_H - keyboard_top - content_h) / 2);
 
     // Two sub-frames: QWERTY and numeric (toggle with ?123 / ABC)
-    auto kb_alpha = make_shared<Frame>(Rect(0, 0, tw, CARD_H - keyboard_top - 10));
+    auto kb_alpha = make_shared<Frame>(Rect(0, 0, tw, CARD_H - keyboard_top));
     kb_alpha->fill_flags({Theme::FillFlag::blend});
     kb_alpha->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
     keyboard_frame->add(kb_alpha);
 
-    auto kb_num = make_shared<Frame>(Rect(0, 0, tw, CARD_H - keyboard_top - 10));
+    auto kb_num = make_shared<Frame>(Rect(0, 0, tw, CARD_H - keyboard_top));
     kb_num->fill_flags({Theme::FillFlag::blend});
     kb_num->color(Palette::ColorId::bg, Color(0, 0, 0, 0));
     kb_num->hide();
@@ -253,23 +417,20 @@ shared_ptr<Widget> create_password_prompt_screen(
         if (!t.empty() && on_join) on_join(t);
     };
 
-    // Helper: create a styled keyboard key — Figma: gradient fill, r=2, DROP_SHADOW
+    // Helper: create a styled keyboard key — custom-drawn KeyButton (figma:
+    // gradient/flat fill, no stroke, r≈4, drop shadow 1px 1px 2px @0.2).
     auto mk = [](shared_ptr<Frame> parent, const string& label,
                   int x, int y, int w, int h,
                   function<void()> action, bool special = false) {
-        auto b = make_shared<Button>(label, Rect(x, y, w, h));
-        b->autoresize(false);  // bigger font would otherwise grow the button
-        // Figma keyboard letters are fontSize 14 Medium -> device 26 pt.
-        b->font(Font("Gothic A1", 26, Font::Weight::normal));
-        b->color(Palette::ColorId::button_bg, special ? KEY_SPECIAL : KEY_BG);
-        b->color(Palette::ColorId::button_text, KEY_TEXT);
-        b->color(Palette::ColorId::border, Color(210, 210, 210));
-        b->color(Palette::ColorId::button_bg, dt::kGreenLight, Palette::GroupId::active);
-        b->color(Palette::ColorId::button_bg, dt::kGreenLight, Palette::GroupId::checked);
-        b->border(1);
-        b->border_radius(4);
-        b->border_flags({Theme::BorderFlag::drop_shadow});
-        if (action) b->on_click([action](Event&) { action(); });
+        // Letters: figma 14 Medium -> 26 dev. Multi-char ASCII special
+        // labels (Return / .?123 / ABC): figma 10 -> 18 dev. The
+        // single-glyph UTF-8 specials (← ⇧) keep the letter size.
+        const bool small_label = special && label.size() > 1 &&
+                                 static_cast<unsigned char>(label[0]) < 0x80;
+        auto b = make_shared<KeyButton>(
+            label, Rect(x, y, w, h), special,
+            Font("Gothic A1", small_label ? 18 : 26, Font::Weight::normal),
+            std::move(action));
         parent->add(b);
         return b;
     };
@@ -277,14 +438,13 @@ shared_ptr<Widget> create_password_prompt_screen(
     auto switch_num = [kb_alpha, kb_num]() { kb_alpha->hide(); kb_num->show(); };
     auto switch_abc = [kb_alpha, kb_num]() { kb_alpha->show(); kb_num->hide(); };
 
-    // Row-specific start x (each row centred within tw). Row 2 is narrower
-    // than row 1 → looks inset (iOS look); row 3 is a touch wider thanks to
-    // the stretched shifts (also iOS-like). Row 4 deliberately re-uses sx1
-    // so its outer edges align with row 1 — that was the bug we fixed.
+    // Row-specific start x. Figma: rows 1, 3 and 4 all span x=28..776
+    // device; row 2 is inset on the left but its Return key ends flush at
+    // x=776, so row 2 is right-aligned with row 1.
     const int rw2 = 9 * kw + 9 * gx + return_w;
-    const int sx2 = (tw - rw2) / 2;
-    const int rw3 = 2 * shift_w + 9 * kw + 10 * gx;
-    const int sx3 = (tw - rw3) / 2;
+    const int sx2 = sx1 + rw - rw2;       // right-align (Return ends at 776)
+    const int rw3 = 2 * shift_w + 9 * kw + 10 * gx;  // == rw
+    const int sx3 = sx1 + (rw - rw3) / 2; // row 3 spans the row-1 extent
     const int sx4 = sx1;  // align row 4 to row 1's outer extent
 
     // ── QWERTY layout ──────────────────────────────────────────────
@@ -333,14 +493,18 @@ shared_ptr<Widget> create_password_prompt_screen(
            sx3 + shift_w + gx + 9 * (kw + gx), y3, shift_w, kh,
            [shift_on]() { *shift_on = !(*shift_on); }, true);
 
-        // Row 4: ?123 [space] ?123 — outer edges aligned with row 1
+        // Row 4: ?123 [space] ?123 [blank] — figma 4-key layout, outer
+        // edges aligned with row 1 (blank key 72:1586 has no label/action).
         int y4 = y3 + kh + gy;
-        mk(kb_alpha, ".?123", sx4, y4, nkw, kh, switch_num, true);
+        mk(kb_alpha, ".?123", sx4, y4, nkw_l, kh, switch_num, true);
         mk(kb_alpha, "",
-           sx4 + nkw + gx, y4, space_w, kh,
+           sx4 + nkw_l + gx, y4, space_w, kh,
            [type_ch]() { type_ch(' '); });
         mk(kb_alpha, ".?123",
-           sx4 + nkw + gx + space_w + gx, y4, nkw, kh, switch_num, true);
+           sx4 + nkw_l + gx + space_w + gx, y4, nkw_r, kh, switch_num, true);
+        mk(kb_alpha, "",
+           sx4 + nkw_l + gx + space_w + gx + nkw_r + gx, y4, blank_w, kh,
+           nullptr, true);
     }
 
     // ── Numeric / Symbol layout ─────────────────────────────────────
@@ -381,14 +545,17 @@ shared_ptr<Widget> create_password_prompt_screen(
                [type_ch, c]() { type_ch(c); });
         }
 
-        // Row 4: ABC [space] ABC — mirrors alpha layout
+        // Row 4: ABC [space] ABC [blank] — mirrors alpha layout
         int y4 = y3 + kh + gy;
-        mk(kb_num, "ABC", sx4, y4, nkw, kh, switch_abc, true);
+        mk(kb_num, "ABC", sx4, y4, nkw_l, kh, switch_abc, true);
         mk(kb_num, "",
-           sx4 + nkw + gx, y4, space_w, kh,
+           sx4 + nkw_l + gx, y4, space_w, kh,
            [type_ch]() { type_ch(' '); });
         mk(kb_num, "ABC",
-           sx4 + nkw + gx + space_w + gx, y4, nkw, kh, switch_abc, true);
+           sx4 + nkw_l + gx + space_w + gx, y4, nkw_r, kh, switch_abc, true);
+        mk(kb_num, "",
+           sx4 + nkw_l + gx + space_w + gx + nkw_r + gx, y4, blank_w, kh,
+           nullptr, true);
     }
 
     return main_frame;

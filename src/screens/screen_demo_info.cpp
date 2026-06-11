@@ -73,9 +73,10 @@ shared_ptr<Widget> create_demo_info_screen(
     container->add(logo);
 
     // ── "Demonstration Mode" title (Figma 37:1833, 141x18 @(236,533)) ──────
-    // Frame-local (147, 34) -> device (272, 63). fontSize 14 Bold -> 26 pt.
+    // Recentred on Figma's text centre (403, 80) with a wider rect so the
+    // label doesn't overflow right (was Rect(272,50,280,40), centre 412/70).
     auto title = make_shared<Label>("Demonstration Mode",
-        Rect(272, 50, 280, 40), AlignFlag::center);
+        Rect(203, 60, 400, 40), AlignFlag::center);
     title->font(Font("Gothic A1", 26, Font::Weight::bold));
     title->color(Palette::ColorId::label_text, dt::kTextPrimary);
     container->add(title);
@@ -86,16 +87,19 @@ shared_ptr<Widget> create_demo_info_screen(
     // overlap the exit-demo button below (which starts at y=93). With a
     // 37 pt font, one line is ~37 px tall - placing line 1 at y=11 and
     // line 2 at y=48 puts the bottom of MODE at ~85, leaving an 8 px gap.
+    // Figma 67:761 renders #30A3C4 at 50% opacity over white ≈ rgb(157,211,226).
+    // Use the pre-blended colour so it doesn't depend on the label's blend mode.
+    const Color kDemoBadge(157, 211, 226);
     auto demo_l1 = make_shared<Label>("DEMO",
         Rect(654, 11, 146, 37), AlignFlag::center);
     demo_l1->font(Font("Gothic A1", 37, Font::Weight::normal));
-    demo_l1->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    demo_l1->color(Palette::ColorId::label_text, kDemoBadge);
     container->add(demo_l1);
 
     auto demo_l2 = make_shared<Label>("MODE",
         Rect(654, 48, 146, 37), AlignFlag::center);
     demo_l2->font(Font("Gothic A1", 37, Font::Weight::normal));
-    demo_l2->color(Palette::ColorId::label_text, dt::kAccentCyan);
+    demo_l2->color(Palette::ColorId::label_text, kDemoBadge);
     container->add(demo_l2);
 
     // ── Exit-demo button (Figma 84:565 "bt leave", 60x24 @(452,551)) ───────
@@ -115,12 +119,17 @@ shared_ptr<Widget> create_demo_info_screen(
     green_bar->border(0);
     container->add(green_bar);
 
-    // ── Divider line (Figma 37:1835, 432x1 @y=579 -> y=148) ────────────────
+    // ── Divider line (Figma 37:1835) — REMOVED ─────────────────────────────
+    // In Figma the 1px gray gradient divider sits UNDER the 3px green bar, so
+    // it's invisible in the render. Our 2px solid line peeked out below the
+    // green bar; dropping it matches the design (just the green bar shows).
+#if 0
     auto divider = make_shared<Frame>(Rect(0, 152, dt::SCREEN_W, 2));
     divider->fill_flags({Theme::FillFlag::blend});
     divider->color(Palette::ColorId::bg, dt::kGrayLight);
     divider->border(0);
     container->add(divider);
+#endif
 
     // ── "TRAINING ONLY" - big, cyan, regular weight (UPPERCASE in Figma) ───
     // Figma styleOverride 51: fontSize 24 Regular UPPER -> 44 pt Normal.
