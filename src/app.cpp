@@ -372,6 +372,7 @@ void run_app(int argc, char** argv)
             [&]() { show_wifi_unavailable([&]() { show_home(); }); }));
     }
     else if (start && std::string(start) == "wifi-override-info") show_wifi_override_info([&]() { show_home(); });
+    else if (start && std::string(start) == "wifi-connected")     show_wifi_connected();
     else if (start && std::string(start) == "patient-info")       show_patient_info(false);
     else if (start && std::string(start) == "patient-info-demo")  show_patient_info(true);
     else if (start && std::string(start) == "treatment")          launch_treatment(false);

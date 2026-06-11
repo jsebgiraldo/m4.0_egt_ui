@@ -6,9 +6,13 @@
 #include <egt/svgimage.h>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <string>
+#include <tuple>
+#include <vector>
 
 using namespace egt;
 using namespace std;
@@ -108,34 +112,81 @@ private:
     float m_radius;
 };
 
-class WifiOffGlyph : public Widget {
-public:
-    WifiOffGlyph(const Rect& rect, const Color& col) : Widget(rect), m_col(col) {
-        fill_flags({Theme::FillFlag::blend});
-        border(0);
+// Figma wifi-off glyph (52:2785 "elements", viewBox 27.6269 × 25.3656).
+// Verbatim path data from Figma's SVG export — 5 asymmetric stroked arcs,
+// the small bottom-centre ellipse and the diagonal slash. The "%C" tokens
+// are placeholders for the stroke colour so we can render one variant per
+// (colour, size) on demand. Source: REST/MCP export of node 52:2785.
+static const char* kWifiOffGlyphFigmaSvg = R"svg(<svg viewBox="0 0 27.6269 25.3656" xmlns="http://www.w3.org/2000/svg" fill="none">
+<path d="M9.32881 15.6035C10.7657 14.3119 12.4864 13.7191 14.4542 13.8759" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M22.1422 12.0987C20.2296 10.5559 18.0224 9.49848 15.7355 9.17814" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M5.48467 12.0985C6.88517 11.0344 8.40357 10.2445 9.96936 9.76196" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M26.6268 8.59373C21.5934 4.71837 16.0381 3.25341 10.6101 4.19888" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1.00005 8.59387C2.56853 7.38625 4.2034 6.25731 5.48474 5.67317" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<ellipse cx="13.8134" cy="19.6925" rx="1.92201" ry="1.75242" stroke="%C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1.00011 1.00001L26.6269 24.3656" stroke="%C" stroke-width="2" stroke-linecap="round"/>
+</svg>)svg";
+
+// Cache wifi-off SvgImage instances by (RGB, size). Keeps the SvgImage
+// alive so the sliced Image's rasterized buffer stays valid on EGT 1.10
+// (same hazard as load_svg_icon — see comments there).
+static Image get_wifi_off_image(const Color& stroke, int size_px)
+{
+    using Key = std::tuple<uint8_t, uint8_t, uint8_t, int>;
+    static std::map<Key, std::shared_ptr<SvgImage>> s_cache;
+    Key k{stroke.red(), stroke.green(), stroke.blue(), size_px};
+    auto it = s_cache.find(k);
+    if (it != s_cache.end()) return static_cast<Image>(*it->second);
+
+    char hex[8];
+    snprintf(hex, sizeof(hex), "#%02x%02x%02x",
+             stroke.red(), stroke.green(), stroke.blue());
+    string svg = kWifiOffGlyphFigmaSvg;
+    string::size_type pos = 0;
+    while ((pos = svg.find("%C", pos)) != string::npos)
+        svg.replace(pos, 2, hex);
+
+    char fname[80];
+    snprintf(fname, sizeof(fname),
+             "/tmp/egt-icon-wifioff-%02x%02x%02x-%d.svg",
+             stroke.red(), stroke.green(), stroke.blue(), size_px);
+    ofstream f(fname); f << svg; f.close();
+    try {
+        auto img = std::make_shared<SvgImage>(string("file:") + fname,
+                                              SizeF(size_px, size_px));
+        s_cache.emplace(k, img);
+        return static_cast<Image>(*img);
+    } catch (...) {
+        return {};
     }
-    void draw(Painter& painter, const Rect&) override {
-        auto b = content_area();
-        const float sz = static_cast<float>(min(b.width(), b.height()));
-        const float cx = b.x() + b.width()  / 2.0f;
-        const float cy = b.y() + b.height() / 2.0f;
-        constexpr float start = -static_cast<float>(M_PI) * 0.75f;
-        constexpr float end   = -static_cast<float>(M_PI) * 0.25f;
-        const auto pivot = PointF(cx, cy + sz * 0.18f);
-        const float radii[] = {sz * 0.34f, sz * 0.24f, sz * 0.13f};
-        painter.set(m_col);
-        painter.line_width(std::max(2.0f, sz * 0.055f));
-        for (float r : radii) { painter.draw(Arc(pivot, r, start, end)); painter.stroke(); }
-        painter.draw(Arc(pivot, sz * 0.05f, 0.0f, 2.0f * static_cast<float>(M_PI)));
-        painter.fill();
-        painter.line_width(std::max(2.5f, sz * 0.065f));
-        painter.draw(Line(PointF(cx - sz * 0.32f, cy - sz * 0.23f),
-                          PointF(cx + sz * 0.32f, cy + sz * 0.23f)));
-        painter.stroke();
+}
+
+// Build a Frame holding a centred ImageLabel that renders the wifi-off
+// glyph SVG at exactly `glyph_sz` device px tall, stroked in `col`.
+// Versioned painter image draws (Painter::draw(Rect, Image)) diverge
+// between EGT 1.10 (target) and 1.12 (host), so a child ImageLabel is the
+// portable way — same trick we use elsewhere.
+static shared_ptr<Frame>
+make_wifi_off_glyph_frame(const Rect& outer, const Color& col)
+{
+    auto wrap = make_shared<Frame>(outer);
+    wrap->fill_flags({});
+    wrap->border(0);
+    const int d = min(outer.width(), outer.height());
+    const int gs = static_cast<int>(d * 0.65f);  // glyph fills ~65% of disc
+    auto img = get_wifi_off_image(col, gs);
+    if (!img.empty()) {
+        auto lbl = make_shared<ImageLabel>(img);
+        lbl->autoresize(false);
+        lbl->border(0); lbl->padding(0); lbl->margin(0);
+        lbl->fill_flags({});
+        lbl->image_align(AlignFlag::center);
+        lbl->box(Rect((outer.width() - gs) / 2,
+                      (outer.height() - gs) / 2, gs, gs));
+        wrap->add(lbl);
     }
-private:
-    Color m_col;
-};
+    return wrap;
+}
 
 static const char* kRefreshSvg = R"svg(
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -203,13 +254,12 @@ shared_ptr<Frame> make_icon_circle_png(int x, int y, int d,
     return wrap;
 }
 
-// Glyph wrapper for the wifi-off Painter glyph centred inside a gradient
-// circle (used by the Operate card's icon).
+// Glyph wrapper: gradient disc + Figma wifi-off SVG glyph centred on it.
 shared_ptr<Frame> make_wifi_off_circle(int x, int y, int d, const Color& glyph_col) {
     auto wrap = make_shared<Frame>(Rect(x, y, d, d));
     wrap->fill_flags({});
     wrap->add(make_gradient_circle(0, 0, d));
-    wrap->add(make_shared<WifiOffGlyph>(Rect(0, 0, d, d), glyph_col));
+    wrap->add(make_wifi_off_glyph_frame(Rect(0, 0, d, d), glyph_col));
     return wrap;
 }
 
@@ -333,28 +383,21 @@ public:
         painter.set(disc_grad);
         painter.fill();
 
-        // WiFi-off glyph (orange in default, white in pressed) — same arcs
-        // + diagonal as WifiOffGlyph above, centred in the disc.
-        const Color glyph_col = m_pressed ? dt::kWhite : dt::kTextPrimary;
-        const float pivot_x = icon_cx;
-        const float pivot_y = icon_cy + icon_d * 0.18f;
-        constexpr float arc_start = -static_cast<float>(M_PI) * 0.75f;
-        constexpr float arc_end   = -static_cast<float>(M_PI) * 0.25f;
-        const float radii[] = {icon_d * 0.34f, icon_d * 0.24f, icon_d * 0.13f};
-        painter.set(glyph_col);
-        painter.line_width(std::max(2.0f, icon_d * 0.055f));
-        for (float rr : radii) {
-            painter.draw(Arc(PointF(pivot_x, pivot_y), rr, arc_start, arc_end));
-            painter.stroke();
+        // WiFi-off glyph: the asymmetric Figma SVG (52:2785 "elements")
+        // rasterised at the exact device size and pasted via the painter.
+        // Stays gray (#646569) in BOTH default and pressed states — Figma's
+        // 2073:1620 (pressed) reuses the same stroke colour as 2073:1286,
+        // even though the surrounding card swaps to the cyan→blue gradient.
+        const int gs = static_cast<int>(icon_d * 0.65f);
+        const int gx = static_cast<int>(icon_cx - gs / 2.0f);
+        const int gy = static_cast<int>(icon_cy - gs / 2.0f);
+        auto glyph = get_wifi_off_image(dt::kTextPrimary, gs);
+        if (!glyph.empty()) {
+            // Point-then-image idiom: portable across EGT 1.10 (target) and
+            // 1.12 (host) — neither has draw(Rect, Image).
+            painter.draw(PointF(static_cast<float>(gx), static_cast<float>(gy)));
+            painter.draw(glyph);
         }
-        painter.draw(Arc(PointF(pivot_x, pivot_y), icon_d * 0.05f,
-                         0.0f, 2.0f * PI));
-        painter.fill();
-        painter.line_width(std::max(2.5f, icon_d * 0.065f));
-        painter.draw(Line(
-            PointF(icon_cx - icon_d * 0.32f, icon_cy - icon_d * 0.23f),
-            PointF(icon_cx + icon_d * 0.32f, icon_cy + icon_d * 0.23f)));
-        painter.stroke();
 
         // ── Text block — three labels stacked. Colours flip on press. ────
         const Color text_col = m_pressed ? dt::kWhite : dt::kTextPrimary;
@@ -436,8 +479,9 @@ shared_ptr<Widget> create_wifi_not_found_screen(
     b_chip->border_radius(b_icon_d / 2);
     container->add(b_chip);
     // Glyph orange to match the banner (per design — looks like the strikethrough
-    // ink "belongs" to the banner hue, not pure black).
-    container->add(make_shared<WifiOffGlyph>(
+    // ink "belongs" to the banner hue, not pure black). Figma SVG paths
+    // rendered by make_wifi_off_glyph_frame() match the actual Group 146 art.
+    container->add(make_wifi_off_glyph_frame(
         Rect(b_icon_x, b_icon_y, b_icon_d, b_icon_d), Color(0xff, 0x9e, 0x1b)));
 
     // Banner text (2071:1129: Gothic A1 14pt → 26pt, weight 500, #000000,
