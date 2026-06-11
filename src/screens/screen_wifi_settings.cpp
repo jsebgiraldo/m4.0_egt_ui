@@ -394,10 +394,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
         scan_spinner->angle(*spinner_angle);
     });
 
-    // Header separator line
-    auto hdr_line = make_shared<Frame>(Rect(10, 48, card_w - 20, 1));
+    // Header separator line — Figma 151:894 (Line 5): a 1-figma-px WHITE
+    // line (sampled 255,255,255 over the gray card gradient), x=58 w=317 →
+    // card-relative (16, 47) w=587, ~2 device px.
+    auto hdr_line = make_shared<Frame>(Rect(16, 47, 587, 2));
     hdr_line->fill_flags({Theme::FillFlag::blend});
-    hdr_line->color(Palette::ColorId::bg, dt::kGrayLight);
+    hdr_line->color(Palette::ColorId::bg, dt::kWhite);
     hdr_line->border(0);
     card->add(hdr_line);
 
@@ -557,11 +559,12 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 wifi_lbl->border(0); wifi_lbl->padding(0); wifi_lbl->margin(0);
                 wifi_lbl->fill_flags({});
                 wifi_lbl->image_align(AlignFlag::center);
-                wifi_lbl->box(Rect(card_w - 130, (row_h - 33) / 2, 50, 33));
+                // Figma 151:918: glyph spans device x 581..610 (centre card-rel ~504).
+                wifi_lbl->box(Rect(card_w - 136, (row_h - 33) / 2, 50, 33));
                 row_frame->add(wifi_lbl);
             } catch (...) {
                 wifi_icon = make_shared<WifiIcon>(
-                    Rect(card_w - 130, (row_h - 33) / 2, 50, 33),
+                    Rect(card_w - 136, (row_h - 33) / 2, 50, 33),
                     text_color, net.signal);
                 row_frame->add(wifi_icon);
             }
@@ -578,13 +581,13 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
                 chev_lbl->fill_flags({});
                 chev_lbl->image_align(AlignFlag::center);
-                chev_lbl->box(Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
+                chev_lbl->box(Rect(card_w - 69, (row_h - 46) / 2, 46, 46));
                 row_frame->add(chev_lbl);
             } catch (...) { /* fall back: no chevron */ }
             // Keep a transparent Label as the chevron handle for the
             // colour-update logic below (no-op when no real chevron drawn).
             chevron = make_shared<Label>("",
-                Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
+                Rect(card_w - 69, (row_h - 46) / 2, 46, 46));
             chevron->color(Palette::ColorId::label_text, text_color);
             row_frame->add(chevron);
 
@@ -638,11 +641,14 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
                 if (on_show_screen) on_show_screen(pwd_screen);
             }, {EventId::pointer_click});
 
-            // Row divider line - matches figma's visible row separator.
+            // Row divider — Figma 151:900..902 (Line 4): a 2-figma-px
+            // WHITE line (sampled 255,255,255 over the card gradient), not
+            // gray. x=58 w=317 → card-rel x=16 w=587, ~4 device px at the
+            // row's bottom edge.
             auto sep = make_shared<Frame>(
-                Rect(15, row_h - 1, card_w - 30, 1));
+                Rect(16, row_h - 4, 587, 4));
             sep->fill_flags({Theme::FillFlag::blend});
-            sep->color(Palette::ColorId::bg, Color(220, 220, 220));
+            sep->color(Palette::ColorId::bg, dt::kWhite);
             sep->border(0);
             row_frame->add(sep);
 
@@ -722,7 +728,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             sig_lbl->border(0); sig_lbl->padding(0); sig_lbl->margin(0);
             sig_lbl->fill_flags({});
             sig_lbl->image_align(AlignFlag::center);
-            sig_lbl->box(Rect(card_w - 130, (row_h - 33) / 2, 50, 33));
+            sig_lbl->box(Rect(card_w - 136, (row_h - 33) / 2, 50, 33));
             other_frame->add(sig_lbl);
         } catch (...) { /* fall back: no icon */ }
 
@@ -734,16 +740,16 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
             chev_lbl->border(0); chev_lbl->padding(0); chev_lbl->margin(0);
             chev_lbl->fill_flags({});
             chev_lbl->image_align(AlignFlag::center);
-            chev_lbl->box(Rect(card_w - 64, (row_h - 46) / 2, 46, 46));
+            chev_lbl->box(Rect(card_w - 69, (row_h - 46) / 2, 46, 46));
             other_frame->add(chev_lbl);
         } catch (...) { /* fall back: no chevron */ }
 
         // Separator line under "Other..." — Figma line 151:903 (figma y=200
         // → device y≈367-370), same style as the network-row dividers.
         auto other_sep = make_shared<Frame>(
-            Rect(15, row_h - 1, card_w - 30, 1));
+            Rect(16, row_h - 4, 587, 4));
         other_sep->fill_flags({Theme::FillFlag::blend});
-        other_sep->color(Palette::ColorId::bg, Color(220, 220, 220));
+        other_sep->color(Palette::ColorId::bg, dt::kWhite);
         other_sep->border(0);
         other_frame->add(other_sep);
 
@@ -798,7 +804,7 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
     // device 381. Gear (Group 263 inner pill at figma x=18) sits at device
     // x=33; wifi-off (Group 248) sits at figma x=375 → device x=695.
     const int icon_sz = 72;
-    const int icon_y  = 381;
+    const int icon_y  = 378;   // Figma y=206 * 1.836 = 378.2
 
     // ── Gear button (bottom-left) - Figma node 2065:870, inner pill at
     // (7,7) 39×39 inside the 133×52 group. The pill takes the user back to
@@ -817,9 +823,9 @@ std::shared_ptr<Widget> create_wifi_settings_panel(
 
         try {
             // wifi-settings-gear.png is the bare gear glyph (no background),
-            // sized 57×57 source. Figma gear bbox ≈ 51×51 device on the
-            // 72-px disc (glyph/disc ≈ 0.70) → render at 52 device px.
-            const int glyph_sz = 52;
+            // sized 57×57 source. Figma 151:886 gear glyph (2065:881) is
+            // 34.75 figma px on the 39-px disc (ratio 0.89) → 64 device px.
+            const int glyph_sz = 64;
             auto img = Image(("file:" + ui::asset_path("wifi-settings-gear")).c_str(),
                              static_cast<float>(glyph_sz) / 57.0f,
                              static_cast<float>(glyph_sz) / 57.0f);
