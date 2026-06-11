@@ -1200,7 +1200,8 @@ static void show_treatment_zero(shared_ptr<TreatmentState> state)
     auto chk_wrap = make_shared<Frame>(Rect(chk_x, chk_y, chk, chk));
     chk_wrap->fill_flags({});
     try {
-        const std::string path = "assets/figma/images/treatment-check-green.png";
+        // Embedded asset (bare assets/ paths don't exist on the target).
+        const std::string path = ui::asset_path("treatment-check-green");
         auto probe = Image(("file:" + path).c_str());
         const float hs = static_cast<float>(chk) / probe.width();
         const float vs = static_cast<float>(chk) / probe.height();
@@ -1449,43 +1450,67 @@ static void show_treatment_completed(shared_ptr<TreatmentState> state, bool earl
     const Color complete_blue(48, 129, 196);
 
     const string title = early ? "Treatment Ended" : "Treatment Completed";
-    // Measured rendered width of each title @37pt bold, so the [check + gap +
-    // title] block centres on the real text (a fixed box left it off-centre).
-    const int title_w = early ? 320 : 398;
 
-    // Centred check + title row (Figma Group 211 @ y=106 -> 196).
+    // Centred check + title row (Figma Group 211 @ y=106 -> 196), painted by
+    // one widget that MEASURES the title at draw time and centres the
+    // [check + gap + title] group on the screen. A fixed pre-measured width
+    // drifted off-centre whenever the resolved font differed (e.g. the
+    // DejaVu fallback renders ~75px wider than the Gothic A1 measurement).
+    class CompletedTitleRow : public Widget {
+    public:
+        CompletedTitleRow(const Rect& rect, string title, const Color& col)
+            : Widget(rect), m_title(std::move(title)), m_col(col)
+        {
+            fill_flags({});
+            border(0);
+            // Blue check (Figma Group 175, 35x35 -> 65x65). Embedded PNG —
+            // a bare assets/ path doesn't exist on the target.
+            try {
+                const std::string path = ui::asset_path("treatment-check-blue");
+                auto probe = Image(("file:" + path).c_str());
+                const float s = static_cast<float>(kChk)
+                              / static_cast<float>(probe.width());
+                m_check = Image(("file:" + path).c_str(), s, s);
+            } catch (const std::exception& e) {
+                printf("[TREATMENT] check icon missing: %s\n", e.what());
+                fflush(stdout);
+            }
+        }
+
+        void draw(Painter& painter, const Rect&) override
+        {
+            const auto b = content_area();
+            painter.set(Font(37, Font::Weight::bold));
+            painter.set(m_col);
+            const auto ts = painter.text_size(m_title);
+            const int group_w = kChk + kGap + static_cast<int>(ts.width());
+            const int gx = b.x() + (b.width() - group_w) / 2;
+            const int gy = b.y();
+            if (!m_check.empty()) {
+                painter.draw(PointF(static_cast<float>(gx),
+                                    static_cast<float>(gy)));
+                painter.draw(m_check);
+                // draw(image) swaps the cairo source to the image pattern —
+                // restore font + colour before painting the title text.
+                painter.set(Font(37, Font::Weight::bold));
+                painter.set(m_col);
+            }
+            painter.draw(PointF(
+                static_cast<float>(gx + kChk + kGap),
+                gy + (static_cast<float>(kChk) - ts.height()) / 2.0f));
+            painter.draw(m_title);
+        }
+
+    private:
+        enum { kChk = 65, kGap = 16 };   // local classes can't have statics
+        string m_title;
+        Color  m_col;
+        Image  m_check;
+    };
+
     const int row_y = 196;
-    const int chk = 65, gap = 16;
-    const int group_w = chk + gap + title_w;
-    const int group_x = (dt::SCREEN_W - group_w) / 2;
-
-    // Blue check (Figma Group 175, 35x35 -> 65x65). Downloaded PNG, not drawn.
-    auto chk_wrap = make_shared<Frame>(Rect(group_x, row_y, chk, chk));
-    chk_wrap->fill_flags({});
-    try {
-        const std::string path = "assets/figma/images/treatment-check-blue.png";
-        auto probe = Image(("file:" + path).c_str());
-        const float hs = static_cast<float>(chk) / probe.width();
-        const float vs = static_cast<float>(chk) / probe.height();
-        auto lbl = make_shared<ImageLabel>(
-            Image(("file:" + path).c_str(), hs, vs));
-        lbl->autoresize(false);
-        lbl->border(0); lbl->padding(0); lbl->margin(0);
-        lbl->fill_flags({});
-        lbl->image_align(AlignFlag::center);
-        lbl->box(Rect(0, 0, chk, chk));
-        chk_wrap->add(lbl);
-    } catch (const std::exception& e) {
-        printf("[TREATMENT] check icon missing: %s\n", e.what()); fflush(stdout);
-    }
-    container->add(chk_wrap);
-
-    auto title_lbl = make_shared<Label>(title,
-        Rect(group_x + chk + gap, row_y - 6, title_w, chk),
-        AlignFlag::center);
-    title_lbl->font(Font(37, Font::Weight::bold));
-    title_lbl->color(Palette::ColorId::label_text, complete_blue);
-    container->add(title_lbl);
+    container->add(make_shared<CompletedTitleRow>(
+        Rect(0, row_y, dt::SCREEN_W, 65 + 4), title, complete_blue));
 
     container->add(make_back_home_button([=]() {
         if (state->active_timer) state->active_timer->cancel();
