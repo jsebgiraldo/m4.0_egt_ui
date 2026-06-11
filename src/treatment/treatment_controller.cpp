@@ -309,7 +309,11 @@ static TreatmentScreen make_treatment_container(
     if (show_cumulative) {
         // Figma header geometry (81:1036 / 154:931): label right edge x=229
         // -> 424 device, header top y=23 -> 42, divider y=56 -> 103.
-        const int desc_w = 210, time_w = 120, gap = 16;
+        // time_w 150 (not the Figma-tight 120): the interim fallback font
+        // (DejaVu) renders "00:00" at 44pt ~125px wide, which clipped the
+        // last digit at 120. The label is left-aligned so the extra width
+        // only extends the right edge (to x=590, clear of the DEMO badge).
+        const int desc_w = 210, time_w = 150, gap = 16;
         const int group_x = 214;   // 424 - desc_w
         const int hdr_y   = 42;
         const int sep_y   = 103;
