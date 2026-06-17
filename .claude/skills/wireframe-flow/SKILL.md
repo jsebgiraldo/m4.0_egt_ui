@@ -30,7 +30,9 @@ aesthetic rules so the diagram stays clean no matter how the flow grows.
    the canvas into a horizontal band and shortens the ring wires.
 2. **Wires only travel in node-free channels**, so a wire never crosses a
    screen body:
-   - adjacent-column edge → vertical run in the **gutter** between the columns;
+   - adjacent-column **or same-column** edge → short vertical hop in the
+     **gutter**, spanning only the two nodes (sequential same-column steps
+     like the treatment screens must NOT detour to a ring);
    - longer edge → rises/drops only to a **local ceiling/floor** (just enough
      to clear the nodes it actually passes over — never a global ring far from
      the content), runs horizontally, then drops into the target. The nearer

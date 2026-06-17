@@ -5,7 +5,8 @@ Design goals (the "nice diagram" rules this encodes):
   1. Layered layout: nodes sit in columns (flow stages) and rows; each column
      is vertically centred so sparse columns don't waste the bottom half.
   2. Edges are ORTHOGONAL and routed only through node-free channels:
-       - adjacent-column edges run in the vertical GUTTER between the columns;
+       - adjacent-column AND same-column edges run a short vertical hop in the
+         column gutter, spanning only the two nodes (never the bottom floor);
        - longer edges rise/drop to a LOCAL ceiling/floor — just far enough to
          clear the nodes they actually pass over (NOT a global ring) — then run
          horizontally and drop into the target. A greedy interval packer stacks
@@ -139,11 +140,11 @@ HUB = "home"
 # ── Geometry ────────────────────────────────────────────────────────────────
 NODE_W, NODE_H = 230, 168
 COL_STRIDE      = 430          # node + gutter
-ROW_STRIDE      = 232
+ROW_STRIDE      = 248
 MARGIN_X        = 70
 GUTTER          = COL_STRIDE - NODE_W       # 200 px node-free vertical channel
-LANE_STEP       = 18                        # spacing between parallel wire lanes
-RING_LANE_STEP  = 20                        # wider separation for ring (long) wires
+LANE_STEP       = 24                        # spacing between parallel wire lanes
+RING_LANE_STEP  = 32                        # wider separation for stacked long wires
 RING_TOP_H      = 100          # top reserve so the highest local-ceiling lane stays on-canvas
 RING_BOT_H      = 150          # bottom ring band for backward/loop edges
 STUB            = 16           # short horizontal stub out of a node side
@@ -234,7 +235,7 @@ def main():
     # nudged by one lane-step at a time only while it would overlap an
     # already-placed wire whose x-range intersects it. Short, isolated edges
     # therefore hug their obstacles; only genuinely crowded spans stack up.
-    CLEAR = 24
+    CLEAR = 36
     placed = {"up": [], "down": []}   # list of (x0, x1, y)
     def pack(side, x0, x1, base_y):
         x0, x1 = min(x0, x1), max(x0, x1)
@@ -251,7 +252,8 @@ def main():
             if side == "up" and y < 14:   # never leave the canvas
                 break
         placed[side].append((x0, x1, y))
-        return y
+        depth = abs(int(round((y - base_y) / step)))
+        return y, depth
 
     # Phase 1: route adjacent edges in gutters now; defer long edges so they can
     # be packed against each other (process longest-span first for tighter packing).
@@ -264,6 +266,16 @@ def main():
             slot = gutter_lanes.get(ca, 0); gutter_lanes[ca] = slot + 1
             gx = gutter_x(ca, slot)
             x1, y1 = attach(a, "r"); x2, y2 = attach(b, "l")
+            seg = [(x1, y1), (gx, y1), (gx, y2), (x2, y2)]
+            paths.append(dict(d=path_round(seg, r=10), kind=kind, label=label,
+                              lx=gx, ly=(y1 + y2) / 2))
+        elif cb == ca:
+            # SAME column (e.g. the sequential treatment steps): a short
+            # vertical hop in the column's own right gutter, spanning only the
+            # two nodes — NOT a trip down to the bottom floor.
+            slot = gutter_lanes.get(ca, 0); gutter_lanes[ca] = slot + 1
+            gx = gutter_x(ca, slot)
+            x1, y1 = attach(a, "r"); x2, y2 = attach(b, "r")
             seg = [(x1, y1), (gx, y1), (gx, y2), (x2, y2)]
             paths.append(dict(d=path_round(seg, r=10), kind=kind, label=label,
                               lx=gx, ly=(y1 + y2) / 2))
@@ -284,13 +296,18 @@ def main():
         go_up = (mid - obst_top) <= (obst_bot - mid)
         if go_up:
             x1, y1 = attach(a, "t"); x2, y2 = attach(b, "t")
-            ry = pack("up", x1, x2, obst_top - CLEAR)
+            ry, depth = pack("up", x1, x2, obst_top - CLEAR)
         else:
             x1, y1 = attach(a, "b"); x2, y2 = attach(b, "b")
-            ry = pack("down", x1, x2, obst_bot + CLEAR)
+            ry, depth = pack("down", x1, x2, obst_bot + CLEAR)
         seg = [(x1, y1), (x1, ry), (x2, ry), (x2, y2)]
+        # stagger the label along the horizontal run (fraction cycles by the
+        # stacking depth) so plates in the same band don't overlap in x
+        fr = [0.42, 0.60, 0.30, 0.70, 0.50][depth % 5]
+        lo, hi = min(x1, x2), max(x1, x2)
+        lblx = lo + (hi - lo) * fr
         paths.append(dict(d=path_round(seg, r=10), kind=kind, label=label,
-                          lx=(x1 + x2) / 2, ly=ry))
+                          lx=lblx, ly=ry))
 
     # tighten the canvas to whatever the packer actually used
     used_top = min([p["ly"] for p in paths] + [g_top]) - 30
