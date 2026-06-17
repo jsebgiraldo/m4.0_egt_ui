@@ -1274,33 +1274,42 @@ static void show_treatment_paused(shared_ptr<TreatmentState> state)
     container->add(status);
 
     // Tip message (Figma 67:773): two centred cyan lines, flanked by cyan
-    // chevrons left and right.
-    const int tip_y = STATUS_Y + 34;
+    // chevrons left and right. The chevrons sit near the screen edges and the
+    // two text lines are constrained to the band BETWEEN them, so the wider
+    // fallback font (Gothic A1 deferred, D1) can't overrun the arrows.
+    const int chev_sz   = 46;
+    const int chev_lx   = 34;                              // left chevron x
+    const int chev_rx   = dt::SCREEN_W - 34 - chev_sz;     // right chevron x
+    const int text_x    = chev_lx + chev_sz + 14;          // 94
+    const int text_w    = chev_rx - text_x - 14;           // band between chevrons
+    const int tip_y     = STATUS_Y + 34;
+
     auto tip1 = make_shared<Label>(
         "Tip : Keep pauses short to quickly rewarm and get back to",
-        Rect(0, tip_y, dt::SCREEN_W, 26));
+        Rect(text_x, tip_y, text_w, 26), AlignFlag::center);
     tip1->font(Font(18, Font::Weight::bold));
     tip1->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(tip1);
 
     auto tip2 = make_shared<Label>(
         "treatment faster - every second counts!",
-        Rect(0, tip_y + 26, dt::SCREEN_W, 26));
+        Rect(text_x, tip_y + 26, text_w, 26), AlignFlag::center);
     tip2->font(Font(18, Font::Weight::bold));
     tip2->color(Palette::ColorId::label_text, dt::kAccentCyan);
     container->add(tip2);
 
-    const int chev_sz = 46;
+    // Chevrons vertically centred on the 2-line tip block.
+    const int chev_y = tip_y + (52 - chev_sz) / 2;
     auto chevL = make_shared<ImageLabel>(load_chevron(true, chev_sz));
     chevL->autoresize(false); chevL->border(0); chevL->fill_flags({});
     chevL->image_align(AlignFlag::center);
-    chevL->box(Rect(96, tip_y + 6, chev_sz, chev_sz));
+    chevL->box(Rect(chev_lx, chev_y, chev_sz, chev_sz));
     container->add(chevL);
 
     auto chevR = make_shared<ImageLabel>(load_chevron(false, chev_sz));
     chevR->autoresize(false); chevR->border(0); chevR->fill_flags({});
     chevR->image_align(AlignFlag::center);
-    chevR->box(Rect(dt::SCREEN_W - 96 - chev_sz, tip_y + 6, chev_sz, chev_sz));
+    chevR->box(Rect(chev_rx, chev_y, chev_sz, chev_sz));
     container->add(chevR);
 
     // Resume / End buttons (Figma: y=198, Resume=filled left, End=outlined right)
