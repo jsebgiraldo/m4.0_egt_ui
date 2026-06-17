@@ -2,17 +2,23 @@
 """Generate a clean interactive wireframe.html from a flow model.
 
 Design goals (the "nice diagram" rules this encodes):
-  1. Layered layout: nodes sit in columns (flow stages) and rows.
+  1. Layered layout: nodes sit in columns (flow stages) and rows; each column
+     is vertically centred so sparse columns don't waste the bottom half.
   2. Edges are ORTHOGONAL and routed only through node-free channels:
        - adjacent-column edges run in the vertical GUTTER between the columns;
-       - forward edges that skip columns run in a TOP ring (above all nodes);
-       - backward edges / loops run in a BOTTOM ring (below all nodes).
-     => no wire ever crosses over a screen body.
+       - longer edges rise/drop to a LOCAL ceiling/floor — just far enough to
+         clear the nodes they actually pass over (NOT a global ring) — then run
+         horizontally and drop into the target. A greedy interval packer stacks
+         only the wires whose x-ranges overlap, so short edges hug their nodes
+         and excursions stay small. => no wire ever crosses a screen body, and
+         no big empty band is reserved above/below.
   3. Parallel segments get distinct LANES so wires never overlap.
-  4. Edge labels sit on the clear vertical/ring segment with a solid plate,
-     drawn on top => labels are never covered by a wire or a node.
+  4. Edge labels sit on the clear segment with a solid plate, drawn on top =>
+     labels are never covered by a wire or a node.
   5. A UX-analysis pass flags dead-ends, no-exit screens, unreachable screens
      and one-way doors, listed in a side panel and badged on the node.
+  6. After routing, everything is shifted so the topmost element sits at the
+     margin and the canvas height is cropped to the content.
 
 Input model: edit FLOW below (or load a JSON via --model). Output: wireframe.html
 plus it expects screens/<file>.png and thumbs/<file>.png next to it.
@@ -138,7 +144,7 @@ MARGIN_X        = 70
 GUTTER          = COL_STRIDE - NODE_W       # 200 px node-free vertical channel
 LANE_STEP       = 18                        # spacing between parallel wire lanes
 RING_LANE_STEP  = 20                        # wider separation for ring (long) wires
-RING_TOP_H      = 130          # height of the top ring band reserved for skip edges
+RING_TOP_H      = 100          # top reserve so the highest local-ceiling lane stays on-canvas
 RING_BOT_H      = 150          # bottom ring band for backward/loop edges
 STUB            = 16           # short horizontal stub out of a node side
 
@@ -199,71 +205,97 @@ def main():
     ring_bot_y = nodes_bottom + 40
     canvas_h = ring_bot_y + RING_BOT_H + MARGIN_X
 
-    # ── lane allocators ──────────────────────────────────────────────────────
-    # vertical lanes inside each between-column gutter
-    gutter_lanes = {}     # col index c -> next lane slot for gutter right of col c
+    # node x-extent per column (for obstacle clearance of long edges)
+    col_top = {c: min(n["y"] for n in ns) for c, ns in col_nodes.items()}
+    col_bot = {c: max(n["y"] + NODE_H for n in ns) for c, ns in col_nodes.items()}
+
+    # vertical lanes inside each between-column gutter (adjacent edges)
+    gutter_lanes = {}
     def gutter_x(c, slot):
-        # gutter to the right of column c spans [x_right(c), x_left(c+1)]
         gx0 = MARGIN_X + c * COL_STRIDE + NODE_W
-        return gx0 + (NODE_W * 0) + 24 + slot * LANE_STEP   # start a bit inside
-    # horizontal ring lanes
-    top_lane_n = [0]
-    bot_lane_n = [0]
-    def top_lane_y(slot):  return top_ring_y0 + 26 + slot * RING_LANE_STEP
-    def bot_lane_y(slot):  return ring_bot_y + 24 + slot * RING_LANE_STEP
+        return gx0 + 24 + slot * LANE_STEP
 
     # spread attach points on a node side so stubs don't collide
-    side_count = {}   # (nid, side) -> count used
+    side_count = {}
     def attach(nid, side):
         n = N[nid]
         k = (nid, side)
         i = side_count.get(k, 0); side_count[k] = i + 1
         if side in ("r", "l"):
-            # spread vertically across the node's right/left edge
-            ys = n["y"] + NODE_H * (0.28 + 0.16 * i)
-            ys = min(ys, n["y"] + NODE_H - 14)
-            x = n["x"] + (NODE_W if side == "r" else 0)
-            return x, ys
+            ys = min(n["y"] + NODE_H * (0.28 + 0.16 * i), n["y"] + NODE_H - 14)
+            return n["x"] + (NODE_W if side == "r" else 0), ys
         else:
-            xs = n["x"] + NODE_W * (0.30 + 0.16 * i)
-            xs = min(xs, n["x"] + NODE_W - 14)
-            y = n["y"] + (NODE_H if side == "b" else 0)
-            return xs, y
+            xs = min(n["x"] + NODE_W * (0.30 + 0.16 * i), n["x"] + NODE_W - 14)
+            return xs, n["y"] + (NODE_H if side == "b" else 0)
 
-    paths = []   # (d, kind, label, lx, ly)
+    # Greedy interval packer for the horizontal "highway" segments of long
+    # edges: a wire only rises/drops as far as needed to clear the nodes it
+    # actually passes over (a LOCAL ceiling/floor, not a global ring), then is
+    # nudged by one lane-step at a time only while it would overlap an
+    # already-placed wire whose x-range intersects it. Short, isolated edges
+    # therefore hug their obstacles; only genuinely crowded spans stack up.
+    CLEAR = 24
+    placed = {"up": [], "down": []}   # list of (x0, x1, y)
+    def pack(side, x0, x1, base_y):
+        x0, x1 = min(x0, x1), max(x0, x1)
+        step = RING_LANE_STEP
+        y = base_y
+        moved = True
+        while moved:
+            moved = False
+            for (px0, px1, py) in placed[side]:
+                if x1 >= px0 - 6 and x0 <= px1 + 6 and abs(py - y) < step - 1:
+                    y = (y - step) if side == "up" else (y + step)
+                    moved = True
+                    break
+            if side == "up" and y < 14:   # never leave the canvas
+                break
+        placed[side].append((x0, x1, y))
+        return y
+
+    # Phase 1: route adjacent edges in gutters now; defer long edges so they can
+    # be packed against each other (process longest-span first for tighter packing).
+    paths = []
+    long_edges = []
     for e in edges_in:
         a, b, label, kind = e
-        na, nb = N[a], N[b]
-        ca, cb = na["col"], nb["col"]
-        seg = []   # list of (x,y) points, orthogonal
-        lx = ly = None
-
+        ca, cb = N[a]["col"], N[b]["col"]
         if cb == ca + 1:
-            # adjacent forward → vertical run in the gutter right of ca
             slot = gutter_lanes.get(ca, 0); gutter_lanes[ca] = slot + 1
             gx = gutter_x(ca, slot)
             x1, y1 = attach(a, "r"); x2, y2 = attach(b, "l")
             seg = [(x1, y1), (gx, y1), (gx, y2), (x2, y2)]
-            lx, ly = gx, (y1 + y2) / 2
-        elif cb > ca + 1:
-            # forward skip → up into the top ring, across, down into target
-            slot = top_lane_n[0]; top_lane_n[0] += 1
-            ry = top_lane_y(slot)
-            x1, y1 = attach(a, "t"); x2, y2 = attach(b, "t")
-            seg = [(x1, y1), (x1, ry), (x2, ry), (x2, y2)]
-            lx, ly = (x1 + x2) / 2, ry
+            paths.append(dict(d=path_round(seg, r=10), kind=kind, label=label,
+                              lx=gx, ly=(y1 + y2) / 2))
         else:
-            # backward or same column → down into the bottom ring, across, up
-            slot = bot_lane_n[0]; bot_lane_n[0] += 1
-            ry = bot_lane_y(slot)
-            x1, y1 = attach(a, "b"); x2, y2 = attach(b, "b")
-            seg = [(x1, y1), (x1, ry), (x2, ry), (x2, y2)]
-            lx, ly = (x1 + x2) / 2, ry
+            long_edges.append(e)
 
-        # build a rounded-orthogonal path string
-        d = path_round(seg, r=10)
-        paths.append(dict(d=d, kind=kind, label=label, lx=lx, ly=ly,
-                          end=seg[-1], prev=seg[-2]))
+    long_edges.sort(key=lambda e: -abs(N[e[1]]["col"] - N[e[0]]["col"]))
+    for e in long_edges:
+        a, b, label, kind = e
+        na, nb = N[a], N[b]
+        ca, cb = na["col"], nb["col"]
+        c0, c1 = min(ca, cb), max(ca, cb)
+        spanned = [c for c in range(c0, c1 + 1) if c in col_nodes]
+        obst_top = min(col_top[c] for c in spanned)
+        obst_bot = max(col_bot[c] for c in spanned)
+        # choose the nearer side (above vs below) to minimise the excursion
+        mid = (na["cy"] + nb["cy"]) / 2
+        go_up = (mid - obst_top) <= (obst_bot - mid)
+        if go_up:
+            x1, y1 = attach(a, "t"); x2, y2 = attach(b, "t")
+            ry = pack("up", x1, x2, obst_top - CLEAR)
+        else:
+            x1, y1 = attach(a, "b"); x2, y2 = attach(b, "b")
+            ry = pack("down", x1, x2, obst_bot + CLEAR)
+        seg = [(x1, y1), (x1, ry), (x2, ry), (x2, y2)]
+        paths.append(dict(d=path_round(seg, r=10), kind=kind, label=label,
+                          lx=(x1 + x2) / 2, ly=ry))
+
+    # tighten the canvas to whatever the packer actually used
+    used_top = min([p["ly"] for p in paths] + [g_top]) - 30
+    used_bot = max([p["ly"] for p in paths] + [g_bot]) + 30
+    canvas_h = used_bot - min(used_top, MARGIN_X) + MARGIN_X
 
     # ── UX analysis ──────────────────────────────────────────────────────────
     outdeg = {nid: 0 for nid in N}
@@ -298,12 +330,22 @@ def main():
                 issues.append((n["label"], t))
 
     # ── emit ───────────────────────────────────────────────────────────────
-    nodes_js = [dict(id=n["id"], label=n["label"], file=n["file"], x=n["x"], y=n["y"],
+    # Shift everything up so the topmost element (a wire or a node) sits at
+    # MARGIN_X — removes the empty top band left by the routing reserve.
+    content_top = min([p["ly"] for p in paths] + [g_top])
+    content_bot = max([p["ly"] for p in paths] + [g_bot])
+    off = content_top - MARGIN_X
+    canvas_h = (content_bot - content_top) + 2 * MARGIN_X
+
+    nodes_js = [dict(id=n["id"], label=n["label"], file=n["file"],
+                     x=n["x"], y=n["y"] - off,
                      color=n["color"], badge=node_badges.get(n["id"], ""))
                 for n in N.values()]
     order = [n[2] for n in nodes_in]
 
-    svg_parts = [svg_defs()]
+    # all wires + labels live in one group translated by -off (keeps them
+    # aligned with the offset node divs)
+    svg_parts = [svg_defs(), f'<g transform="translate(0,{-off:.0f})">']
     for p in paths:
         col = {"flow":"#8a949f","branch":"#d98a3a","alert":"#e05a2b"}[p["kind"]]
         dash = "" if p["kind"]=="flow" else 'stroke-dasharray="7 5"'
@@ -322,6 +364,7 @@ def main():
             f'fill="#11141a" stroke="#2a2f3a"/>'
             f'<text x="0" y="3" text-anchor="middle" fill="{col}" '
             f'font-size="11" font-family="monospace">{esc(p["label"])}</text></g>')
+    svg_parts.append('</g>')
     svg = "\n".join(svg_parts)
 
     html = TEMPLATE

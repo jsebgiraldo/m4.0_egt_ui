@@ -31,10 +31,15 @@ aesthetic rules so the diagram stays clean no matter how the flow grows.
 2. **Wires only travel in node-free channels**, so a wire never crosses a
    screen body:
    - adjacent-column edge → vertical run in the **gutter** between the columns;
-   - forward edge skipping columns → up into the **top ring** (above all nodes),
-     across, down into the target;
-   - backward edge / loop → down into the **bottom ring**, across, up.
-3. **Parallel segments get distinct lanes** (`LANE_STEP`) so wires never overlap.
+   - longer edge → rises/drops only to a **local ceiling/floor** (just enough
+     to clear the nodes it actually passes over — never a global ring far from
+     the content), runs horizontally, then drops into the target. The nearer
+     side (above vs below) is chosen per edge to minimise the excursion.
+3. **Parallel segments get distinct lanes** (`LANE_STEP` / `RING_LANE_STEP`) via
+   a greedy interval packer: only wires whose x-ranges overlap are stacked, so
+   isolated edges hug their obstacles instead of all piling into one band.
+   After routing, the whole canvas is shifted/cropped to the content (no empty
+   reserved bands).
 4. **Labels sit on the clear segment with a solid plate**, drawn last (on top) —
    never covered by a wire or a node.
 5. **UX audit**: flags dead-ends (no outgoing nav, unless in `TERMINALS`),
