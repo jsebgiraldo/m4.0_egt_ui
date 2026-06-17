@@ -80,6 +80,9 @@ screenshot_egt.png
 !docs/10-reports/**/comparison.png
 !docs/10-reports/demo-vs-real-mode/*.png
 
+# The wireframe report's screenshots ARE tracked (the README embeds them).
+!docs/10-reports/wireframe/**/*.png
+
 # Figma parsing scripts (local dev tools, reference local paths)
 dump_demo.py
 dump_flow.py
