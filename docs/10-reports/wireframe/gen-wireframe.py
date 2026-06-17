@@ -136,8 +136,9 @@ COL_STRIDE      = 430          # node + gutter
 ROW_STRIDE      = 232
 MARGIN_X        = 70
 GUTTER          = COL_STRIDE - NODE_W       # 200 px node-free vertical channel
-LANE_STEP       = 15                        # spacing between parallel wire lanes
-RING_TOP_H      = 150          # height of the top ring band reserved for skip edges
+LANE_STEP       = 18                        # spacing between parallel wire lanes
+RING_LANE_STEP  = 20                        # wider separation for ring (long) wires
+RING_TOP_H      = 130          # height of the top ring band reserved for skip edges
 RING_BOT_H      = 150          # bottom ring band for backward/loop edges
 STUB            = 16           # short horizontal stub out of a node side
 
@@ -168,6 +169,26 @@ def main():
     for n in N.values():
         n["x"] = MARGIN_X + n["col"] * COL_STRIDE
         n["y"] = node_y0 + n["row"] * ROW_STRIDE
+
+    # Vertically CENTER each column around the global content mid-line. Columns
+    # have very different node counts (a sparse middle column vs. the tall
+    # treatment column); without this every column is top-aligned and the
+    # bottom half of the sparse ones is wasted empty space. Centering balances
+    # the canvas and shortens the ring wires that used to run through the gaps.
+    col_nodes = {}
+    for n in N.values():
+        col_nodes.setdefault(n["col"], []).append(n)
+    g_top = min(n["y"] for n in N.values())
+    g_bot = max(n["y"] + NODE_H for n in N.values())
+    g_mid = (g_top + g_bot) / 2
+    for c, ns in col_nodes.items():
+        c_top = min(n["y"] for n in ns)
+        c_bot = max(n["y"] + NODE_H for n in ns)
+        dy = g_mid - (c_top + c_bot) / 2
+        for n in ns:
+            n["y"] += dy
+
+    for n in N.values():
         n["cx"] = n["x"] + NODE_W / 2
         n["cy"] = n["y"] + NODE_H / 2
 
@@ -188,8 +209,8 @@ def main():
     # horizontal ring lanes
     top_lane_n = [0]
     bot_lane_n = [0]
-    def top_lane_y(slot):  return top_ring_y0 + 30 + slot * LANE_STEP
-    def bot_lane_y(slot):  return ring_bot_y + 24 + slot * LANE_STEP
+    def top_lane_y(slot):  return top_ring_y0 + 26 + slot * RING_LANE_STEP
+    def bot_lane_y(slot):  return ring_bot_y + 24 + slot * RING_LANE_STEP
 
     # spread attach points on a node side so stubs don't collide
     side_count = {}   # (nid, side) -> count used

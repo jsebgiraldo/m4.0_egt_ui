@@ -23,6 +23,11 @@ aesthetic rules so the diagram stays clean no matter how the flow grows.
 
 1. **Layered layout** — nodes live in columns (flow stages, `col`) and rows
    (`row`). Keep one logical stage per column, left→right in flow order.
+   **Each column is vertically centered** around the global mid-line: columns
+   have very different node counts (a 1-node menu column vs. the 7-row
+   treatment column), and without centering every column top-aligns and the
+   bottom half of the sparse ones is wasted empty space. Centering balances
+   the canvas into a horizontal band and shortens the ring wires.
 2. **Wires only travel in node-free channels**, so a wire never crosses a
    screen body:
    - adjacent-column edge → vertical run in the **gutter** between the columns;
