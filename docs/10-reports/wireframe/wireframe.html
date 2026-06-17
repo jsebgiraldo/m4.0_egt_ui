@@ -1,190 +1,187 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>M4 EGT UI — Interactive Wireframe & Flow</title>
 <style>
-  :root { --bg:#0f1115; --panel:#171a21; --ink:#e6e8eb; --muted:#9aa3af; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink);
-         font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; }
-  header { position:sticky; top:0; z-index:50; background:#11141a;
-           border-bottom:1px solid #262b34; padding:12px 18px; }
-  header h1 { margin:0; font-size:18px; }
-  header .sub { color:var(--muted); font-size:12px; margin-top:2px; }
-  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12px; }
-  .legend span { display:inline-flex; align-items:center; gap:6px; }
-  .dot { width:11px; height:11px; border-radius:3px; display:inline-block; }
-  .scroller { overflow:auto; height:calc(100vh - 92px); }
-  .canvas { position:relative; }
-  svg.wires { position:absolute; top:0; left:0; pointer-events:none; }
-  .node { position:absolute; width:280px; background:var(--panel);
-          border:2px solid #333; border-radius:10px; overflow:hidden;
-          cursor:pointer; transition:transform .08s, box-shadow .08s;
-          box-shadow:0 2px 8px rgba(0,0,0,.4); }
-  .node:hover { transform:translateY(-3px); box-shadow:0 8px 22px rgba(0,0,0,.6); z-index:10; }
-  .node img { width:100%; display:block; background:#fff; }
-  .node .cap { padding:6px 8px; font-size:12px; font-weight:600;
-               display:flex; align-items:center; gap:6px; }
-  .node .cap .sd { width:9px; height:9px; border-radius:2px; flex:none; }
-  .elabel { fill:#cbd5e0; font-size:11px; paint-order:stroke;
-            stroke:#0f1115; stroke-width:4px; }
-  /* lightbox */
-  .lb { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:100;
-        display:none; align-items:center; justify-content:center; flex-direction:column; }
-  .lb.open { display:flex; }
-  .lb img { max-width:94vw; max-height:84vh; border:1px solid #333;
-            box-shadow:0 10px 40px rgba(0,0,0,.7); background:#fff; }
-  .lb .meta { color:#e6e8eb; margin:10px; font-size:14px; }
-  .lb .nav { position:absolute; top:0; bottom:0; width:18vw; cursor:pointer;
-             display:flex; align-items:center; font-size:40px; color:#fff8;
-             user-select:none; }
-  .lb .nav:hover { color:#fff; background:rgba(255,255,255,.04); }
-  .lb .prev { left:0; justify-content:flex-start; padding-left:20px; }
-  .lb .next { right:0; justify-content:flex-end; padding-right:20px; }
-  .lb .close { position:absolute; top:14px; right:22px; font-size:30px;
-               color:#fff8; cursor:pointer; }
-  .lb .close:hover { color:#fff; }
-  .hint { color:var(--muted); font-size:12px; }
-</style>
-</head>
+ :root{--bg:#0f1115;--panel:#171a21;--ink:#e6e8eb;--muted:#9aa3af;}
+ *{box-sizing:border-box}
+ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
+ header{position:sticky;top:0;z-index:50;background:#11141a;border-bottom:1px solid #262b34;padding:10px 16px}
+ header h1{margin:0;font-size:17px}
+ header .sub{color:var(--muted);font-size:12px;margin-top:2px}
+ .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:7px;font-size:12px;align-items:center}
+ .legend span{display:inline-flex;align-items:center;gap:6px}
+ .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+ .ln{width:22px;height:0;border-top:2px solid;display:inline-block}
+ .wrap{display:flex;height:calc(100vh - 96px)}
+ .scroller{overflow:auto;flex:1}
+ .canvas{position:relative;width:5730px;height:2156px}
+ svg.wires{position:absolute;top:0;left:0}
+ .node{position:absolute;width:230px;background:var(--panel);border:2px solid #333;
+       border-radius:10px;overflow:hidden;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.45);
+       transition:transform .08s,box-shadow .08s}
+ .node:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(0,0,0,.65);z-index:20}
+ .node img{width:100%;display:block;background:#fff}
+ .node .cap{padding:5px 8px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px}
+ .node .cap .sd{width:9px;height:9px;border-radius:2px;flex:none}
+ .node .badge{margin-left:auto;color:#f6c453;font-size:13px}
+ .panel{width:300px;flex:none;background:#11141a;border-left:1px solid #262b34;
+        overflow:auto;padding:14px 16px}
+ .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 8px}
+ .panel .iss{background:#1b1410;border:1px solid #4a2f1a;border-radius:8px;padding:8px 10px;margin-bottom:8px}
+ .panel .iss b{color:#f6c453}
+ .panel .ok{color:#5fb37a}
+ .lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;display:none;
+     align-items:center;justify-content:center;flex-direction:column}
+ .lb.open{display:flex}
+ .lb img{max-width:94vw;max-height:84vh;border:1px solid #333;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.7)}
+ .lb .meta{color:#e6e8eb;margin:10px;font-size:14px}
+ .lb .nav{position:absolute;top:0;bottom:0;width:16vw;cursor:pointer;display:flex;align-items:center;
+          font-size:42px;color:#fff8;user-select:none}
+ .lb .nav:hover{color:#fff;background:rgba(255,255,255,.04)}
+ .lb .prev{left:0;padding-left:20px}.lb .next{right:0;justify-content:flex-end;padding-right:20px}
+ .lb .close{position:absolute;top:14px;right:22px;font-size:30px;color:#fff8;cursor:pointer}
+ .lb .close:hover{color:#fff}
+</style></head>
 <body>
 <header>
-  <h1>M4 EGT UI — Interactive Wireframe &amp; Flow</h1>
-  <div class="sub">Click any frame to open the full-resolution screenshot · arrows/wires follow the real navigation. <span class="hint">Scroll horizontally to follow the flow →</span></div>
-  <div class="legend" id="legend"></div>
+ <h1>M4 EGT UI — Interactive Wireframe &amp; Flow</h1>
+ <div class="sub">Click any frame to open the full-res screenshot · wires never cross a screen (routed in gutters + top/bottom rings). Scroll to follow the flow →</div>
+ <div class="legend" id="legend">
+   <span><span class="ln" style="border-color:#8a949f"></span>main flow</span>
+   <span><span class="ln" style="border-color:#d98a3a;border-top-style:dashed"></span>branch / back</span>
+   <span><span class="ln" style="border-color:#e05a2b;border-top-style:dashed"></span>alert</span>
+   <span style="color:#f6c453">⚠ UX issue</span>
+ </div>
 </header>
-<div class="scroller">
-  <div class="canvas" id="canvas" style="width:3660px; height:2006.0px;">
-    <svg class="wires" id="wires" width="3660" height="2006.0"></svg>
-  </div>
+<div class="wrap">
+ <div class="scroller"><div class="canvas" id="canvas">
+   <svg class="wires" width="5730" height="2156"><defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3 L0,6 Z" fill="#8a949f"/></marker><marker id="arrowb" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3 L0,6 Z" fill="#d98a3a"/></marker><marker id="arrowa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3 L0,6 Z" fill="#e05a2b"/></marker></defs>
+<path d="M300.0,731.0 L314.0,731.0 Q324.0,731.0 324.0,721.0 L324.0,578.6 Q324.0,568.6 334.0,568.6 L500.0,568.6" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M300.0,757.9 L329.0,757.9 Q339.0,757.9 339.0,767.9 L339.0,860.2 Q339.0,870.2 349.0,870.2 L500.0,870.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M300.0,784.8 L344.0,784.8 Q354.0,784.8 354.0,794.8 L354.0,1161.8 Q354.0,1171.8 364.0,1171.8 L500.0,1171.8" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M569.0,388.0 L569.0,1960.0 Q569.0,1960.0 569.0,1960.0 L569.0,1960.0 Q569.0,1960.0 569.0,1960.0 L569.0,689.6" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M569.0,521.6 L569.0,110.0 Q569.0,100.0 579.0,100.0 L2279.0,100.0 Q2289.0,100.0 2289.0,110.0 L2289.0,800.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M569.0,823.2 L569.0,125.0 Q569.0,115.0 579.0,115.0 L1849.0,115.0 Q1859.0,115.0 1859.0,125.0 L1859.0,1055.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M730.0,870.2 L744.0,870.2 Q754.0,870.2 754.0,880.2 L754.0,1022.6 Q754.0,1032.6 764.0,1032.6 L930.0,1032.6" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M730.0,1171.8 L759.0,1171.8 Q769.0,1171.8 769.0,1161.8 L769.0,1069.5 Q769.0,1059.5 779.0,1059.5 L930.0,1059.5" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M569.0,1292.8 L569.0,1975.0 Q569.0,1975.0 569.0,1975.0 L569.0,1975.0 Q569.0,1975.0 569.0,1975.0 L569.0,991.2" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M1160.0,1032.6 L1174.0,1032.6 Q1184.0,1032.6 1184.0,1042.6 L1184.0,1324.2 Q1184.0,1334.2 1194.0,1334.2 L1360.0,1334.2" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M1429.0,1455.2 L1429.0,1980.0 Q1429.0,1990.0 1419.0,1990.0 L1009.0,1990.0 Q999.0,1990.0 999.0,1980.0 L999.0,1153.6" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M1160.0,1059.5 L1189.0,1059.5 Q1199.0,1059.5 1199.0,1049.5 L1199.0,1042.6 Q1199.0,1032.6 1209.0,1032.6 L1360.0,1032.6" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M1590.0,1032.6 L1604.0,1032.6 Q1614.0,1032.6 1614.0,1042.6 L1614.0,1092.2 Q1614.0,1102.2 1624.0,1102.2 L1790.0,1102.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M1859.0,1223.2 L1859.0,1995.0 Q1859.0,2005.0 1849.0,2005.0 L615.8,2005.0 Q605.8,2005.0 605.8,1995.0 L605.8,388.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M2020.0,1102.2 L2034.0,1102.2 Q2044.0,1102.2 2044.0,1092.2 L2044.0,857.0 Q2044.0,847.0 2054.0,847.0 L2220.0,847.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M139.0,684.0 L139.0,140.0 Q139.0,130.0 149.0,130.0 L2315.8,130.0 Q2325.8,130.0 2325.8,140.0 L2325.8,800.0" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M605.8,823.2 L605.8,155.0 Q605.8,145.0 615.8,145.0 L2279.0,145.0 Q2289.0,145.0 2289.0,155.0 L2289.0,498.4" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M2325.8,498.4 L2325.8,170.0 Q2325.8,160.0 2335.8,160.0 L3139.0,160.0 Q3149.0,160.0 3149.0,170.0 L3149.0,336.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M2450.0,847.0 L2464.0,847.0 Q2474.0,847.0 2474.0,837.0 L2474.0,717.8 Q2474.0,707.8 2484.0,707.8 L2650.0,707.8" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M2289.0,968.0 L2289.0,2020.0 Q2289.0,2020.0 2289.0,2020.0 L2289.0,2020.0 Q2289.0,2020.0 2289.0,2020.0 L2289.0,666.4" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M2719.0,660.8 L2719.0,185.0 Q2719.0,175.0 2729.0,175.0 L3569.0,175.0 Q3579.0,175.0 3579.0,185.0 L3579.0,684.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M2880.0,707.8 L2894.0,707.8 Q2904.0,707.8 2904.0,717.8 L2904.0,953.0 Q2904.0,963.0 2914.0,963.0 L3080.0,963.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M2880.0,734.7 L2909.0,734.7 Q2919.0,734.7 2919.0,724.7 L2919.0,393.0 Q2919.0,383.0 2929.0,383.0 L3080.0,383.0" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M3310.0,963.0 L3324.0,963.0 Q3334.0,963.0 3334.0,973.0 L3334.0,1022.6 Q3334.0,1032.6 3344.0,1032.6 L3510.0,1032.6" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M3579.0,1153.6 L3579.0,2035.0 Q3579.0,2035.0 3579.0,2035.0 L3579.0,2035.0 Q3579.0,2035.0 3579.0,2035.0 L3579.0,1455.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M3149.0,504.0 L3149.0,2040.0 Q3149.0,2050.0 3139.0,2050.0 L2335.8,2050.0 Q2325.8,2050.0 2325.8,2040.0 L2325.8,968.0" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M3579.0,852.0 L3579.0,2055.0 Q3579.0,2065.0 3589.0,2065.0 L3605.8,2065.0 Q3615.8,2065.0 3615.8,2055.0 L3615.8,1455.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M3740.0,1334.2 L3764.0,1334.2 Q3764.0,1334.2 3764.0,1334.2 L3764.0,1334.2 Q3764.0,1334.2 3764.0,1334.2 L3940.0,1334.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4170.0,1334.2 L4184.0,1334.2 Q4194.0,1334.2 4194.0,1324.2 L4194.0,277.0 Q4194.0,267.0 4204.0,267.0 L4370.0,267.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4439.0,388.0 L4439.0,2080.0 Q4439.0,2080.0 4439.0,2080.0 L4439.0,2080.0 Q4439.0,2080.0 4439.0,2080.0 L4439.0,689.6" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4475.8,689.6 L4475.8,2085.0 Q4475.8,2095.0 4465.8,2095.0 L4449.0,2095.0 Q4439.0,2095.0 4439.0,2085.0 L4439.0,991.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4475.8,991.2 L4475.8,2100.0 Q4475.8,2110.0 4465.8,2110.0 L4449.0,2110.0 Q4439.0,2110.0 4439.0,2100.0 L4439.0,1292.8" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4475.8,1292.8 L4475.8,2115.0 Q4475.8,2125.0 4465.8,2125.0 L4449.0,2125.0 Q4439.0,2125.0 4439.0,2115.0 L4439.0,1594.4" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4475.8,1594.4 L4475.8,2130.0 Q4475.8,2140.0 4465.8,2140.0 L4449.0,2140.0 Q4439.0,2140.0 4439.0,2130.0 L4439.0,1896.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4600.0,1775.0 L4614.0,1775.0 Q4624.0,1775.0 4624.0,1765.0 L4624.0,880.2 Q4624.0,870.2 4634.0,870.2 L4800.0,870.2" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4869.0,991.2 L4869.0,2145.0 Q4869.0,2155.0 4859.0,2155.0 L4522.6,2155.0 Q4512.6,2155.0 4512.6,2145.0 L4512.6,1292.8" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M4439.0,1728.0 L4439.0,200.0 Q4439.0,190.0 4449.0,190.0 L5289.0,190.0 Q5299.0,190.0 5299.0,200.0 L5299.0,1728.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M4600.0,1171.8 L4639.0,1171.8 Q4639.0,1171.8 4639.0,1171.8 L4639.0,1171.8 Q4639.0,1171.8 4639.0,1171.8 L4800.0,1171.8" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M4869.0,1292.8 L4869.0,2160.0 Q4869.0,2170.0 4859.0,2170.0 L4522.6,2170.0 Q4512.6,2170.0 4512.6,2160.0 L4512.6,991.2" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M4600.0,1198.7 L4644.0,1198.7 Q4654.0,1198.7 4654.0,1208.7 L4654.0,1463.4 Q4654.0,1473.4 4664.0,1473.4 L4800.0,1473.4" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M4869.0,1594.4 L4869.0,2185.0 Q4869.0,2185.0 4869.0,2185.0 L4869.0,2185.0 Q4869.0,2185.0 4869.0,2185.0 L4869.0,1896.0" fill="none" stroke="#8a949f" stroke-width="2"  marker-end="url(#arrow)" opacity="0.95"/>
+<path d="M5299.0,1896.0 L5299.0,2190.0 Q5299.0,2200.0 5289.0,2200.0 L2729.0,2200.0 Q2719.0,2200.0 2719.0,2190.0 L2719.0,828.8" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M4439.0,1124.8 L4439.0,215.0 Q4439.0,205.0 4449.0,205.0 L5289.0,205.0 Q5299.0,205.0 5299.0,215.0 L5299.0,289.6" fill="none" stroke="#e05a2b" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowa)" opacity="0.95"/>
+<path d="M4475.8,1124.8 L4475.8,230.0 Q4475.8,220.0 4485.8,220.0 L5289.0,220.0 Q5299.0,220.0 5299.0,230.0 L5299.0,591.2" fill="none" stroke="#e05a2b" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowa)" opacity="0.95"/>
+<path d="M4512.6,1124.8 L4512.6,245.0 Q4512.6,235.0 4522.6,235.0 L5289.0,235.0 Q5299.0,235.0 5299.0,245.0 L5299.0,892.8" fill="none" stroke="#e05a2b" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowa)" opacity="0.95"/>
+<path d="M4549.4,1124.8 L4549.4,260.0 Q4549.4,250.0 4559.4,250.0 L5289.0,250.0 Q5299.0,250.0 5299.0,260.0 L5299.0,1194.4" fill="none" stroke="#e05a2b" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowa)" opacity="0.95"/>
+<path d="M4586.0,1124.8 L4586.0,275.0 Q4586.0,265.0 4596.0,265.0 L5289.0,265.0 Q5299.0,265.0 5299.0,275.0 L5299.0,1472.8" fill="none" stroke="#e05a2b" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowa)" opacity="0.95"/>
+<path d="M5299.0,457.6 L5299.0,2205.0 Q5299.0,2215.0 5289.0,2215.0 L4559.4,2215.0 Q4549.4,2215.0 4549.4,2205.0 L4549.4,1292.8" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M5335.8,457.6 L5335.8,2220.0 Q5335.8,2230.0 5325.8,2230.0 L2765.8,2230.0 Q2755.8,2230.0 2755.8,2220.0 L2755.8,828.8" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M5299.0,759.2 L5299.0,2235.0 Q5299.0,2245.0 5289.0,2245.0 L4596.0,2245.0 Q4586.0,2245.0 4586.0,2235.0 L4586.0,1292.8" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<path d="M5335.8,759.2 L5335.8,2250.0 Q5335.8,2260.0 5325.8,2260.0 L2802.6,2260.0 Q2792.6,2260.0 2792.6,2250.0 L2792.6,828.8" fill="none" stroke="#d98a3a" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowb)" opacity="0.95"/>
+<g transform="translate(324,650)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">connects</text></g>
+<g transform="translate(339,814)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">fails</text></g>
+<g transform="translate(354,978)"><rect x="-44" y="-11" width="89" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">no networks</text></g>
+<g transform="translate(1429,100)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Continue</text></g>
+<g transform="translate(1214,115)"><rect x="-48" y="-11" width="96" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">pick network</text></g>
+<g transform="translate(754,951)"><rect x="-62" y="-11" width="124" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Operate w/o WiFi</text></g>
+<g transform="translate(769,1116)"><rect x="-62" y="-11" width="124" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Operate w/o WiFi</text></g>
+<g transform="translate(569,1975)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Retry</text></g>
+<g transform="translate(1184,1183)"><rect x="-27" y="-11" width="54" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">info ⓘ</text></g>
+<g transform="translate(1214,1990)"><rect x="-30" y="-11" width="61" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">✕ close</text></g>
+<g transform="translate(1199,1046)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Continue</text></g>
+<g transform="translate(1614,1067)"><rect x="-55" y="-11" width="110" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Enter Override</text></g>
+<g transform="translate(1232,2005)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">joining…</text></g>
+<g transform="translate(2044,975)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">✓ / 9999</text></g>
+<g transform="translate(1232,130)"><rect x="-20" y="-11" width="40" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Skip</text></g>
+<g transform="translate(1447,145)"><rect x="-44" y="-11" width="89" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Back (boot)</text></g>
+<g transform="translate(2737,160)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Settings</text></g>
+<g transform="translate(2474,777)"><rect x="-66" y="-11" width="131" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">tech+pass / Guest</text></g>
+<g transform="translate(2289,2020)"><rect x="-20" y="-11" width="40" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Back</text></g>
+<g transform="translate(3149,175)"><rect x="-58" y="-11" width="117" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Begin Treatment</text></g>
+<g transform="translate(2904,835)"><rect x="-38" y="-11" width="75" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Demo Mode</text></g>
+<g transform="translate(2919,559)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Settings</text></g>
+<g transform="translate(3334,998)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">Continue</text></g>
+<g transform="translate(2737,2050)"><rect x="-62" y="-11" width="124" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Technician Login</text></g>
+<g transform="translate(4194,801)"><rect x="-34" y="-11" width="68" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">complete</text></g>
+<g transform="translate(4457,2125)"><rect x="-48" y="-11" width="96" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">last seconds</text></g>
+<g transform="translate(4624,1323)"><rect x="-41" y="-11" width="82" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">next cycle</text></g>
+<g transform="translate(4869,190)"><rect x="-20" y="-11" width="40" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">done</text></g>
+<g transform="translate(4639,1172)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Pause</text></g>
+<g transform="translate(4691,2170)"><rect x="-27" y="-11" width="54" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Resume</text></g>
+<g transform="translate(4654,1336)"><rect x="-16" y="-11" width="33" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">End</text></g>
+<g transform="translate(4869,2185)"><rect x="-30" y="-11" width="61" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#aeb6bf" font-size="11" font-family="monospace">confirm</text></g>
+<g transform="translate(4009,2200)"><rect x="-48" y="-11" width="96" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Back to Home</text></g>
+<g transform="translate(4869,205)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e98b63" font-size="11" font-family="monospace">alert</text></g>
+<g transform="translate(4887,220)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e98b63" font-size="11" font-family="monospace">alert</text></g>
+<g transform="translate(4906,235)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e98b63" font-size="11" font-family="monospace">alert</text></g>
+<g transform="translate(4924,250)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e98b63" font-size="11" font-family="monospace">alert</text></g>
+<g transform="translate(4942,265)"><rect x="-24" y="-11" width="47" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e98b63" font-size="11" font-family="monospace">fault</text></g>
+<g transform="translate(4924,2215)"><rect x="-27" y="-11" width="54" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Resume</text></g>
+<g transform="translate(4046,2230)"><rect x="-16" y="-11" width="33" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">End</text></g>
+<g transform="translate(4942,2245)"><rect x="-27" y="-11" width="54" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">Resume</text></g>
+<g transform="translate(4064,2260)"><rect x="-16" y="-11" width="33" height="20" rx="5" fill="#11141a" stroke="#2a2f3a"/><text x="0" y="3" text-anchor="middle" fill="#e0a463" font-size="11" font-family="monospace">End</text></g></svg>
+ </div></div>
+ <div class="panel" id="panel"><h2>UX issues</h2><div id="issues"></div></div>
 </div>
-
 <div class="lb" id="lb">
-  <div class="close" onclick="closeLb()">✕</div>
-  <div class="nav prev" onclick="step(-1)">‹</div>
-  <div class="nav next" onclick="step(1)">›</div>
-  <img id="lbimg" src="">
-  <div class="meta" id="lbmeta"></div>
+ <div class="close" onclick="closeLb()">✕</div>
+ <div class="nav prev" onclick="step(-1)">‹</div>
+ <div class="nav next" onclick="step(1)">›</div>
+ <img id="lbimg" src=""><div class="meta" id="lbmeta"></div>
 </div>
-
 <script>
-const NODES = [{"id": "init", "label": "WiFi Init", "file": "01-wifi-init", "x": 40, "y": 580.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "connecting", "label": "WiFi Connecting", "file": "02-wifi-connecting", "x": 370, "y": 130.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "connected", "label": "WiFi Connected", "file": "03-wifi-connected", "x": 370, "y": 430.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "list", "label": "WiFi Settings", "file": "04-wifi-settings", "x": 370, "y": 730.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "notfound", "label": "WiFi Not Found", "file": "08-wifi-not-found", "x": 370, "y": 1030.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "unavail", "label": "WiFi Unavailable", "file": "05-wifi-unavailable", "x": 700, "y": 880.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "ovrinfo", "label": "Override Info (popup)", "file": "06-wifi-override-info", "x": 1030, "y": 680.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "ovrintro", "label": "Override Intro", "file": "07-wifi-override-intro", "x": 700, "y": 1180.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "pwd", "label": "Enter Password", "file": "11-password", "x": 1030, "y": 980.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "setup", "label": "Setup", "file": "09-setup", "x": 1360, "y": 380.0, "sec": "auth", "color": "#2f855a"}, {"id": "login", "label": "Technician Login", "file": "10-login", "x": 1360, "y": 680.0, "sec": "auth", "color": "#2f855a"}, {"id": "home", "label": "HOME", "file": "12-home", "x": 1690, "y": 530.0, "sec": "auth", "color": "#2f855a"}, {"id": "settings", "label": "Settings", "file": "13-settings", "x": 2020, "y": 230.0, "sec": "main", "color": "#6b46c1"}, {"id": "demo", "label": "Demo Info", "file": "14-demo-info", "x": 2020, "y": 780.0, "sec": "main", "color": "#6b46c1"}, {"id": "gender", "label": "Gender", "file": "15-patient-gender", "x": 2350, "y": 580.0, "sec": "patient", "color": "#b7791f"}, {"id": "genderdemo", "label": "Gender (Demo)", "file": "16-patient-gender-demo", "x": 2350, "y": 280.0, "sec": "patient", "color": "#b7791f"}, {"id": "age", "label": "Age", "file": "15b-patient-age", "x": 2350, "y": 880.0, "sec": "patient", "color": "#b7791f"}, {"id": "zip", "label": "ZIP Code", "file": "15c-patient-zip", "x": 2350, "y": 1180.0, "sec": "patient", "color": "#b7791f"}, {"id": "warming", "label": "Warming", "file": "17-treatment-warming", "x": 2680, "y": 80.0, "sec": "treat", "color": "#c53030"}, {"id": "ready", "label": "Ready (100%)", "file": "18-treatment-ready", "x": 2680, "y": 355.0, "sec": "treat", "color": "#c53030"}, {"id": "position", "label": "Position Tip", "file": "19-treatment-position", "x": 2680, "y": 630.0, "sec": "treat", "color": "#c53030"}, {"id": "reposition", "label": "Reposition Tip", "file": "20-treatment-reposition", "x": 3010, "y": 630.0, "sec": "treat", "color": "#c53030"}, {"id": "active", "label": "Active", "file": "21-treatment-active", "x": 2680, "y": 905.0, "sec": "treat", "color": "#c53030"}, {"id": "nearly", "label": "Nearly finished", "file": "22-treatment-nearly", "x": 2680, "y": 1180.0, "sec": "treat", "color": "#c53030"}, {"id": "zero", "label": "Cycle Zero", "file": "23-treatment-zero", "x": 2680, "y": 1455.0, "sec": "treat", "color": "#c53030"}, {"id": "paused", "label": "Paused", "file": "24-treatment-paused", "x": 3010, "y": 905.0, "sec": "treat", "color": "#c53030"}, {"id": "endconf", "label": "End Confirm", "file": "25-treatment-end-confirm", "x": 3010, "y": 1180.0, "sec": "treat", "color": "#c53030"}, {"id": "completed", "label": "Completed", "file": "26-treatment-completed", "x": 2680, "y": 1730.0, "sec": "treat", "color": "#c53030"}, {"id": "ended", "label": "Ended (early)", "file": "27-treatment-ended", "x": 3010, "y": 1455.0, "sec": "treat", "color": "#c53030"}, {"id": "etemp", "label": "Error: temp", "file": "28-error-temp", "x": 3340, "y": 230.0, "sec": "alert", "color": "#dd6b20"}, {"id": "efilter", "label": "Error: filter", "file": "29-error-filter", "x": 3340, "y": 505.0, "sec": "alert", "color": "#dd6b20"}, {"id": "wtemp", "label": "Warning: temp", "file": "30-warning-temp", "x": 3340, "y": 780.0, "sec": "alert", "color": "#dd6b20"}, {"id": "wair", "label": "Warning: airflow", "file": "31-warning-airflow", "x": 3340, "y": 1055.0, "sec": "alert", "color": "#dd6b20"}, {"id": "fault", "label": "Critical fault", "file": "32-fault-critical", "x": 3340, "y": 1330.0, "sec": "alert", "color": "#dd6b20"}];
-const EDGES = [{"from": "init", "to": "connected", "label": "connects", "kind": "solid"}, {"from": "init", "to": "list", "label": "fails", "kind": "solid"}, {"from": "init", "to": "notfound", "label": "no networks", "kind": "solid"}, {"from": "init", "to": "login", "label": "Skip", "kind": "solid"}, {"from": "connecting", "to": "connected", "label": "", "kind": "solid"}, {"from": "connected", "to": "login", "label": "Continue", "kind": "solid"}, {"from": "list", "to": "pwd", "label": "pick network", "kind": "solid"}, {"from": "pwd", "to": "connected", "label": "network OK", "kind": "solid"}, {"from": "list", "to": "unavail", "label": "Operate w/o WiFi", "kind": "solid"}, {"from": "list", "to": "settings", "label": "gear", "kind": "solid"}, {"from": "notfound", "to": "unavail", "label": "Operate w/o WiFi", "kind": "solid"}, {"from": "notfound", "to": "list", "label": "Retry", "kind": "solid"}, {"from": "notfound", "to": "settings", "label": "Setting", "kind": "solid"}, {"from": "unavail", "to": "ovrinfo", "label": "info", "kind": "dash"}, {"from": "unavail", "to": "ovrintro", "label": "Continue", "kind": "solid"}, {"from": "ovrintro", "to": "pwd", "label": "Enter Override", "kind": "solid"}, {"from": "pwd", "to": "login", "label": "\"9999\"", "kind": "solid"}, {"from": "list", "to": "setup", "label": "Back (boot)", "kind": "dash"}, {"from": "setup", "to": "settings", "label": "Settings", "kind": "solid"}, {"from": "login", "to": "home", "label": "tech+pass / Guest", "kind": "solid"}, {"from": "login", "to": "setup", "label": "Back", "kind": "dash"}, {"from": "home", "to": "gender", "label": "Begin Treatment", "kind": "solid"}, {"from": "home", "to": "demo", "label": "Demo Mode", "kind": "solid"}, {"from": "home", "to": "settings", "label": "Settings", "kind": "solid"}, {"from": "demo", "to": "gender", "label": "Continue", "kind": "solid"}, {"from": "settings", "to": "list", "label": "WiFi", "kind": "dash"}, {"from": "settings", "to": "login", "label": "Technician Login", "kind": "dash"}, {"from": "gender", "to": "age", "label": "", "kind": "solid"}, {"from": "age", "to": "zip", "label": "", "kind": "solid"}, {"from": "zip", "to": "warming", "label": "complete", "kind": "solid"}, {"from": "warming", "to": "ready", "label": "", "kind": "solid"}, {"from": "ready", "to": "position", "label": "", "kind": "solid"}, {"from": "position", "to": "active", "label": "", "kind": "solid"}, {"from": "active", "to": "nearly", "label": "last seconds", "kind": "solid"}, {"from": "nearly", "to": "zero", "label": "", "kind": "solid"}, {"from": "zero", "to": "reposition", "label": "another cycle", "kind": "solid"}, {"from": "reposition", "to": "active", "label": "", "kind": "solid"}, {"from": "zero", "to": "completed", "label": "done", "kind": "solid"}, {"from": "active", "to": "paused", "label": "Pause", "kind": "dash"}, {"from": "paused", "to": "position", "label": "Resume", "kind": "dash"}, {"from": "active", "to": "endconf", "label": "End", "kind": "dash"}, {"from": "endconf", "to": "ended", "label": "confirm", "kind": "solid"}, {"from": "completed", "to": "home", "label": "Back to Home", "kind": "dash"}, {"from": "ended", "to": "home", "label": "auto 20s", "kind": "dash"}, {"from": "active", "to": "etemp", "label": "alert", "kind": "dash"}, {"from": "active", "to": "efilter", "label": "alert", "kind": "dash"}, {"from": "active", "to": "wtemp", "label": "alert", "kind": "dash"}, {"from": "active", "to": "wair", "label": "alert", "kind": "dash"}, {"from": "active", "to": "fault", "label": "fault", "kind": "dash"}];
-const ORDER = ["01-wifi-init", "02-wifi-connecting", "03-wifi-connected", "04-wifi-settings", "08-wifi-not-found", "05-wifi-unavailable", "06-wifi-override-info", "07-wifi-override-intro", "11-password", "09-setup", "10-login", "12-home", "13-settings", "14-demo-info", "15-patient-gender", "16-patient-gender-demo", "15b-patient-age", "15c-patient-zip", "17-treatment-warming", "18-treatment-ready", "19-treatment-position", "20-treatment-reposition", "21-treatment-active", "22-treatment-nearly", "23-treatment-zero", "24-treatment-paused", "25-treatment-end-confirm", "26-treatment-completed", "27-treatment-ended", "28-error-temp", "29-error-filter", "30-warning-temp", "31-warning-airflow", "32-fault-critical"];
-const SECTIONS = {"colors": {"boot": "#2b6cb0", "auth": "#2f855a", "main": "#6b46c1", "patient": "#b7791f", "treat": "#c53030", "alert": "#dd6b20"}, "labels": {"boot": "Boot + WiFi", "auth": "Setup + Login", "main": "Main menu", "patient": "Client Info", "treat": "Treatment", "alert": "Alerts"}};
-const NW = 280, NH = 196;
-
-// legend
-const lg = document.getElementById('legend');
-for (const [key, col] of Object.entries(SECTIONS.colors)) {
-  const s = document.createElement('span');
-  s.innerHTML = `<span class="dot" style="background:${col}"></span>${SECTIONS.labels[key]}`;
-  lg.appendChild(s);
-}
-
-const canvas = document.getElementById('canvas');
-const byId = {};
-NODES.forEach(n => byId[n.id] = n);
-
-// place nodes
-NODES.forEach(n => {
-  const d = document.createElement('div');
-  d.className = 'node';
-  d.style.left = n.x + 'px';
-  d.style.top  = n.y + 'px';
-  d.style.borderColor = n.color;
-  d.innerHTML = `<img src="thumbs/${n.file}.png" alt="${n.label}">
-                 <div class="cap"><span class="sd" style="background:${n.color}"></span>${n.label}</div>`;
-  d.onclick = () => openLb(n.file);
+const NODES=[{"id": "init", "label": "WiFi Init", "file": "01-wifi-init", "x": 70, "y": 684.0, "color": "#2b6cb0", "badge": ""}, {"id": "connecting", "label": "WiFi Connecting", "file": "02-wifi-connecting", "x": 500, "y": 220.0, "color": "#2b6cb0", "badge": ""}, {"id": "connected", "label": "WiFi Connected", "file": "03-wifi-connected", "x": 500, "y": 521.6, "color": "#2b6cb0", "badge": ""}, {"id": "list", "label": "WiFi Settings", "file": "04-wifi-settings", "x": 500, "y": 823.2, "color": "#2b6cb0", "badge": ""}, {"id": "notfound", "label": "WiFi Not Found", "file": "08-wifi-not-found", "x": 500, "y": 1124.8, "color": "#2b6cb0", "badge": ""}, {"id": "unavail", "label": "WiFi Unavailable", "file": "05-wifi-unavailable", "x": 930, "y": 985.5999999999999, "color": "#2b6cb0", "badge": ""}, {"id": "ovrintro", "label": "Override Intro", "file": "07-wifi-override-intro", "x": 1360, "y": 985.5999999999999, "color": "#2b6cb0", "badge": ""}, {"id": "ovrinfo", "label": "Override Info (popup)", "file": "06-wifi-override-info", "x": 1360, "y": 1287.1999999999998, "color": "#2b6cb0", "badge": ""}, {"id": "pwd", "label": "Enter Password", "file": "11-password", "x": 1790, "y": 1055.2, "color": "#2b6cb0", "badge": ""}, {"id": "setup", "label": "Setup", "file": "09-setup", "x": 2220, "y": 498.4, "color": "#2f855a", "badge": ""}, {"id": "login", "label": "Technician Login", "file": "10-login", "x": 2220, "y": 800.0, "color": "#2f855a", "badge": ""}, {"id": "home", "label": "HOME", "file": "12-home", "x": 2650, "y": 660.8, "color": "#2f855a", "badge": ""}, {"id": "settings", "label": "Settings", "file": "13-settings", "x": 3080, "y": 336.0, "color": "#6b46c1", "badge": ""}, {"id": "demo", "label": "Demo Info", "file": "14-demo-info", "x": 3080, "y": 916.0, "color": "#6b46c1", "badge": ""}, {"id": "gender", "label": "Gender", "file": "15-patient-gender", "x": 3510, "y": 684.0, "color": "#b7791f", "badge": ""}, {"id": "genderdemo", "label": "Gender (Demo)", "file": "16-patient-gender-demo", "x": 3510, "y": 985.5999999999999, "color": "#b7791f", "badge": ""}, {"id": "age", "label": "Age", "file": "15b-patient-age", "x": 3510, "y": 1287.1999999999998, "color": "#b7791f", "badge": ""}, {"id": "zip", "label": "ZIP Code", "file": "15c-patient-zip", "x": 3940, "y": 1287.1999999999998, "color": "#b7791f", "badge": ""}, {"id": "warming", "label": "Warming", "file": "17-treatment-warming", "x": 4370, "y": 220.0, "color": "#c53030", "badge": ""}, {"id": "ready", "label": "Ready (100%)", "file": "18-treatment-ready", "x": 4370, "y": 521.6, "color": "#c53030", "badge": ""}, {"id": "position", "label": "Position Tip", "file": "19-treatment-position", "x": 4370, "y": 823.2, "color": "#c53030", "badge": ""}, {"id": "active", "label": "Active", "file": "21-treatment-active", "x": 4370, "y": 1124.8, "color": "#c53030", "badge": ""}, {"id": "nearly", "label": "Nearly finished", "file": "22-treatment-nearly", "x": 4370, "y": 1426.4, "color": "#c53030", "badge": ""}, {"id": "zero", "label": "Cycle Zero", "file": "23-treatment-zero", "x": 4370, "y": 1728.0, "color": "#c53030", "badge": ""}, {"id": "reposition", "label": "Reposition Tip", "file": "20-treatment-reposition", "x": 4800, "y": 823.2, "color": "#c53030", "badge": ""}, {"id": "paused", "label": "Paused", "file": "24-treatment-paused", "x": 4800, "y": 1124.8, "color": "#c53030", "badge": ""}, {"id": "endconf", "label": "End Confirm", "file": "25-treatment-end-confirm", "x": 4800, "y": 1426.4, "color": "#c53030", "badge": ""}, {"id": "ended", "label": "Ended (early)", "file": "27-treatment-ended", "x": 4800, "y": 1728.0, "color": "#c53030", "badge": ""}, {"id": "completed", "label": "Completed", "file": "26-treatment-completed", "x": 5230, "y": 1728.0, "color": "#c53030", "badge": ""}, {"id": "etemp", "label": "Error: temp", "file": "28-error-temp", "x": 5230, "y": 289.6, "color": "#dd6b20", "badge": ""}, {"id": "efilter", "label": "Error: filter", "file": "29-error-filter", "x": 5230, "y": 591.2, "color": "#dd6b20", "badge": ""}, {"id": "wtemp", "label": "Warning: temp", "file": "30-warning-temp", "x": 5230, "y": 892.8, "color": "#dd6b20", "badge": ""}, {"id": "wair", "label": "Warning: airflow", "file": "31-warning-airflow", "x": 5230, "y": 1194.4, "color": "#dd6b20", "badge": ""}, {"id": "fault", "label": "Critical fault", "file": "32-fault-critical", "x": 5230, "y": 1472.8000000000002, "color": "#dd6b20", "badge": ""}], ORDER=["01-wifi-init", "02-wifi-connecting", "03-wifi-connected", "04-wifi-settings", "08-wifi-not-found", "05-wifi-unavailable", "07-wifi-override-intro", "06-wifi-override-info", "11-password", "09-setup", "10-login", "12-home", "13-settings", "14-demo-info", "15-patient-gender", "16-patient-gender-demo", "15b-patient-age", "15c-patient-zip", "17-treatment-warming", "18-treatment-ready", "19-treatment-position", "21-treatment-active", "22-treatment-nearly", "23-treatment-zero", "20-treatment-reposition", "24-treatment-paused", "25-treatment-end-confirm", "27-treatment-ended", "26-treatment-completed", "28-error-temp", "29-error-filter", "30-warning-temp", "31-warning-airflow", "32-fault-critical"], SECTIONS={"colors": {"boot": "#2b6cb0", "auth": "#2f855a", "main": "#6b46c1", "patient": "#b7791f", "treat": "#c53030", "alert": "#dd6b20"}, "labels": {"boot": "Boot + WiFi", "auth": "Setup + Login", "main": "Main menu", "patient": "Client Info", "treat": "Treatment", "alert": "Alerts"}}, ISSUES=[];
+const canvas=document.getElementById('canvas');
+NODES.forEach(n=>{
+  const d=document.createElement('div');d.className='node';
+  d.style.left=n.x+'px';d.style.top=n.y+'px';d.style.borderColor=n.color;
+  d.innerHTML=`<img src="thumbs/${n.file}.png" alt="${n.label}">
+    <div class="cap"><span class="sd" style="background:${n.color}"></span>${n.label}
+    <span class="badge">${n.badge||''}</span></div>`;
+  d.onclick=()=>openLb(n.file);
   canvas.appendChild(d);
 });
-
-// draw wires
-const svg = document.getElementById('wires');
-const SVGNS = 'http://www.w3.org/2000/svg';
-// arrow marker
-svg.innerHTML = `<defs>
-  <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3"
-          orient="auto" markerUnits="strokeWidth">
-    <path d="M0,0 L7,3 L0,6 Z" fill="#7c8694"/>
-  </marker>
-  <marker id="arrowd" markerWidth="9" markerHeight="9" refX="7" refY="3"
-          orient="auto" markerUnits="strokeWidth">
-    <path d="M0,0 L7,3 L0,6 Z" fill="#dd6b20"/>
-  </marker>
-</defs>`;
-
-function anchor(n, side){
-  // return a point on node n's edge: 'r' right-mid, 'l' left-mid, 't','b'
-  const cx = n.x + NW/2, cy = n.y + NH/2;
-  if (side==='r') return [n.x+NW, cy];
-  if (side==='l') return [n.x, cy];
-  if (side==='t') return [cx, n.y];
-  if (side==='b') return [cx, n.y+NH];
-  return [cx, cy];
-}
-
-EDGES.forEach(e => {
-  const a = byId[e.from], b = byId[e.to];
-  if (!a || !b) return;
-  // pick sides: prefer horizontal flow (a right -> b left) when b is to the right
-  let sa, sb;
-  if (b.x > a.x + 20) { sa='r'; sb='l'; }
-  else if (b.x < a.x - 20) { sa='l'; sb='r'; }
-  else if (b.y > a.y) { sa='b'; sb='t'; }
-  else { sa='t'; sb='b'; }
-  const [x1,y1] = anchor(a, sa);
-  const [x2,y2] = anchor(b, sb);
-  // bezier control points
-  const dx = Math.abs(x2-x1), k = Math.max(40, dx*0.4);
-  let c1x=x1, c1y=y1, c2x=x2, c2y=y2;
-  if (sa==='r'){c1x=x1+k;} if(sa==='l'){c1x=x1-k;}
-  if (sa==='b'){c1y=y1+k;} if(sa==='t'){c1y=y1-k;}
-  if (sb==='l'){c2x=x2-k;} if(sb==='r'){c2x=x2+k;}
-  if (sb==='t'){c2y=y2-k;} if(sb==='b'){c2y=y2+k;}
-  const p = document.createElementNS(SVGNS,'path');
-  p.setAttribute('d', `M${x1},${y1} C${c1x},${c1y} ${c2x},${c2y} ${x2},${y2}`);
-  p.setAttribute('fill','none');
-  const dash = e.kind==='dash';
-  p.setAttribute('stroke', dash ? '#dd6b20' : '#7c8694');
-  p.setAttribute('stroke-width', dash ? '1.6' : '2');
-  if (dash) p.setAttribute('stroke-dasharray','6 5');
-  p.setAttribute('marker-end', dash ? 'url(#arrowd)' : 'url(#arrow)');
-  p.setAttribute('opacity', dash ? '0.85' : '1');
-  svg.appendChild(p);
-  if (e.label){
-    const t = document.createElementNS(SVGNS,'text');
-    t.setAttribute('class','elabel');
-    t.setAttribute('x', (x1+x2)/2);
-    t.setAttribute('y', (y1+y2)/2 - 4);
-    t.setAttribute('text-anchor','middle');
-    t.textContent = e.label;
-    svg.appendChild(t);
-  }
-});
-
-// lightbox
-let cur = 0;
-const lb = document.getElementById('lb');
-const lbimg = document.getElementById('lbimg');
-const lbmeta = document.getElementById('lbmeta');
-function openLb(file){ cur = ORDER.indexOf(file); render(); lb.classList.add('open'); }
-function closeLb(){ lb.classList.remove('open'); }
-function step(d){ cur = (cur + d + ORDER.length) % ORDER.length; render(); }
-function render(){
-  const file = ORDER[cur];
-  lbimg.src = `screens/${file}.png`;
-  lbmeta.textContent = `${cur+1} / ${ORDER.length} — ${file}`;
-}
-lb.addEventListener('click', e => { if (e.target === lb) closeLb(); });
-document.addEventListener('keydown', e => {
-  if (!lb.classList.contains('open')) return;
-  if (e.key==='Escape') closeLb();
-  if (e.key==='ArrowRight') step(1);
-  if (e.key==='ArrowLeft') step(-1);
-});
+const ip=document.getElementById('issues');
+if(!ISSUES.length){ip.innerHTML='<div class="ok">No structural UX issues detected — every screen is reachable and has a way out.</div>';}
+else{ISSUES.forEach(([scr,txt])=>{const d=document.createElement('div');d.className='iss';
+  d.innerHTML=`<b>${scr}</b><br>${txt}`;ip.appendChild(d);});}
+let cur=0;const lb=document.getElementById('lb'),lbimg=document.getElementById('lbimg'),lbmeta=document.getElementById('lbmeta');
+function openLb(f){cur=ORDER.indexOf(f);render();lb.classList.add('open');}
+function closeLb(){lb.classList.remove('open');}
+function step(d){cur=(cur+d+ORDER.length)%ORDER.length;render();}
+function render(){const f=ORDER[cur];lbimg.src=`screens/${f}.png`;lbmeta.textContent=`${cur+1} / ${ORDER.length} — ${f}`;}
+lb.addEventListener('click',e=>{if(e.target===lb)closeLb();});
+document.addEventListener('keydown',e=>{if(!lb.classList.contains('open'))return;
+  if(e.key==='Escape')closeLb();if(e.key==='ArrowRight')step(1);if(e.key==='ArrowLeft')step(-1);});
 </script>
-</body>
-</html>
+</body></html>
