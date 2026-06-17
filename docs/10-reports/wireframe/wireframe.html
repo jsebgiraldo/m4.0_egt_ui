@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M4 EGT UI — Interactive Wireframe & Flow</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --ink:#e6e8eb; --muted:#9aa3af; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; }
+  header { position:sticky; top:0; z-index:50; background:#11141a;
+           border-bottom:1px solid #262b34; padding:12px 18px; }
+  header h1 { margin:0; font-size:18px; }
+  header .sub { color:var(--muted); font-size:12px; margin-top:2px; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .dot { width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .scroller { overflow:auto; height:calc(100vh - 92px); }
+  .canvas { position:relative; }
+  svg.wires { position:absolute; top:0; left:0; pointer-events:none; }
+  .node { position:absolute; width:280px; background:var(--panel);
+          border:2px solid #333; border-radius:10px; overflow:hidden;
+          cursor:pointer; transition:transform .08s, box-shadow .08s;
+          box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  .node:hover { transform:translateY(-3px); box-shadow:0 8px 22px rgba(0,0,0,.6); z-index:10; }
+  .node img { width:100%; display:block; background:#fff; }
+  .node .cap { padding:6px 8px; font-size:12px; font-weight:600;
+               display:flex; align-items:center; gap:6px; }
+  .node .cap .sd { width:9px; height:9px; border-radius:2px; flex:none; }
+  .elabel { fill:#cbd5e0; font-size:11px; paint-order:stroke;
+            stroke:#0f1115; stroke-width:4px; }
+  /* lightbox */
+  .lb { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:100;
+        display:none; align-items:center; justify-content:center; flex-direction:column; }
+  .lb.open { display:flex; }
+  .lb img { max-width:94vw; max-height:84vh; border:1px solid #333;
+            box-shadow:0 10px 40px rgba(0,0,0,.7); background:#fff; }
+  .lb .meta { color:#e6e8eb; margin:10px; font-size:14px; }
+  .lb .nav { position:absolute; top:0; bottom:0; width:18vw; cursor:pointer;
+             display:flex; align-items:center; font-size:40px; color:#fff8;
+             user-select:none; }
+  .lb .nav:hover { color:#fff; background:rgba(255,255,255,.04); }
+  .lb .prev { left:0; justify-content:flex-start; padding-left:20px; }
+  .lb .next { right:0; justify-content:flex-end; padding-right:20px; }
+  .lb .close { position:absolute; top:14px; right:22px; font-size:30px;
+               color:#fff8; cursor:pointer; }
+  .lb .close:hover { color:#fff; }
+  .hint { color:var(--muted); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>M4 EGT UI — Interactive Wireframe &amp; Flow</h1>
+  <div class="sub">Click any frame to open the full-resolution screenshot · arrows/wires follow the real navigation. <span class="hint">Scroll horizontally to follow the flow →</span></div>
+  <div class="legend" id="legend"></div>
+</header>
+<div class="scroller">
+  <div class="canvas" id="canvas" style="width:3660px; height:2006.0px;">
+    <svg class="wires" id="wires" width="3660" height="2006.0"></svg>
+  </div>
+</div>
+
+<div class="lb" id="lb">
+  <div class="close" onclick="closeLb()">✕</div>
+  <div class="nav prev" onclick="step(-1)">‹</div>
+  <div class="nav next" onclick="step(1)">›</div>
+  <img id="lbimg" src="">
+  <div class="meta" id="lbmeta"></div>
+</div>
+
+<script>
+const NODES = [{"id": "init", "label": "WiFi Init", "file": "01-wifi-init", "x": 40, "y": 580.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "connecting", "label": "WiFi Connecting", "file": "02-wifi-connecting", "x": 370, "y": 130.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "connected", "label": "WiFi Connected", "file": "03-wifi-connected", "x": 370, "y": 430.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "list", "label": "WiFi Settings", "file": "04-wifi-settings", "x": 370, "y": 730.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "notfound", "label": "WiFi Not Found", "file": "08-wifi-not-found", "x": 370, "y": 1030.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "unavail", "label": "WiFi Unavailable", "file": "05-wifi-unavailable", "x": 700, "y": 880.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "ovrinfo", "label": "Override Info (popup)", "file": "06-wifi-override-info", "x": 1030, "y": 680.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "ovrintro", "label": "Override Intro", "file": "07-wifi-override-intro", "x": 700, "y": 1180.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "pwd", "label": "Enter Password", "file": "11-password", "x": 1030, "y": 980.0, "sec": "boot", "color": "#2b6cb0"}, {"id": "setup", "label": "Setup", "file": "09-setup", "x": 1360, "y": 380.0, "sec": "auth", "color": "#2f855a"}, {"id": "login", "label": "Technician Login", "file": "10-login", "x": 1360, "y": 680.0, "sec": "auth", "color": "#2f855a"}, {"id": "home", "label": "HOME", "file": "12-home", "x": 1690, "y": 530.0, "sec": "auth", "color": "#2f855a"}, {"id": "settings", "label": "Settings", "file": "13-settings", "x": 2020, "y": 230.0, "sec": "main", "color": "#6b46c1"}, {"id": "demo", "label": "Demo Info", "file": "14-demo-info", "x": 2020, "y": 780.0, "sec": "main", "color": "#6b46c1"}, {"id": "gender", "label": "Gender", "file": "15-patient-gender", "x": 2350, "y": 580.0, "sec": "patient", "color": "#b7791f"}, {"id": "genderdemo", "label": "Gender (Demo)", "file": "16-patient-gender-demo", "x": 2350, "y": 280.0, "sec": "patient", "color": "#b7791f"}, {"id": "age", "label": "Age", "file": "15b-patient-age", "x": 2350, "y": 880.0, "sec": "patient", "color": "#b7791f"}, {"id": "zip", "label": "ZIP Code", "file": "15c-patient-zip", "x": 2350, "y": 1180.0, "sec": "patient", "color": "#b7791f"}, {"id": "warming", "label": "Warming", "file": "17-treatment-warming", "x": 2680, "y": 80.0, "sec": "treat", "color": "#c53030"}, {"id": "ready", "label": "Ready (100%)", "file": "18-treatment-ready", "x": 2680, "y": 355.0, "sec": "treat", "color": "#c53030"}, {"id": "position", "label": "Position Tip", "file": "19-treatment-position", "x": 2680, "y": 630.0, "sec": "treat", "color": "#c53030"}, {"id": "reposition", "label": "Reposition Tip", "file": "20-treatment-reposition", "x": 3010, "y": 630.0, "sec": "treat", "color": "#c53030"}, {"id": "active", "label": "Active", "file": "21-treatment-active", "x": 2680, "y": 905.0, "sec": "treat", "color": "#c53030"}, {"id": "nearly", "label": "Nearly finished", "file": "22-treatment-nearly", "x": 2680, "y": 1180.0, "sec": "treat", "color": "#c53030"}, {"id": "zero", "label": "Cycle Zero", "file": "23-treatment-zero", "x": 2680, "y": 1455.0, "sec": "treat", "color": "#c53030"}, {"id": "paused", "label": "Paused", "file": "24-treatment-paused", "x": 3010, "y": 905.0, "sec": "treat", "color": "#c53030"}, {"id": "endconf", "label": "End Confirm", "file": "25-treatment-end-confirm", "x": 3010, "y": 1180.0, "sec": "treat", "color": "#c53030"}, {"id": "completed", "label": "Completed", "file": "26-treatment-completed", "x": 2680, "y": 1730.0, "sec": "treat", "color": "#c53030"}, {"id": "ended", "label": "Ended (early)", "file": "27-treatment-ended", "x": 3010, "y": 1455.0, "sec": "treat", "color": "#c53030"}, {"id": "etemp", "label": "Error: temp", "file": "28-error-temp", "x": 3340, "y": 230.0, "sec": "alert", "color": "#dd6b20"}, {"id": "efilter", "label": "Error: filter", "file": "29-error-filter", "x": 3340, "y": 505.0, "sec": "alert", "color": "#dd6b20"}, {"id": "wtemp", "label": "Warning: temp", "file": "30-warning-temp", "x": 3340, "y": 780.0, "sec": "alert", "color": "#dd6b20"}, {"id": "wair", "label": "Warning: airflow", "file": "31-warning-airflow", "x": 3340, "y": 1055.0, "sec": "alert", "color": "#dd6b20"}, {"id": "fault", "label": "Critical fault", "file": "32-fault-critical", "x": 3340, "y": 1330.0, "sec": "alert", "color": "#dd6b20"}];
+const EDGES = [{"from": "init", "to": "connected", "label": "connects", "kind": "solid"}, {"from": "init", "to": "list", "label": "fails", "kind": "solid"}, {"from": "init", "to": "notfound", "label": "no networks", "kind": "solid"}, {"from": "init", "to": "login", "label": "Skip", "kind": "solid"}, {"from": "connecting", "to": "connected", "label": "", "kind": "solid"}, {"from": "connected", "to": "login", "label": "Continue", "kind": "solid"}, {"from": "list", "to": "pwd", "label": "pick network", "kind": "solid"}, {"from": "pwd", "to": "connected", "label": "network OK", "kind": "solid"}, {"from": "list", "to": "unavail", "label": "Operate w/o WiFi", "kind": "solid"}, {"from": "list", "to": "settings", "label": "gear", "kind": "solid"}, {"from": "notfound", "to": "unavail", "label": "Operate w/o WiFi", "kind": "solid"}, {"from": "notfound", "to": "list", "label": "Retry", "kind": "solid"}, {"from": "notfound", "to": "settings", "label": "Setting", "kind": "solid"}, {"from": "unavail", "to": "ovrinfo", "label": "info", "kind": "dash"}, {"from": "unavail", "to": "ovrintro", "label": "Continue", "kind": "solid"}, {"from": "ovrintro", "to": "pwd", "label": "Enter Override", "kind": "solid"}, {"from": "pwd", "to": "login", "label": "\"9999\"", "kind": "solid"}, {"from": "list", "to": "setup", "label": "Back (boot)", "kind": "dash"}, {"from": "setup", "to": "settings", "label": "Settings", "kind": "solid"}, {"from": "login", "to": "home", "label": "tech+pass / Guest", "kind": "solid"}, {"from": "login", "to": "setup", "label": "Back", "kind": "dash"}, {"from": "home", "to": "gender", "label": "Begin Treatment", "kind": "solid"}, {"from": "home", "to": "demo", "label": "Demo Mode", "kind": "solid"}, {"from": "home", "to": "settings", "label": "Settings", "kind": "solid"}, {"from": "demo", "to": "gender", "label": "Continue", "kind": "solid"}, {"from": "settings", "to": "list", "label": "WiFi", "kind": "dash"}, {"from": "settings", "to": "login", "label": "Technician Login", "kind": "dash"}, {"from": "gender", "to": "age", "label": "", "kind": "solid"}, {"from": "age", "to": "zip", "label": "", "kind": "solid"}, {"from": "zip", "to": "warming", "label": "complete", "kind": "solid"}, {"from": "warming", "to": "ready", "label": "", "kind": "solid"}, {"from": "ready", "to": "position", "label": "", "kind": "solid"}, {"from": "position", "to": "active", "label": "", "kind": "solid"}, {"from": "active", "to": "nearly", "label": "last seconds", "kind": "solid"}, {"from": "nearly", "to": "zero", "label": "", "kind": "solid"}, {"from": "zero", "to": "reposition", "label": "another cycle", "kind": "solid"}, {"from": "reposition", "to": "active", "label": "", "kind": "solid"}, {"from": "zero", "to": "completed", "label": "done", "kind": "solid"}, {"from": "active", "to": "paused", "label": "Pause", "kind": "dash"}, {"from": "paused", "to": "position", "label": "Resume", "kind": "dash"}, {"from": "active", "to": "endconf", "label": "End", "kind": "dash"}, {"from": "endconf", "to": "ended", "label": "confirm", "kind": "solid"}, {"from": "completed", "to": "home", "label": "Back to Home", "kind": "dash"}, {"from": "ended", "to": "home", "label": "auto 20s", "kind": "dash"}, {"from": "active", "to": "etemp", "label": "alert", "kind": "dash"}, {"from": "active", "to": "efilter", "label": "alert", "kind": "dash"}, {"from": "active", "to": "wtemp", "label": "alert", "kind": "dash"}, {"from": "active", "to": "wair", "label": "alert", "kind": "dash"}, {"from": "active", "to": "fault", "label": "fault", "kind": "dash"}];
+const ORDER = ["01-wifi-init", "02-wifi-connecting", "03-wifi-connected", "04-wifi-settings", "08-wifi-not-found", "05-wifi-unavailable", "06-wifi-override-info", "07-wifi-override-intro", "11-password", "09-setup", "10-login", "12-home", "13-settings", "14-demo-info", "15-patient-gender", "16-patient-gender-demo", "15b-patient-age", "15c-patient-zip", "17-treatment-warming", "18-treatment-ready", "19-treatment-position", "20-treatment-reposition", "21-treatment-active", "22-treatment-nearly", "23-treatment-zero", "24-treatment-paused", "25-treatment-end-confirm", "26-treatment-completed", "27-treatment-ended", "28-error-temp", "29-error-filter", "30-warning-temp", "31-warning-airflow", "32-fault-critical"];
+const SECTIONS = {"colors": {"boot": "#2b6cb0", "auth": "#2f855a", "main": "#6b46c1", "patient": "#b7791f", "treat": "#c53030", "alert": "#dd6b20"}, "labels": {"boot": "Boot + WiFi", "auth": "Setup + Login", "main": "Main menu", "patient": "Client Info", "treat": "Treatment", "alert": "Alerts"}};
+const NW = 280, NH = 196;
+
+// legend
+const lg = document.getElementById('legend');
+for (const [key, col] of Object.entries(SECTIONS.colors)) {
+  const s = document.createElement('span');
+  s.innerHTML = `<span class="dot" style="background:${col}"></span>${SECTIONS.labels[key]}`;
+  lg.appendChild(s);
+}
+
+const canvas = document.getElementById('canvas');
+const byId = {};
+NODES.forEach(n => byId[n.id] = n);
+
+// place nodes
+NODES.forEach(n => {
+  const d = document.createElement('div');
+  d.className = 'node';
+  d.style.left = n.x + 'px';
+  d.style.top  = n.y + 'px';
+  d.style.borderColor = n.color;
+  d.innerHTML = `<img src="thumbs/${n.file}.png" alt="${n.label}">
+                 <div class="cap"><span class="sd" style="background:${n.color}"></span>${n.label}</div>`;
+  d.onclick = () => openLb(n.file);
+  canvas.appendChild(d);
+});
+
+// draw wires
+const svg = document.getElementById('wires');
+const SVGNS = 'http://www.w3.org/2000/svg';
+// arrow marker
+svg.innerHTML = `<defs>
+  <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3"
+          orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L7,3 L0,6 Z" fill="#7c8694"/>
+  </marker>
+  <marker id="arrowd" markerWidth="9" markerHeight="9" refX="7" refY="3"
+          orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L7,3 L0,6 Z" fill="#dd6b20"/>
+  </marker>
+</defs>`;
+
+function anchor(n, side){
+  // return a point on node n's edge: 'r' right-mid, 'l' left-mid, 't','b'
+  const cx = n.x + NW/2, cy = n.y + NH/2;
+  if (side==='r') return [n.x+NW, cy];
+  if (side==='l') return [n.x, cy];
+  if (side==='t') return [cx, n.y];
+  if (side==='b') return [cx, n.y+NH];
+  return [cx, cy];
+}
+
+EDGES.forEach(e => {
+  const a = byId[e.from], b = byId[e.to];
+  if (!a || !b) return;
+  // pick sides: prefer horizontal flow (a right -> b left) when b is to the right
+  let sa, sb;
+  if (b.x > a.x + 20) { sa='r'; sb='l'; }
+  else if (b.x < a.x - 20) { sa='l'; sb='r'; }
+  else if (b.y > a.y) { sa='b'; sb='t'; }
+  else { sa='t'; sb='b'; }
+  const [x1,y1] = anchor(a, sa);
+  const [x2,y2] = anchor(b, sb);
+  // bezier control points
+  const dx = Math.abs(x2-x1), k = Math.max(40, dx*0.4);
+  let c1x=x1, c1y=y1, c2x=x2, c2y=y2;
+  if (sa==='r'){c1x=x1+k;} if(sa==='l'){c1x=x1-k;}
+  if (sa==='b'){c1y=y1+k;} if(sa==='t'){c1y=y1-k;}
+  if (sb==='l'){c2x=x2-k;} if(sb==='r'){c2x=x2+k;}
+  if (sb==='t'){c2y=y2-k;} if(sb==='b'){c2y=y2+k;}
+  const p = document.createElementNS(SVGNS,'path');
+  p.setAttribute('d', `M${x1},${y1} C${c1x},${c1y} ${c2x},${c2y} ${x2},${y2}`);
+  p.setAttribute('fill','none');
+  const dash = e.kind==='dash';
+  p.setAttribute('stroke', dash ? '#dd6b20' : '#7c8694');
+  p.setAttribute('stroke-width', dash ? '1.6' : '2');
+  if (dash) p.setAttribute('stroke-dasharray','6 5');
+  p.setAttribute('marker-end', dash ? 'url(#arrowd)' : 'url(#arrow)');
+  p.setAttribute('opacity', dash ? '0.85' : '1');
+  svg.appendChild(p);
+  if (e.label){
+    const t = document.createElementNS(SVGNS,'text');
+    t.setAttribute('class','elabel');
+    t.setAttribute('x', (x1+x2)/2);
+    t.setAttribute('y', (y1+y2)/2 - 4);
+    t.setAttribute('text-anchor','middle');
+    t.textContent = e.label;
+    svg.appendChild(t);
+  }
+});
+
+// lightbox
+let cur = 0;
+const lb = document.getElementById('lb');
+const lbimg = document.getElementById('lbimg');
+const lbmeta = document.getElementById('lbmeta');
+function openLb(file){ cur = ORDER.indexOf(file); render(); lb.classList.add('open'); }
+function closeLb(){ lb.classList.remove('open'); }
+function step(d){ cur = (cur + d + ORDER.length) % ORDER.length; render(); }
+function render(){
+  const file = ORDER[cur];
+  lbimg.src = `screens/${file}.png`;
+  lbmeta.textContent = `${cur+1} / ${ORDER.length} — ${file}`;
+}
+lb.addEventListener('click', e => { if (e.target === lb) closeLb(); });
+document.addEventListener('keydown', e => {
+  if (!lb.classList.contains('open')) return;
+  if (e.key==='Escape') closeLb();
+  if (e.key==='ArrowRight') step(1);
+  if (e.key==='ArrowLeft') step(-1);
+});
+</script>
+</body>
+</html>
