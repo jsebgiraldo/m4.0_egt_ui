@@ -101,8 +101,12 @@ api_key.json
 figma_token.json
 *_token.json
 
-# Claude Code local state and personal notes
-.claude/
+# Claude Code local state and personal notes (ignore contents, not the dir,
+# so the team-skills exception below can take effect).
+.claude/*
+# ...but DO share team skills (reusable generators + their docs).
+!.claude/skills/
+!.claude/skills/**
 CLAUDE.md
 .playwright-mcp/
 
